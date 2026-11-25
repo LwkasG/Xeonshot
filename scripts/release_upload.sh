@@ -97,12 +97,16 @@ if [[ $tag == nightly ]]; then
     advance_nightly "$sha" || exit 0
     # (the same notes from every run: the two platforms' runs write them at different times, and each file names the
     # commit it was built from)
-    notes="The latest development build of main, made by CI after every push to main. Each file is named by the commit it was built from (\`Hookshot-<version>-x86_64.AppImage\`, \`Xeonshot-<version>-Windows-x64.zip\`; the version is \`git describe\`'s, ending in \`-g<commit>\`). The Windows and Linux builds finish at different times, so while changes are being merged one can be a commit or two behind the other; the \`nightly\` tag is at the newest of them.
+    notes="The latest development build of main, made by CI after every push to main:
+- **Windows:** download **\`XeonshotBuilder.exe\`** directly below and run it to install and set up Xeonshot automatically.
+- **Linux / Steam Deck:** download the **\`.AppImage\`** below, mark it executable, and run it.
+
+Each file is named by the commit it was built from (\`Hookshot-<version>-x86_64.AppImage\`, \`Xeonshot-<version>-Windows-x64.zip\`; the version is \`git describe\`'s, ending in \`-g<commit>\`). The Windows and Linux builds finish at different times, so while changes are being merged one can be a commit or two behind the other; the \`nightly\` tag is at the newest of them.
 
 It is untested and may break your saves or settings. For playing, use the [latest release](https://github.com/$GH_REPO/releases/latest).
 
 $("$files" table nightly)"
-    title="Latest development build"
+    title="Xeonshot Nightly (Windows .exe & Linux AppImage)"
     if gh release view nightly >/dev/null 2>&1; then
         gh release edit nightly --prerelease --latest=false --title "$title" --notes "$notes" >/dev/null
     else

@@ -121,7 +121,7 @@ jobs:
         run: |
           dll="$RUNNER_TEMP/vk-work/sa/build/xeonshot_vk.dll"
           "$HOOKSHOT_MINGW/bin/llvm-objdump" -p "$dll" | sed -n 's/^ *DLL Name: //p' | tr -d '\r' | sort -u | tee "$RUNNER_TEMP/imports.txt"
-          if grep -viE '^(kernel32|user32|gdi32|advapi32)\.dll$|^api-ms-win-crt-[a-z0-9-]+\.dll$' "$RUNNER_TEMP/imports.txt"; then
+          if grep -viE '^(kernel32|user32|gdi32|advapi32|ole32)\.dll$|^api-ms-win-crt-[a-z0-9-]+\.dll$' "$RUNNER_TEMP/imports.txt"; then
             echo "::error::xeonshot_vk.dll with NVIDIA DLSS imports a DLL that is not Windows' own (above)"
             exit 1
           fi

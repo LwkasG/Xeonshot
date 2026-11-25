@@ -19,8 +19,8 @@ import json, os
 print(json.dumps({
     "tag_name": "linux-parts",
     "target_commitish": os.environ["GITHUB_SHA"],
-    "name": "Linux builder parts",
-    "body": "Parts Hookshot's Linux builder downloads. A file's name is its checksum; a part that did not change is not uploaded again. This release is not a version of the game.",
+    "name": "Linux Builder Parts (internal cache — do not download)",
+    "body": "Internal Linux updater parts downloaded automatically by the Xeonshot/Hookshot AppImage. Do NOT download these manually — download the `.AppImage` from the main or `nightly` release instead.",
     "prerelease": True,
     "make_latest": "false",
 }))

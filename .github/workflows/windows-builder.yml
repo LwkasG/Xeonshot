@@ -375,9 +375,12 @@ jobs:
       # names them)
       - name: New parts to builder-parts
         run: |
+          title="Windows Builder Parts (internal cache — do not download)"
+          notes="Internal Windows updater parts downloaded automatically by XeonshotBuilder.exe (referenced by xeonshot-setup.txt). Do NOT download these manually — download \`XeonshotBuilder.exe\` directly from the main or \`nightly\` release instead."
           if ! gh release view builder-parts >/dev/null 2>&1; then
-            gh release create builder-parts --prerelease --latest=false --target "$GITHUB_SHA" --title builder-parts \
-              --notes "The parts XeonshotBuilder-Setup.exe downloads, named by each release's xeonshot-setup.txt."
+            gh release create builder-parts --prerelease --latest=false --target "$GITHUB_SHA" --title "$title" --notes "$notes"
+          else
+            gh release edit builder-parts --title "$title" --notes "$notes" >/dev/null
           fi
           have=$(gh release view builder-parts --json assets --jq '.assets[].name')
           for f in dist/XeonshotBuilder-*.zip; do

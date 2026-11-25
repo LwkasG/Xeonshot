@@ -109,12 +109,12 @@ table() {
 $MARK
 ### Which file do I download?
 
-| On | Download |
-|---|---|
-| Windows | \`XeonshotBuilder.exe\`, the setup |
-| Linux, Steam Deck | $appimage |
+| Platform | File to download | How it works |
+|---|---|---|
+| **Windows (64-bit)** | **\`XeonshotBuilder.exe\`** (direct \`.exe\` installer) | Double-click to install and configure Xeonshot automatically |
+| **Linux / Steam Deck (x86_64)** | **$appimage** | Mark as executable (\`chmod +x\`) and run |
 
-You need your own copy of the game. \`xeonshot-setup.txt\`, \`hookshot-linux.txt\` and the \`.zsync\` are for the updaters, and $zip (the setup and its \`recomplauncher.json\`) for RecompLauncher: on Windows, download \`XeonshotBuilder.exe\` instead. To check a download: \`sha256sum -c --ignore-missing SHA256SUMS\`, or \`gh attestation verify <file> -R $GH_REPO\`.
+You need your own copy of the game. \`xeonshot-setup.txt\`, \`hookshot-linux.txt\` and the \`.zsync\` are for the built-in updaters only, and $zip (the setup and its \`recomplauncher.json\`) for RecompLauncher: on Windows, download \`XeonshotBuilder.exe\` instead. To check a download: \`sha256sum -c --ignore-missing SHA256SUMS\`, or \`gh attestation verify <file> -R $GH_REPO\`.
 EOF
 }
 
@@ -126,9 +126,16 @@ links() {   # tag [id] -> big links to the Windows setup and the Linux AppImage 
     appimage=$(grep -E '\.AppImage$' <<<"$names" | head -n1 || true)
     [[ -n $exe || -n $appimage ]] || return 0
     echo "$LINKS"
-    if [[ -n $exe ]]; then echo "## [⬇ Download for Windows]($base/$exe)"; fi
-    if [[ -n $appimage ]]; then echo "## [⬇ Download for Linux / Steam Deck]($base/$appimage)"; fi
-    echo
+    if [[ -n $exe ]]; then
+        echo "## [⬇ Download for Windows — \`$exe\`]($base/$exe)"
+        echo "Windows installer (\`.exe\`): download and run directly — installs and configures everything automatically."
+        echo
+    fi
+    if [[ -n $appimage ]]; then
+        echo "## [⬇ Download for Linux / Steam Deck — \`$appimage\`]($base/$appimage)"
+        echo "Linux AppImage: download, mark as executable, and run."
+        echo
+    fi
     echo '---'
 }
 
