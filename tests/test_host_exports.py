@@ -86,7 +86,7 @@ def main():
     build = (ROOT / "nx2/build.py").read_text(encoding="utf-8")
     link = build[build.index("exe = os.path.join(out, EXE)   # (+ hookshot.map"):]
     link = link[:link.index("capture_output=True")]
-    if '"-Wl,--export-dynamic-symbol=" + s for s in HOST_EXPORTS' not in link:
+    if 'linker(*("--export-dynamic-symbol=" + s for s in HOST_EXPORTS))' not in link:
         raise SystemExit("the Linux exe's link does not export HOST_EXPORTS")
     print("%d names looked up in the exe, all in HOST_EXPORTS" % len(names))
     if os.name == "nt":

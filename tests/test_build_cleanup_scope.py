@@ -98,14 +98,14 @@ class CleanupTests(unittest.TestCase):
         self.assertEqual(self.invoke(rows)[0], [4, 5, 6])
 
     def test_default_work_across_packaged_builder_versions(self):
-        home = r"C:\Users\authored user\AppData\Local\HookshotBuilder"
-        old = home + r"\versions\v-old\HookshotBuilder\tools\nx2\make_game.py"
+        home = r"C:\Users\authored user\AppData\Local\XeonshotBuilder"
+        old = home + r"\versions\v-old\XeonshotBuilder\tools\nx2\make_game.py"
         rows = [row(10, "python.exe", ["python", "-I", old]),
                 row(11, "python.exe", ["python", "nx2/build.py", "--standalone"], parent=10),
                 row(12, "clang.exe", ["clang", "-o", home + r"\sa\build\one.o"]),
-                row(20, "python.exe", ["python", r"D:\other\versions\v-old\HookshotBuilder\tools\nx2\make_game.py"]),
-                row(21, "python.exe", ["python", home + r"-other\versions\v-old\HookshotBuilder\tools\nx2\make_game.py"]),
-                row(22, "python.exe", ["python", home + r"\versions\v-old\extra\HookshotBuilder\tools\nx2\make_game.py"]),
+                row(20, "python.exe", ["python", r"D:\other\versions\v-old\XeonshotBuilder\tools\nx2\make_game.py"]),
+                row(21, "python.exe", ["python", home + r"-other\versions\v-old\XeonshotBuilder\tools\nx2\make_game.py"]),
+                row(22, "python.exe", ["python", home + r"\versions\v-old\extra\XeonshotBuilder\tools\nx2\make_game.py"]),
                 row(23, "python.exe", ["python", home + r"\versions\v-old\other\tools\nx2\make_game.py"]),
                 row(24, "python.exe", ["python", old, "--work", r"D:\other"])]
         self.assertEqual(self.invoke(rows, work=home, default=home)[0], [10, 12, 11])

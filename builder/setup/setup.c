@@ -244,7 +244,7 @@ static int file_sink(void *u, const void *d, DWORD n) {
    release's links: hookshot-setup.txt and each part. A file of that name in the player's Downloads folder, or beside this
    setup, is taken in place of the download: the list only when the server did not answer, a part only when its SHA-256 is
    the list's ---- */
-#define MANUAL_PAGE L"https://hookshot.notrexed.dev/manual"
+#define MANUAL_PAGE L"https://github.com/LwkasG/Xeonshot/releases/latest"
 static int browser_file(const char *name, wchar_t *out) {
     static const GUID downloads_id = {0x374DE290, 0x123F, 0x4565, {0x91, 0x64, 0x39, 0xC4, 0x92, 0x5E, 0x46, 0x7B}};
     wchar_t wname[260], dirs[2][MAX_PATH];
@@ -657,23 +657,23 @@ static int asset_from_json(const char *json, size_t len, const char *name, char 
     if (!at) return 0;
     const char *close = strchr(at, '}'), *url = strstr(at, "\"browser_download_url\"");
     return url && close && url < close && json_string_after(url + 22, end, out, n) &&
-           !strncmp(out, "https://git.notrexed.dev/", 25);
+           (!strncmp(out, "https://github.com/", 19) || !strncmp(out, "https://git.notrexed.dev/", 25));
 }
 
 /* repo "owner/name", tag NULL for the latest release */
 static int api_asset_url(const char *repo, const char *tag, const char *name, char *out, int n) {
     char api[1024];
-    if (tag) snprintf(api, sizeof api, "https://git.notrexed.dev/api/v1/repos/%s/releases/tags/%s", repo, tag);
-    else snprintf(api, sizeof api, "https://git.notrexed.dev/api/v1/repos/%s/releases/latest", repo);
+    if (tag) snprintf(api, sizeof api, "https://api.github.com/repos/%s/releases/tags/%s", repo, tag);
+    else snprintf(api, sizeof api, "https://api.github.com/repos/%s/releases/latest", repo);
     Mem m = {0};
     const int found = http_get(api, mem_sink, &m, 0, L"application/vnd.github+json") && m.p && asset_from_json(m.p, m.n, name, out, n);
     free(m.p);
     return found;
 }
 
-/* https://git.notrexed.dev/<owner>/<repo>/releases/download/<tag>/<name> or .../releases/latest/download/<name> -> the link the API gives */
+/* https://github.com/<owner>/<repo>/releases/download/<tag>/<name> or .../releases/latest/download/<name> -> the link the API gives */
 static int api_link_for(const char *url, char *out, int n) {
-    static const char pre[] = "https://git.notrexed.dev/";
+    static const char pre[] = "https://github.com/";
     char repo[256], tag[256], name[260];
     if (strncmp(url, pre, sizeof pre - 1)) return 0;
     const char *p = url + sizeof pre - 1, *slash = strchr(p, '/');
@@ -774,8 +774,8 @@ static const char *manifest_url(void) {
     if (!tag[0] && HOOKSHOT_SETUP_RELEASE[0] && strlen(HOOKSHOT_SETUP_RELEASE) < sizeof tag) strcpy(tag, HOOKSHOT_SETUP_RELEASE);
     if (e && *e) snprintf(u, sizeof u, "%s", e);
     else if (tag[0])
-        snprintf(u, sizeof u, "https://git.notrexed.dev/Hookshot/Hookshot/releases/download/%s/xeonshot-setup.txt", nightly_tag(tag) ? "nightly" : tag);
-    else snprintf(u, sizeof u, "%s", "https://git.notrexed.dev/Hookshot/Hookshot/releases/latest/download/xeonshot-setup.txt");
+        snprintf(u, sizeof u, "https://github.com/LwkasG/Xeonshot/releases/download/%s/xeonshot-setup.txt", nightly_tag(tag) ? "nightly" : tag);
+    else snprintf(u, sizeof u, "%s", "https://github.com/LwkasG/Xeonshot/releases/latest/download/xeonshot-setup.txt");
     return u;
 }
 
@@ -844,16 +844,16 @@ static DWORD WINAPI work(LPVOID unused) {
         free(man.p);
         man = (Mem){0};
         ok = read_whole(saved_list, &man);
-        if (ok) status(L"git.notrexed.dev did not answer: using %ls", saved_list);
+        if (ok) status(L"GitHub did not answer: using %ls", saved_list);
     }
     if (!ok && !g_http_status)
-        fail(L"Could not reach git.notrexed.dev to get the Xeonshot Builder: %ls (Windows error %lu).\n\nIf it keeps failing, "
+        fail(L"Could not reach GitHub to get the Xeonshot Builder: %ls (Windows error %lu).\n\nIf it keeps failing, "
              L"download the files listed at " MANUAL_PAGE L" with your browser into your Downloads folder (or beside "
              L"XeonshotBuilder.exe), then start XeonshotBuilder.exe again: it uses them.", net_why(g_http_error), g_http_error);
     if (!ok)
         fail(g_http_status == 404
                  ? L"The latest Xeonshot release has no setup files yet. Download XeonshotBuilder.zip from the releases page for now: "
-                   L"https://git.notrexed.dev/Hookshot/Hookshot/releases/latest"
+                   L"https://github.com/LwkasG/Xeonshot/releases/latest"
                  : L"The download server is failing right now (an error 500 or above, tried 8 times over 3 minutes). "
                    L"This is on the server's side: try again in a few minutes, or later today.");
 

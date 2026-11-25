@@ -82,7 +82,7 @@ class ManyDamagedFilesTests(unittest.TestCase):
             romfs = os.path.join(out, "romfs")
             bad = culling_folder(romfs, MANY)
             stamp = "unpacked by this builder: game.nup 1"
-            with open(os.path.join(out, ".hookshot_romfs"), "w", encoding="utf-8") as f:
+            with open(os.path.join(out, ".xeonshot_romfs"), "w", encoding="utf-8") as f:
                 f.write(stamp + "\n")
             with open(os.path.join(out, make_game.HEADS), "w", encoding="utf-8", newline="\n") as f:
                 f.write(stamp + "\n" + "".join(os.path.relpath(p, romfs).replace(os.sep, "/") + "\n" for p in bad))
@@ -97,7 +97,7 @@ class ManyDamagedFilesTests(unittest.TestCase):
                 note = f.read()
             for path in bad:   # (the whole list is kept for the player, however long)
                 self.assertIn(os.path.relpath(path, romfs), note)
-            self.assertFalse(os.path.exists(os.path.join(out, ".hookshot_romfs_checked")))
+            self.assertFalse(os.path.exists(os.path.join(out, ".xeonshot_romfs_checked")))
 
 
 class FewDamagedFilesTests(unittest.TestCase):

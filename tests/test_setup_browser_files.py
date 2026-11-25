@@ -26,8 +26,8 @@ def main():
     for need in ("SHGetKnownFolderPath(&downloads_id", "GetModuleFileNameW(NULL, dirs[n], MAX_PATH)",
                  "CompareFileTime(&d.ftLastWriteTime, &best) > 0", 'L"%ls\\\\%ls"'):
         assert need in find, "browser_file: " + need
-    assert '#define MANUAL_PAGE L"https://hookshot.notrexed.dev/manual"' in src
-    assert 'int have_saved = browser_file("hookshot-setup.txt", saved_list);' in src and '7ull * 24 * 3600 * 10000000ull) have_saved = 0;' in src
+    assert '#define MANUAL_PAGE L"https://github.com/LwkasG/Xeonshot/releases/latest"' in src
+    assert 'int have_saved = browser_file("xeonshot-setup.txt", saved_list);' in src and '7ull * 24 * 3600 * 10000000ull) have_saved = 0;' in src
     assert "attempt < (have_saved ? 1 : TRIES)" in src
     assert "if (!ok && have_saved) {" in src and "ok = read_whole(saved_list, &man);" in src
     part = src[src.index("/* (a part the player saved with a browser"):]

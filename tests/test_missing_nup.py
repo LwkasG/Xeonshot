@@ -29,13 +29,17 @@ class MissingNupTests(unittest.TestCase):
         self.assertEqual(self.root.parent, Path(tempfile.gettempdir()).resolve())
         self.package = self.root / "selected game \u6f22 [1].nup"
         self.out, self.work = self.root / "output", self.root / "work"
-        (self.out / "romfs").mkdir(parents=True)
-        (self.out / "romfs/asset").write_bytes(b"authored asset")
-        (self.out / ".hookshot_exefs").mkdir()
-        (self.out / ".hookshot_exefs/main").write_bytes(b"authored code sentinel")
+        (self.out / "romfs/Pack").mkdir(parents=True)
+        (self.out / "romfs/Pack/ZsDic.pack.zs").write_bytes(b"\x28\xb5\x2f\xfd" + b"authored dictionary")
+        (self.out / "romfs/System/Resource").mkdir(parents=True)
+        (self.out / "romfs/System/Resource" / make_game.ROMFS_TABLE).write_bytes(b"\x28\xb5\x2f\xfd" + b"authored table")
+        (self.out / "romfs/System/HeapSize").mkdir(parents=True)
+        (self.out / "romfs/System/HeapSize/Product.Nin_Ounce_NVN2.HeapDef.byml.zs").write_bytes(b"\x28\xb5\x2f\xfd" + b"authored heap")
+        (self.out / ".xeonshot_exefs").mkdir()
+        (self.out / ".xeonshot_exefs/main").write_bytes(b"authored code sentinel")
         (self.out / "user/save").mkdir(parents=True)
         (self.out / "user/save/sentinel").write_bytes(b"authored save sentinel")
-        (self.out / ".hookshot_romfs").write_text("previous authored package\n", encoding="utf-8")
+        (self.out / ".xeonshot_romfs").write_text("previous authored package\n", encoding="utf-8")
         self.before = self.files()
         self.events = []
 
@@ -125,7 +129,7 @@ class MissingNupTests(unittest.TestCase):
         self.package = self.root / "existing cached game [1].nup"
         self.package.write_bytes(b"authored package sentinel")
         stamp = "unpacked by this builder: %s %d\n" % (self.package.name, self.package.stat().st_size)
-        (self.out / ".hookshot_romfs").write_text(stamp, encoding="utf-8")
+        (self.out / ".xeonshot_romfs").write_text(stamp, encoding="utf-8")
         self.before = self.files()
         code, text = self.invoke()
         self.assertEqual(code, 0, text)

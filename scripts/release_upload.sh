@@ -97,7 +97,7 @@ if [[ $tag == nightly ]]; then
     advance_nightly "$sha" || exit 0
     # (the same notes from every run: the two platforms' runs write them at different times, and each file names the
     # commit it was built from)
-    notes="The latest development build of main, made by CI after every push to main. Each file is named by the commit it was built from (\`Hookshot-<version>-x86_64.AppImage\`, \`Hookshot-<version>-Windows-x64.zip\`; the version is \`git describe\`'s, ending in \`-g<commit>\`). The Windows and Linux builds finish at different times, so while changes are being merged one can be a commit or two behind the other; the \`nightly\` tag is at the newest of them.
+    notes="The latest development build of main, made by CI after every push to main. Each file is named by the commit it was built from (\`Hookshot-<version>-x86_64.AppImage\`, \`Xeonshot-<version>-Windows-x64.zip\`; the version is \`git describe\`'s, ending in \`-g<commit>\`). The Windows and Linux builds finish at different times, so while changes are being merged one can be a commit or two behind the other; the \`nightly\` tag is at the newest of them.
 
 It is untested and may break your saves or settings. For playing, use the [latest release](https://github.com/$GH_REPO/releases/latest).
 
@@ -122,7 +122,7 @@ $("$files" table nightly)"
     gh release view nightly --json assets --jq '.assets[].name' | while read -r old; do
         case $old in
             Hookshot-*-x86_64.AppImage | Hookshot-*-x86_64.AppImage.zsync) want="Hookshot-.*-x86_64\\.AppImage${old##*.AppImage}" ;;
-            Hookshot-*-Windows-x64.zip) want='Hookshot-.*-Windows-x64\.zip' ;;
+            Xeonshot-*-Windows-x64.zip) want='Xeonshot-.*-Windows-x64\.zip' ;;
             *) continue ;;
         esac
         printf '%s\n' "${new[@]}" | grep -qxF "$old" && continue

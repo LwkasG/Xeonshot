@@ -104,7 +104,7 @@ class ShippedList(unittest.TestCase):
     def package(self, rp):
         publish = self.tmp / "publish"
         publish.mkdir(exist_ok=True)
-        (publish / "HookshotBuilder.exe").write_bytes(b"MZ")
+        (publish / "XeonshotBuilder.exe").write_bytes(b"MZ")
         setup = self.tmp / "setup.exe"
         setup.write_bytes(b"MZ")
         out = self.tmp / "package"
@@ -125,7 +125,7 @@ class ShippedList(unittest.TestCase):
         game = self.tmp / "game"
         game.mkdir()
         make_game.ship_state_list(str(game))
-        self.assertEqual(len(self.tool.read(str(game / "hookshot_pipeline_states_shipped.bin"))), 3)
+        self.assertEqual(len(self.tool.read(str(game / "xeonshot_pipeline_states_shipped.bin"))), 3)
 
     def test_windows_package_stops_without_it(self):
         damaged = self.fake_list(3)

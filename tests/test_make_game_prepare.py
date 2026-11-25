@@ -56,7 +56,7 @@ class PrepareTests(unittest.TestCase):
     def test_prepare_defaults_the_out_folder(self):
         a = self.parse("--game", self.nup, "--prepare")
         self.assertTrue(make_game.PREPARE)
-        self.assertEqual(a.out, os.path.join(os.path.expanduser("~"), "Games", "Hookshot"))
+        self.assertEqual(a.out, os.path.join(os.path.expanduser("~"), "Games", "Xeonshot"))
         self.assertEqual(self.parse("--game", self.nup, "--prepare", "--out", "o").out, "o")
 
     def test_missing_game_is_an_error_line(self):

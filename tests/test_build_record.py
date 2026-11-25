@@ -24,17 +24,17 @@ def main():
         env = {"EMSDK": "C:/tools/emsdk", "HOOKSHOT_MINGW": "C:/tools/llvm-mingw", "UNRELATED": "x"}
         with mock.patch.dict(os.environ, env, clear=False):
             make_game.write_build_record(str(out), str(work), "v9.9.9-1-gabcdef0", True)
-        rec = json.loads((out / ".hookshot_build.json").read_text(encoding="utf-8"))
+        rec = json.loads((out / ".xeonshot_build.json").read_text(encoding="utf-8"))
         assert rec["version"] == "v9.9.9-1-gabcdef0", rec
         assert Path(rec["tools"]) == ROOT and Path(rec["python"]) == Path(sys.executable), rec
         assert Path(rec["work"]) == work.resolve() or Path(rec["work"]) == Path(os.path.abspath(work)), rec
         assert rec["env"]["EMSDK"] == "C:/tools/emsdk" and rec["env"]["HOOKSHOT_MINGW"] == "C:/tools/llvm-mingw", rec
         assert "UNRELATED" not in rec["env"] and rec["fsr"] is True, rec
-        assert not (out / ".hookshot_build.json.new").exists()
+        assert not (out / ".xeonshot_build.json.new").exists()
     src = (ROOT / "nx2" / "make_game.py").read_text(encoding="utf-8")
     assert "write_build_record(out, work, tag, fsr_wanted(a, out))" in src, "a build no longer writes its record"
     cs = (ROOT / "builder" / "HookshotBuilder" / "BuildRecord.cs").read_text(encoding="utf-8")
-    assert ".hookshot_build.json" in cs and '"tools"' in cs and '"python"' in cs and '"work"' in cs, "the launcher reads other fields"
+    assert ".xeonshot_build.json" in cs and '"tools"' in cs and '"python"' in cs and '"work"' in cs, "the launcher reads other fields"
     print("build record: written by the build with its tools, work folder and switches, read by the launcher's Rebuild")
 
 

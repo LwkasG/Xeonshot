@@ -9,8 +9,8 @@ namespace HookshotBuilder;
 /// release". No WPF here: tests/test_builder_version_menu.py runs it under .NET 8
 static class ReleaseList
 {
-    const string Api = "https://git.notrexed.dev/api/v1/repos/Hookshot/Hookshot/releases";
-    public const int PageSize = 50;   // (Forgejo's most a page)
+    const string Api = "https://api.github.com/repos/LwkasG/Xeonshot/releases";
+    public const int PageSize = 50;
     const int MostPages = 40;         // (2,000 releases: a stop for a server that never gives a short page)
     public const string SetupAsset = "XeonshotBuilder.exe", SetupList = "xeonshot-setup.txt";
     // (the first release whose setup installs the release it is told to, --tag: builder/setup/setup.c, v2.0.6. An older one's
@@ -73,7 +73,7 @@ static class ReleaseList
         {
             for (var page = 1; page <= MostPages; page++)
             {
-                var text = await http.GetStringAsync($"{Api}?limit={PageSize}&page={page}", token);
+                var text = await http.GetStringAsync($"{Api}?per_page={PageSize}&page={page}", token);
                 pages.Add(text);
                 using var doc = JsonDocument.Parse(text);
                 if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() < PageSize) break;
