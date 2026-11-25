@@ -7,22 +7,22 @@ namespace HookshotBuilder;
 /// One home for the setup, app and their children. Portable homes are explicitly marked, never inferred from cwd.
 static class BuilderHome
 {
-    public const string Marker = ".hookshot-portable";
-    public const string MarkerText = "Hookshot Builder portable home v1";
+    public const string Marker = ".xeonshot-portable";
+    public const string MarkerText = "Xeonshot Builder portable home v1";
     const string RootVariable = "HOOKSHOT_SETUP_BASE";
     const string PortableVariable = "HOOKSHOT_BUILDER_PORTABLE";
     internal readonly record struct Home(string Root, bool Portable);
 
     static readonly Lazy<Home> Current = new(() => Resolve(
         Environment.GetEnvironmentVariable(RootVariable), AppContext.BaseDirectory,
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HookshotBuilder"),
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "XeonshotBuilder"),
         Environment.GetEnvironmentVariable(PortableVariable) == "1"));
 
     public static string Base => Current.Value.Root;
     public static bool Portable => Current.Value.Portable;
     public static string DefaultGame => Portable
-        ? Path.Combine(Directory.GetParent(Base)!.FullName, "Hookshot")
-        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Games", "Hookshot");
+        ? Path.Combine(Directory.GetParent(Base)!.FullName, "Xeonshot")
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Games", "Xeonshot");
 
     internal static Home Resolve(string? requested, string appDirectory, string standard, bool portableRequested = false)
     {

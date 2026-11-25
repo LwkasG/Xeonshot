@@ -98,6 +98,39 @@ int hos_oot_barrier_wait(uint64_t p, uint32_t off1, uint32_t seen1, uint32_t off
         barrier_count(OOT_BARRIER_AT_ONCE, 0);
         return 1;
     }
+    /* (hookshot) Short user-space pause spin before surrendering the virtual core and entering WaitOnAddress:
+       avoids vc_lock + vcore churn + kernel wait when a sibling worker moves the mask within a few microseconds. */
+    static int spin_us = -1;
+    if (spin_us < 0) {
+        const char *e = getenv("HOS_OOT_BARRIER_SPIN_US");
+        spin_us = e ? atoi(e) : 0;
+        if (spin_us < 0) spin_us = 0;
+        if (spin_us > 500) spin_us = 500;
+    }
+    if (spin_us > 0) {
+        const int64_t spin_end = hos_now_ns() + (int64_t)spin_us * 1000;
+        do {
+            for (int spin = 0; spin < 32; spin++) {
+#if defined(__x86_64__) || defined(_M_X64)
+                __builtin_ia32_pause();
+#endif
+                if (oot_barrier_moved(w, seen, n, full)) {
+                    barrier_count(OOT_BARRIER_AT_ONCE, 0);
+                    return 1;
+                }
+            }
+        } while (hos_now_ns() < spin_end);
+    } else {
+        for (int spin = 0; spin < 256; spin++) {
+#if defined(__x86_64__) || defined(_M_X64)
+            __builtin_ia32_pause();
+#endif
+            if (oot_barrier_moved(w, seen, n, full)) {
+                barrier_count(OOT_BARRIER_AT_ONCE, 0);
+                return 1;
+            }
+        }
+    }
     extern volatile int hos_fps_timing;   /* (host/hos_thread.c: the FPS counter's Breakdown counts the guest's sleeps) */
     extern _Thread_local int64_t hos_slept_ns[2];
     const int64_t t0 = hos_now_ns();

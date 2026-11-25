@@ -36,7 +36,7 @@ static class Program
             Directory.Delete(Path.Combine(game, "ngx"), recursive: true);
             Is(game, true, false, false, "NVIDIA DLSS");   // (a DLL copied elsewhere is not a build with DLSS)
 
-            File.WriteAllText(Path.Combine(game, ".hookshot_fsr"), "");
+            File.WriteAllText(Path.Combine(game, ".xeonshot_fsr"), "");
             Is(game, false, true, false);   // (built with FSR 4, the DLLs the player's own: no license, nothing to fetch)
             Is(game, false, true, true, "AMD FSR 4");   // (license accepted, AMD's runtime not there: the build fetches it)
             Directory.CreateDirectory(Path.Combine(game, "bin"));
@@ -45,7 +45,7 @@ static class Program
             File.Delete(Path.Combine(game, "bin", "amd_fidelityfx_upscaler_vk.dll"));
             File.WriteAllText(Path.Combine(game, "amd_fidelityfx_upscaler_vk.dll"), "authored placeholder");
             Is(game, false, true, true);   // (in the game folder, where make_game.py --fetch-fsr-runtime puts it)
-            File.Delete(Path.Combine(game, ".hookshot_fsr"));
+            File.Delete(Path.Combine(game, ".xeonshot_fsr"));
             Is(game, false, true, true, "AMD FSR 4");   // (DLLs alone: the game was not built with FSR 4)
 
             Is(Path.Combine(root, "no such folder"), true, true, true, "NVIDIA DLSS", "AMD FSR 4");

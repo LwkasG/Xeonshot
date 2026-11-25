@@ -43,7 +43,7 @@ static class Saves
     /// The save into gameFolder: what to tell the player (Ok false: why it did not happen; the game folder is unchanged)
     public static (bool Ok, string Text) Import(Tools tools, FoundSave save, string gameFolder)
     {
-        var (doc, error) = Run(tools, "import", save.Name, "--profile", save.Profile, "--hookshot", gameFolder, "--json");
+        var (doc, error) = Run(tools, "import", save.Name, "--profile", save.Profile, "--xeonshot", gameFolder, "--json");
         if (doc == null) return (false, $"Your save from {save.Shown} was not brought in: {error}");
         using (doc)
             return (true, $"Your save from {save.Shown} is in the game ({doc.RootElement.GetProperty("slots").GetArrayLength()} slot(s)).");

@@ -16,10 +16,10 @@
 namespace mkwvk::pipeline_share {
 
 constexpr const char* kIssueUrl = "https://git.notrexed.dev/Hookshot/Hookshot/issues/14";
-constexpr const char* kListName = "hookshot_pipeline_states.bin";
-constexpr const char* kReportName = "hookshot_pipeline_report.txt";
+constexpr const char* kListName = "xeonshot_pipeline_states.bin";
+constexpr const char* kReportName = "xeonshot_pipeline_report.txt";
 // (the issue's template, its lines in its order: nx2/pipeline_share.py FIELDS, the same)
-constexpr const char* kFields[] = {"Hookshot version", "OS, GPU and driver", "Output resolution", "Upscaler + render resolution",
+constexpr const char* kFields[] = {"Xeonshot version", "OS, GPU and driver", "Output resolution", "Upscaler + render resolution",
                                    "Frame generation / HDR", "Mods or texture packs",
                                    "Where you played (areas, dungeons, age, night/rain, ...)", "Pipelines"};
 constexpr int kFieldCount = sizeof kFields / sizeof kFields[0];
@@ -95,7 +95,7 @@ inline std::string output_text(unsigned w, unsigned h, bool handheld, bool game_
 /// hookshot-pipelines-<date>.zip
 inline std::string zip_name(int year, int month, int day) {
     char b[48];
-    snprintf(b, sizeof b, "hookshot-pipelines-%04d-%02d-%02d.zip", year, month, day);
+    snprintf(b, sizeof b, "xeonshot-pipelines-%04d-%02d-%02d.zip", year, month, day);
     return b;
 }
 

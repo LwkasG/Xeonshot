@@ -1,0 +1,3 @@
+| Date | Build | OS / desktop | GPU / driver | CPU / RAM | Settings | Where | Result |
+|---|---|---|---|---|---|---|---|
+| 2026-11-23 | Xeonshot v3.0.2-dirty, Longshot port | Windows 11 25H2 (26200.9974) | NVIDIA GeForce RTX 5080 / 621.24 | Xeon E5-2686 v4 / 64 GB | 5120x2160 configured, HOS_LARGE_HEAP_MB=7168, RX_VK_PARALLEL=0 | KokiriForest_Child, isolated windowed run | smoke01 loaded the save and exited normally (0). Grass distance 3x changed the short-blade radius from 22 m to 66 m and returned to Game's. The working-set minimum was set to 4096 MB. After restoring Game's, the 22 s window reported median 54.6 fps. |

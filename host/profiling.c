@@ -274,7 +274,7 @@ void hos_profiling_start(void) {
     const char *ini = hos_options_file();
     if (ini && *ini) {
         FILE *from = fopen(ini, "rb");
-        in_dir(path, sizeof path, "hookshot_options.ini");
+        in_dir(path, sizeof path, "xeonshot_options.ini");
         FILE *to = from ? fopen(path, "wb") : NULL;
         char buf[4096];
         size_t got;

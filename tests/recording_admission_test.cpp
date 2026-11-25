@@ -126,6 +126,9 @@ int desc_reuse_level() { return 2; }   // (vk_draw.cpp: RX_VK_DESC_REUSE and the
 /* BANK_CACHE */
 std::array<std::array<BankCache, kNvnStages>, 2>& bank_cache() { static thread_local std::array<std::array<BankCache, kNvnStages>, 2> b; return b; }
 void make_dummies() {}
+[[maybe_unused]] static uint64_t prog_slots_gen;
+static auto& prog_slots() { static std::vector<int> slots; return slots; }
+void mesh_conv_begin_recording() {}   // (vk_draw.cpp: RX_VK_MESH_CONV read for the recording, its last batch let go)
 /* BEGIN */
 #define FINE_SCOPE(...) ((void)0)
 #define FINE_N(...) ((void)0)

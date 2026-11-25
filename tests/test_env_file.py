@@ -1,7 +1,7 @@
-"""HOS_ENV_FILE names the switches file a run reads instead of hookshot_env.txt beside the game.
+"""HOS_ENV_FILE names the switches file a run reads instead of xeonshot_env.txt beside the game.
 
-A scripted or A/B test run brings its own switches this way, and the player's hookshot_env.txt is neither read nor
-changed. Unset or empty, the game reads hookshot_env.txt as before. A named file that does not exist sets nothing: the
+A scripted or A/B test run brings its own switches this way, and the player's xeonshot_env.txt is neither read nor
+changed. Unset or empty, the game reads xeonshot_env.txt as before. A named file that does not exist sets nothing: the
 run does not fall back to the player's switches. A switch already in the environment the game was started with goes over
 the file's line for it. HOS_CONTROL_PEER_SID, which lets another account into the control bridge's pipe, is refused from
 the player's file and still read from the environment.
@@ -32,7 +32,7 @@ def main():
         game = tmp / "game"
         game.mkdir()
         # (the player's file sets the game's switches only: not the system's variables, HOS_ENV_FILE or paths)
-        (game / "hookshot_env.txt").write_text(
+        (game / "xeonshot_env.txt").write_text(
             "HOS_T_BESIDE=1\nHL_T_NATIVE=0\nHOS_T_SHARED=beside\nVK_ADD_LAYER_PATH=/x\nLD_PRELOAD=/x.so\nPATH=C:\\x\nSDL_DYNAMIC_API=/x.so\n"
             "HOS_ENV_FILE=other.txt\nHOS_SAMPLE_FILE=/home/x/.bashrc\nRX_VK_DUMP_DIR=C:\\Users\\x\nRX_VK_SKIP_CODE=2c56,ab\n"
             "RX_VK_DLSS_DIR=/opt/ngx\nHOS_T_HOME=~\nSDL_VULKAN_LIBRARY=x.dll\nSDL_VIDEO_EGL_DRIVER=x.so\n"
@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
     setenv("HOS_CONTROL_PEER_SID", "S-1-5-21-7-8-9-1002", 1);
     load_hookshot_env();
     CHECK(is("HOS_CONTROL_PEER_SID", "S-1-5-21-7-8-9-1002") && is("HOS_T_BESIDE", "1"));
-    printf("PASS: HOS_ENV_FILE replaces hookshot_env.txt; unset or empty reads it as before; the player's file sets only the game's switches, never HOS_CONTROL_PEER_SID, and a note after a value is not part of it; the environment goes over the file\n");
+    printf("PASS: HOS_ENV_FILE replaces xeonshot_env.txt; unset or empty reads it as before; the player's file sets only the game's switches, never HOS_CONTROL_PEER_SID, and a note after a value is not part of it; the environment goes over the file\n");
     return 0;
 }
 '''
@@ -134,10 +134,10 @@ int main(int argc, char **argv) {
         out = tmp / "fixture"
         subprocess.run([a.cc, "-std=c11", "-D_POSIX_C_SOURCE=200809L", "-Wall", "-Werror", str(src), "-o", str(out)],
                        check=True)
-        before = (game / "hookshot_env.txt").read_text(encoding="utf-8")
+        before = (game / "xeonshot_env.txt").read_text(encoding="utf-8")
         subprocess.run([str(out), str(tmp / "test_env.txt"), str(tmp / "missing.txt"), str(tmp / "precedence.txt")], check=True)
-        if (game / "hookshot_env.txt").read_text(encoding="utf-8") != before:
-            raise SystemExit("the player's hookshot_env.txt was changed")
+        if (game / "xeonshot_env.txt").read_text(encoding="utf-8") != before:
+            raise SystemExit("the player's xeonshot_env.txt was changed")
 
 
 if __name__ == "__main__":

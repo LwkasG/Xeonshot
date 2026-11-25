@@ -27,23 +27,23 @@ void hos_log(const char *fmt, ...);   /* (hos.h; declared here so tests/test_gam
 
 /* The logs into logs/, the caches into cache/ */
 static const char *const to_logs[] = {
-    "hookshot_log.txt", "hookshot_log.1.txt", "hookshot_log.2.txt", "hookshot_log.3.txt", "hookshot_log.4.txt",
-    "hookshot_startup.log", "hookshot_frames.csv",
+    "xeonshot_log.txt", "xeonshot_log.1.txt", "xeonshot_log.2.txt", "xeonshot_log.3.txt", "xeonshot_log.4.txt",
+    "xeonshot_startup.log", "xeonshot_frames.csv",
 };
 static const char *const to_cache[] = {
-    "hookshot_programs.bin", "hookshot_programs.idx", "hookshot_programs.zst.bin", "hookshot_programs.zst.idx",
-    "hookshot_module_ids.bin", "hookshot_pipelines.bin", "hookshot_pipelines.bin.predicted",
-    "hookshot_pipelines.bin.predicted_keys", "hookshot_pipelines.bin.built", "hookshot_pipelines.bin.running",
-    "hookshot_pipelines.bin.predicting", "hookshot_pipelines.bin.built.warming", "hookshot_computes.bin",
-    "hookshot_compute_variants.bin", "hookshot_pipeline_states.bin", "hookshot_pipeline_states_v1.bin", "hookshot_prepared.bin",
-    "hookshot_prepared.bin.warming", "hookshot_prepare_skipped", "hookshot_driver_faults.txt", "hookshot_load_start.txt",
-    "hookshot_load_start.txt.waited",
+    "xeonshot_programs.bin", "xeonshot_programs.idx", "xeonshot_programs.zst.bin", "xeonshot_programs.zst.idx",
+    "xeonshot_module_ids.bin", "xeonshot_pipelines.bin", "xeonshot_pipelines.bin.predicted",
+    "xeonshot_pipelines.bin.predicted_keys", "xeonshot_pipelines.bin.built", "xeonshot_pipelines.bin.running",
+    "xeonshot_pipelines.bin.predicting", "xeonshot_pipelines.bin.built.warming", "xeonshot_computes.bin",
+    "xeonshot_compute_variants.bin", "xeonshot_pipeline_states.bin", "xeonshot_pipeline_states_v1.bin", "xeonshot_prepared.bin",
+    "xeonshot_prepared.bin.warming", "xeonshot_prepare_skipped", "xeonshot_driver_faults.txt", "xeonshot_load_start.txt",
+    "xeonshot_load_start.txt.waited",
 };
 /* The Vulkan pipeline cache, mkw_vk_pipelines.bin, its stamp and its play files mkw_vk_pipelines_play_<n>.bin (mkw-recomp's
-   names), renamed hookshot_vk_pipelines* as they move into cache/ (gpu/vk/vk_draw.cpp, pcache_stamp.h) */
-static const char old_pcache[] = "mkw_vk_pipelines", new_pcache[] = "hookshot_vk_pipelines";
+   names), renamed xeonshot_vk_pipelines* as they move into cache/ (gpu/vk/vk_draw.cpp, pcache_stamp.h) */
+static const char old_pcache[] = "mkw_vk_pipelines", new_pcache[] = "xeonshot_vk_pipelines";
 /* The program cache's lock files beside it (gpu/vk/vk_progcache.cpp): the game locks cache/'s now, and nothing holds these: deleted */
-static const char *const old_locks[] = {"hookshot_programs.bin.lock", "hookshot_programs.zst.bin.lock"};
+static const char *const old_locks[] = {"xeonshot_programs.bin.lock", "xeonshot_programs.zst.bin.lock"};
 /* Made from the player's choices and made again when missing (host/prompts.c): deleted from the game folder */
 static const char *const made_again[] = {
     "prompts" SEP_S "Common.bntx.zs", "prompts" SEP_S "Common.blarc.zs", "prompts" SEP_S "Common.key",
@@ -112,7 +112,7 @@ void hos_game_layout(void) {
     for (size_t i = 0; i < sizeof to_logs / sizeof *to_logs; i++) move_as(game, to_logs[i], logs, to_logs[i]);
     for (size_t i = 0; i < sizeof to_cache / sizeof *to_cache; i++) move_as(game, to_cache[i], cache, to_cache[i]);
     each_old_pcache(game, cache, ".bin", 1);
-    move_as(game, "mkw_vk_pipelines.stamp", cache, "hookshot_vk_pipelines.stamp");   /* (which translator made them) */
+    move_as(game, "mkw_vk_pipelines.stamp", cache, "xeonshot_vk_pipelines.stamp");   /* (which translator made them) */
     each_old_pcache(game, cache, ".tmp", 0);     /* (a write cut short: never read) */
     each_old_pcache(game, cache, ".tmp-*", 0);   /* (one with its writer's own name, gpu/vk/pipeline_cache_file.h) */
     for (size_t i = 0; i < sizeof old_locks / sizeof *old_locks; i++) {

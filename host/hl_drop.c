@@ -77,7 +77,7 @@ static volatile LONG64 mirror_reads, mirror_read_ns, mirror_read_max_ns;
 static const uint8_t *mirror_source(uint64_t dest, uint64_t size) {
     static MirrorRead read;
     if (!read) {
-        HMODULE m = GetModuleHandleA("hookshot_vk.dll");
+        HMODULE m = GetModuleHandleA("xeonshot_vk.dll");
         read = m ? (MirrorRead)(void *)GetProcAddress(m, "mkwvk_mirror_read") : NULL;
         if (!read) return NULL;
     }
@@ -181,7 +181,7 @@ static int spill_open(void) {
     wchar_t dir[MAX_PATH], path[MAX_PATH + 64];
     const DWORD n = GetTempPathW(MAX_PATH, dir);
     if (!n || n >= MAX_PATH) return 0;
-    _snwprintf(path, MAX_PATH + 64, L"%lshookshot-drop-%lu.bin", dir, GetCurrentProcessId());
+    _snwprintf(path, MAX_PATH + 64, L"%lsxeonshot-drop-%lu.bin", dir, GetCurrentProcessId());
     spill_file = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
                              FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, NULL);
     if (spill_file == INVALID_HANDLE_VALUE) return 0;

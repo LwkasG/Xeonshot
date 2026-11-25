@@ -16,9 +16,9 @@ namespace HookshotBuilder;
 static class Updater
 {
     const string Latest = "https://git.notrexed.dev/api/v1/repos/Hookshot/Hookshot/releases/latest";
-    const string Asset = "HookshotBuilder.zip";
-    const string SetupAsset = "HookshotBuilder.exe";            // (the setup, builder/setup/setup.c: a release holds it and its list)
-    const string SetupList = "hookshot-setup.txt";              // (scripts/make_setup_parts.py)
+    const string Asset = "XeonshotBuilder.zip";
+    const string SetupAsset = "XeonshotBuilder.exe";            // (the setup, builder/setup/setup.c: a release holds it and its list)
+    const string SetupList = "xeonshot-setup.txt";              // (scripts/make_setup_parts.py)
     static readonly TimeSpan[] RetryDelays = { TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(6), TimeSpan.FromSeconds(12), TimeSpan.FromSeconds(20) };
 
     public static void FromCommandLine(MainWindow w)
@@ -87,7 +87,7 @@ static class Updater
     {
         if (track == Release) return await LatestTag();
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("HookshotBuilder");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("XeonshotBuilder");
         if (track == Nightly)
         {
             for (var attempt = 0; attempt < 2; attempt++)
@@ -129,7 +129,7 @@ static class Updater
     public static async Task<string?> LatestTag()
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("HookshotBuilder");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("XeonshotBuilder");
         for (var attempt = 0; attempt < 3; attempt++)
         {
             try
@@ -172,7 +172,7 @@ static class Updater
         else tag = null;
         var token = w.DownloadToken;
         using var http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("HookshotBuilder");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("XeonshotBuilder");
         w.Note("Asking git.notrexed.dev for the latest release");
         string? setupUrl = null, setupApiUrl = null, setupDigest = null, setupSum = null;
         long setupSize = 0;
@@ -194,7 +194,7 @@ static class Updater
         var cache = Path.Combine(BuilderHome.Base, "update");
         Directory.CreateDirectory(cache);
         var setup = Path.Combine(cache, SetupAsset);
-        w.Note("Downloading the new Hookshot Builder");
+        w.Note("Downloading the new Xeonshot Builder");
         await DownloadWithRetries(w, http, setupUrl, setupApiUrl, setup, setupSize, setupDigest, token);
         var si = new ProcessStartInfo(setup) { UseShellExecute = false, WorkingDirectory = cache };
         foreach (var arg in args) si.ArgumentList.Add(arg);
@@ -211,7 +211,7 @@ static class Updater
         var tools = Tools.Find();
         if (tools == null)
         {
-            w.DownloadFailed("The Hookshot tools were not found next to this app.");
+            w.DownloadFailed("The Xeonshot tools were not found next to this app.");
             return;
         }
         // (just downloaded, but another release than asked for: the setup installed the release before it (GitHub's latest link lags
@@ -231,7 +231,7 @@ static class Updater
         {
             var token = w.DownloadToken;
             using var http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("HookshotBuilder");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("XeonshotBuilder");
             w.Note("Asking git.notrexed.dev for the latest release");
             string? newTag = null, url = null, setupUrl = null;
             string? apiUrl = null, setupApiUrl = null;
@@ -297,7 +297,7 @@ static class Updater
                 return;
             }
             if (url == null) throw new InvalidOperationException("The latest release has no " + Asset + ".");
-            var zip = Path.Combine(cache, "HookshotBuilder-" + name + ".zip");
+            var zip = Path.Combine(cache, "XeonshotBuilder-" + name + ".zip");
             w.Note($"Downloading {Asset} of {newTag} ({size >> 20} MB)");
             await DownloadWithRetries(w, http, url, apiUrl, zip, size, digest, token, w.DownloadProgress);
             w.Note("Unpacking the new version");
@@ -310,15 +310,15 @@ static class Updater
             }
             else try
             {
-                target = await Unpack(zip, Path.Combine(parent, "HookshotBuilder " + name));
+                target = await Unpack(zip, Path.Combine(parent, "XeonshotBuilder " + name));
             }
             catch (Exception e) when (e is UnauthorizedAccessException or IOException)
             {
                 target = await Unpack(zip, Path.Combine(Path.GetDirectoryName(cache)!, "builders", name));
             }
             try { File.Delete(zip); } catch (Exception) { }
-            var exe = Path.Combine(target, "HookshotBuilder.exe");
-            if (!File.Exists(exe)) throw new FileNotFoundException("The download has no HookshotBuilder.exe (your antivirus may have removed it).");
+            var exe = Path.Combine(target, "XeonshotBuilder.exe");
+            if (!File.Exists(exe)) throw new FileNotFoundException("The download has no XeonshotBuilder.exe (your antivirus may have removed it).");
             var si = new ProcessStartInfo(exe) { UseShellExecute = false, WorkingDirectory = target };
             foreach (var arg in new[] { "--update", folder, "--tag", newTag, "--fetched" }) si.ArgumentList.Add(arg);
             BuilderHome.PassTo(si);
@@ -491,13 +491,13 @@ static class Updater
     static string StatusDetail(Exception? error) =>
         error is HttpRequestException { StatusCode: { } status } ? $" (HTTP {(int)status})" : "";
 
-    /// The zip's HookshotBuilder folder, as target (an older one there replaced)
+    /// The zip's XeonshotBuilder folder, as target (an older one there replaced)
     static async Task<string> Unpack(string zip, string target)
     {
         var part = target + ".part";
         if (Directory.Exists(part)) Directory.Delete(part, true);
         await Task.Run(() => ZipFile.ExtractToDirectory(zip, part));
-        var inner = Path.Combine(part, "HookshotBuilder");
+        var inner = Path.Combine(part, "XeonshotBuilder");
         if (Directory.Exists(target)) Directory.Delete(target, true);
         Directory.Move(Directory.Exists(inner) ? inner : part, target);
         if (Directory.Exists(part)) Directory.Delete(part, true);

@@ -52,6 +52,7 @@ struct Options {
                               // gpu/vk/vk_texture.cpp texture_detail_dims; read as each texture is made)
     int anisotropy = 4;   // (hookshot) Anisotropic filtering: 0 the game's own (1x or 2x), 1 2x, 2 4x, 3 8x, 4 16x (the
                           // device's limit at most; gpu/vk/vk_draw.cpp aniso_override, RX_VK_ANISO over it)
+    int grass_distance = 0;   // short blades: 0 the game's, 1 2x, 2 3x, 3 4x
     int shadow_res = 0;   // (hookshot) Shadow resolution, the sun's cascades: 0 Auto (the size for the card's memory,
                           // menu_shadow_res), 1 the game's (1600), 2 2200, 3 3072 (host/oot_shadow.c: HOS_OPT_SHADOW_RES, 56).
                           // The Quality presets set it back to Auto (apply_preset)
@@ -167,6 +168,7 @@ void menu_set_gpu_count(int count);
 std::string driver_text();   // (vk_main.cpp: the driver as it names itself, for the log and Save my pipeline list)
 std::string device_name_text();   // (vk_main.cpp: the GPU the game runs on, as its driver names it)
 void menu_tick();             // (each frame shown: the keys, while the game's window has the focus)
+int menu_grass_distance();   // renderer's atomic snapshot of the live row
 bool menu_is_open();
 /// (hookshot) The game's scene tone mapped by PsychoV35: HDR set to Native on an HDR display, and the Tone mapper row so
 bool scene_tonemap_on();

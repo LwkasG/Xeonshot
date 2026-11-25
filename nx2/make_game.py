@@ -58,6 +58,7 @@ import toolchain as _toolchain
 import disk as _disk
 import object_store as _object_store
 import lift_store as _lift_store
+import prepare_supervisor
 import game_title
 import log_redact as _log_redact
 # (hookshot) RX_TARGET=windows on Linux: the Windows game, with llvm-mingw's Linux release (HOOKSHOT_MINGW, or llvm-mingw
@@ -65,7 +66,7 @@ import log_redact as _log_redact
 LINUX, CROSS = not _toolchain.windows(), _toolchain.windows() and os.name != "nt"
 # (SDL2.dll is sdl2-compat: it loads SDL3.dll from beside the exe. Left out of bin\ since v2.0.0, it said "Failed loading SDL3
 # library" three times and no controller worked: Discord #bug-reporting, 11-08)
-BESIDE = ["hookshot", "hookshot_vk.so", "libSDL2-2.0.so.0", "renhdrum.so"] if LINUX else ["hookshot.exe", "hookshot_vk.dll", "SDL2.dll", "SDL3.dll", "renhdrum.dll"]
+BESIDE = ["xeonshot", "xeonshot_vk.so", "libSDL2-2.0.so.0", "renhdrum.so"] if LINUX else ["Xeonshot.exe", "xeonshot_vk.dll", "SDL2.dll", "SDL3.dll", "renhdrum.dll"]
 LANGUAGES = [("en-US", "English (US)"), ("en-GB", "English (UK)"), ("fr", "French (France)"), ("fr-CA", "French (Canada)"), ("de", "German"),
              ("it", "Italian"), ("es", "Spanish (Spain)"), ("es-419", "Spanish (Latin America)"), ("pt-BR", "Portuguese (Brazil)"), ("nl", "Dutch"),
              ("pl", "Polish"), ("ru", "Russian"), ("ja", "Japanese"), ("ko", "Korean"), ("zh-Hans", "Chinese (Simplified)"),
@@ -121,7 +122,7 @@ def check_writable(out):
     place) only takes them with administrator rights, and the build used to stop minutes later inside nup.py with a bare
     "PermissionError: [WinError 5]" on its .game folder. A write refused another way (#2792: a FileNotFoundError in a folder
     just made) gets the same plain reason"""
-    probe = os.path.join(out, ".hookshot_write_check")
+    probe = os.path.join(out, ".xeonshot_write_check")
     try:
         os.makedirs(out, exist_ok=True)
         with open(probe, "w") as f:
@@ -133,8 +134,8 @@ def check_writable(out):
                      for d in protected)
         where = (" Windows protects folders under Program Files and Windows, and only lets administrators write there."
                  if inside and isinstance(e, PermissionError) else "")
-        example = "~/Games/Hookshot" if LINUX else r"C:\Games\Hookshot"
-        fail("The game folder %s can't be written to (%s).%s In Hookshot Builder, choose a game folder of your own, for example "
+        example = "~/Games/Xeonshot" if LINUX else r"C:\Xeonshot"
+        fail("The game folder %s can't be written to (%s).%s In Xeonshot Builder, choose a game folder of your own, for example "
              "%s, and build again." % (out, e.strerror or e, where, example))
 
 
@@ -167,7 +168,7 @@ def drive_error(error):
     drive = ntpath.splitdrive(path)[0] if path and code is not None else ""
     check = ('open a terminal as administrator and run "chkdsk %s /f"' % drive if re.fullmatch("[A-Za-z]:", drive)
              else "check the drive for errors")
-    return ("Your drive could not read %s: %s. This is a fault of the drive or its file system, not of Hookshot or your "
+    return ("Your drive could not read %s: %s. This is a fault of the drive or its file system, not of Xeonshot or your "
             "game files. To repair it, %s, then build again. If it keeps happening the drive may be failing: build on "
             "another drive." % (path or "one of the build's files", reason, check))
 
@@ -506,13 +507,13 @@ def check_modules(exefs):
                 head = f.read(16)
             if head[:4] != b"NSO0":
                 fail("The file %s in this dump is not a game module (it starts %s). Try another dump of the game, or send this message to the "
-                     "Hookshot developers." % (name, head.hex()))
+                     "Xeonshot developers." % (name, head.hex()))
 
 
 def check_supported_build(exefs):
     bid = build_id(os.path.join(exefs, "main"))
     if not bid.startswith(BUILD_ID):
-        fail("This is build %s. Hookshot supports build %s." % (bid[:8], BUILD_ID))
+        fail("This is build %s. Xeonshot supports build %s." % (bid[:8], BUILD_ID))
 
 
 def file_progress(verb, clock=time.monotonic):
@@ -534,7 +535,7 @@ def file_progress(verb, clock=time.monotonic):
     return progress
 
 
-HEADS = ".hookshot_romfs_heads"   # (the extraction's damaged .zs list, under the stamp of the unpack that made it)
+HEADS = ".xeonshot_romfs_heads"   # (the extraction's damaged .zs list, under the stamp of the unpack that made it)
 
 
 def read_stamp(path):
@@ -572,16 +573,16 @@ def keep_heads(out, game, stamp):
         f.write(stamp.strip() + "\n" + listed)
 
 
-DAMAGED_NOTE = "hookshot_damaged_files.txt"   # (in the game folder: the damaged game files the last unpack replaced)
+DAMAGED_NOTE = "xeonshot_damaged_files.txt"   # (in the game folder: the damaged game files the last unpack replaced)
 SHOWN_DAMAGED = 50   # (damaged files named in the log, the rest only in DAMAGED_NOTE: #1275's 1896 filled the launcher's log)
 
 
 def stand_in_damaged_files(out, romfs):
     """An incomplete dump's damaged textures replaced by whole ones of the same kind, and said: without them the game
     leaves out the walls and floors that use them (the Water Temple, #1002). Only in a romfs this builder unpacked (its
-    .hookshot_romfs stamp), and once per unpack: .hookshot_romfs_checked holds the stamp it was checked under"""
-    good = os.path.join(out, ".hookshot_romfs")
-    checked = os.path.join(out, ".hookshot_romfs_checked")
+    .xeonshot_romfs stamp), and once per unpack: .xeonshot_romfs_checked holds the stamp it was checked under"""
+    good = os.path.join(out, ".xeonshot_romfs")
+    checked = os.path.join(out, ".xeonshot_romfs_checked")
     if not os.path.isfile(good) or not os.path.isdir(romfs):
         return
     check_cache_paths(out, (good, checked, romfs))
@@ -635,7 +636,7 @@ def stand_in_damaged_files(out, romfs):
         unresolved = sum(other is None for _, other in done)
         if unresolved:
             fail("The game dump still has %d damaged file%s with no replacement. The build stopped before compiling. "
-                 "Dump the game again and select the complete dump in Hookshot Builder. The affected files are listed above." %
+                 "Dump the game again and select the complete dump in Xeonshot Builder. The affected files are listed above." %
                  (unresolved, "" if unresolved == 1 else "s"))
     write_stamp(checked, checked_stamp)
     with contextlib.suppress(FileNotFoundError):
@@ -654,12 +655,12 @@ def romfs_problem(romfs, nup=None):
         return None
     others = sorted(f for f in os.listdir(res) if f.startswith("ResourceSizeTable")) if os.path.isdir(res) else []
     if nup:
-        return ("The game files in %s are %s (Hookshot needs the version whose files have System\\Resource\\%s), while its code is "
+        return ("The game files in %s are %s (Xeonshot needs the version whose files have System\\Resource\\%s), while its code is "
                 "the supported version's. The game's code and files must be from the same version: dump the game again with its "
                 "update applied to the whole game, files included, and choose that dump."
                 % (nup, "from another version of the game (%s)" % others[0] if others else "not the game's own RomFS", ROMFS_TABLE))
     if others:
-        return ("The romfs folder %s is from another version of the game (%s). Hookshot needs the version whose romfs has "
+        return ("The romfs folder %s is from another version of the game (%s). Xeonshot needs the version whose romfs has "
                 "System\\Resource\\%s: dump the game with its update applied, and use that romfs with the exefs from the same "
                 "dump." % (romfs, others[0], ROMFS_TABLE))
     try:
@@ -713,9 +714,9 @@ def check(a, work):
             say("check", "bad", why)
             return
     if bid.startswith(BUILD_ID):
-        say("check", "ok", "This is the version Hookshot supports (build %s)." % bid[:8])
+        say("check", "ok", "This is the version Xeonshot supports (build %s)." % bid[:8])
     else:
-        say("check", "bad", "This is build %s. Hookshot supports build %s." % (bid[:8], BUILD_ID))
+        say("check", "bad", "This is build %s. Xeonshot supports build %s." % (bid[:8], BUILD_ID))
 
 
 def visual_studio_environment():
@@ -912,8 +913,8 @@ def bundled_mingw():
             missing = [n for n in ("clang.exe", "clang++.exe", "ld.lld.exe")
                        if not os.path.isfile(os.path.join(here, "bin", n))]
             fail("Files of the builder's own compiler are missing (%s in %s). Your antivirus most likely removed them "
-                 "(a false alarm on unsigned programs): restore them from its quarantine or allow the Hookshot Builder folder, "
-                 "then unzip HookshotBuilder.zip again and build. Visual Studio is not needed."
+                 "(a false alarm on unsigned programs): restore them from its quarantine or allow the Xeonshot Builder folder, "
+                 "then unzip XeonshotBuilder.zip again and build. Visual Studio is not needed."
                  % (", ".join(missing) or "bin", os.path.join(here, "bin")))
     return os.environ.get("HOOKSHOT_MINGW", "")
 
@@ -963,7 +964,7 @@ def check_mingw():
     cc = toolchain.find("clang")   # (HOOKSHOT_MINGW's, else the one toolchain.py finds: the same as the build uses)
     if not os.path.isfile(cc):   # (HOOKSHOT_MINGW set to a folder without the compiler: said here, not as a silent SystemExit)
         fail("The builder's own compiler was not found at %s. Set HOOKSHOT_MINGW to an llvm-mingw folder, or unpack the "
-             "Hookshot Builder zip again into a folder your antivirus allows." % cc)
+             "Xeonshot Builder zip again into a folder your antivirus allows." % cc)
     with tempfile.TemporaryDirectory() as d:
         src = os.path.join(d, "t.c")
         with open(src, "w") as f:
@@ -975,7 +976,7 @@ def check_mingw():
         blocked = unlistable_above(cc)
         if blocked:   # (LLVM's tools stop at once there, "<clang.exe>: permission denied", before they compile anything)
             fail("Windows doesn't let programs look inside %s, a folder above the builder's own compiler, so it can't start. Move "
-                 "Hookshot's folder out of it (for example to C:\\Hookshot) and start Hookshot from there." % blocked)
+                 "Xeonshot's folder out of it (for example to C:\\Xeonshot) and start Xeonshot from there." % blocked)
         fail("The builder's own compiler (tools/llvm-mingw) could not build a test program: %s. Unpack the zip again into a folder "
              "your antivirus allows." % compiler_failure(r))
     print("the compiler: %s (no Visual Studio needed)" % os.environ["HOOKSHOT_MINGW"], flush=True)
@@ -1146,7 +1147,7 @@ def _cleanup_owns(q, work, default_work):
         prefix = home.rstrip("\\") + "\\"
         parts = path[len(prefix):].split("\\") if path.startswith(prefix) else []
         return (len(parts) == 6 and parts[0] == "versions" and bool(parts[1])
-                and parts[2:] == ["hookshotbuilder", "tools", "nx2", "make_game.py"])
+                and parts[2:] == ["xeonshotbuilder", "tools", "nx2", "make_game.py"])
     if name not in ("clang.exe", "clang++.exe", "clang-cl.exe", "ld.lld.exe", "lld-link.exe"):
         return False
     outputs = []
@@ -1449,7 +1450,7 @@ def drop_stale_objects(work):
     olds = {stamp_for(mine)}
     if os.path.basename(versions).lower() == "versions" and os.path.isdir(versions):
         for v in os.listdir(versions):
-            olds.add(stamp_for(os.path.normcase(os.path.join(versions, v, "HookshotBuilder", "tools")).lower()))
+            olds.add(stamp_for(os.path.normcase(os.path.join(versions, v, "XeonshotBuilder", "tools")).lower()))
     if had and had in olds:
         print("the system headers are the same as the last build's (an earlier version of the builder): its objects are reused", flush=True)
         with open(note, "w") as f:
@@ -1465,18 +1466,20 @@ def drop_stale_objects(work):
 
 def seed_pipelines(out):
     """The pipelines recorded on the development PC (hookshot_pipelines_seed.bin in the tools: program keys and draw states, no game
-    code), as the game folder's list (cache/hookshot_pipelines.bin, where the game keeps its notes: gpu/vk/vk_draw.cpp
+    code), as the game folder's list (cache/xeonshot_pipelines.bin, where the game keeps its notes: gpu/vk/vk_draw.cpp
     pipe_notes_path), so its first start builds them before the title, as TotK Recomp's shipped shader list does, instead of
     compiling each when it is first drawn (the stutter of a first visit). Each release ships the list its own build made: the
     file's first 8 bytes are that build's stamp, and a list the folder has from the same build is kept (it grows as the player
     plays). One loose beside the game goes into cache/ first, as the game's own start moves it (host/game_layout.c)"""
-    seed = os.path.join(ROOT, "hookshot_pipelines_seed.bin")
+    seed = os.path.join(ROOT, "xeonshot_pipelines_seed.bin")
+    if not os.path.isfile(seed):
+        seed = os.path.join(ROOT, "hookshot_pipelines_seed.bin")
     cache = os.path.join(out, "cache")
-    dst = os.path.join(cache, "hookshot_pipelines.bin")
+    dst = os.path.join(cache, "xeonshot_pipelines.bin")
     if not os.path.isfile(seed):
         return
     os.makedirs(cache, exist_ok=True)
-    loose = os.path.join(out, "hookshot_pipelines.bin")
+    loose = os.path.join(out, "xeonshot_pipelines.bin")
     if os.path.isfile(loose) and not os.path.exists(dst):
         try:
             os.replace(loose, dst)
@@ -1503,7 +1506,7 @@ def ship_state_list(out):
     release checks stop on it: nx2/pipeline_states.py check)"""
     import pipeline_states
     src = pipeline_states.sources_dir(ROOT)
-    dst = os.path.join(out, "hookshot_pipeline_states_shipped.bin")
+    dst = os.path.join(out, "xeonshot_pipeline_states_shipped.bin")
     if not os.path.isdir(src):
         return
     try:
@@ -1562,7 +1565,7 @@ COMPILE_KEY = "compile_shaders"
 
 
 def options_path(out):
-    return os.path.join(out, "hookshot_options.ini")
+    return os.path.join(out, "xeonshot_options.ini")
 
 
 def folder_compile_level(out):
@@ -1623,13 +1626,21 @@ def prepare_shaders(cmd, folder=None, silence=PREPARE_SILENCE):
     some GPUs, issue 711): hookshot --prepare-shaders (host/hos_main.c, gpu/vk/vk_main.cpp), the same work as that first start, in
     the game's folder and environment, as the builders' Play starts it. A PC whose Vulkan can't (exit 3), a run silent for `silence` seconds (then stopped), or
     any other failure leaves the work to the first start, as before: never a failed build. Returns its exit code (None: stopped)"""
+    where = folder or os.path.dirname(cmd[0]) or None
+
+    def start(extra):
+        return run(cmd + extra, check=False, show=show_prepared, cwd=where, base=game_env(), silence=silence)
+
     try:
-        code = run(cmd, check=False, show=show_prepared, cwd=folder or os.path.dirname(cmd[0]) or None,
-                   base=game_env(), silence=silence)
+        code, decision = prepare_supervisor.supervise(start, os.path.join(where or os.getcwd(), "cache"))
     except OSError as e:
         not_prepared(str(e))
         return 1
-    if code is None:
+    if decision.action == "done":
+        return code
+    if decision.why:
+        not_prepared(decision.why)
+    elif code is None:
         not_prepared("the game printed nothing for %s and was stopped" % span(silence))
     elif code == 3:
         not_prepared("no usable Vulkan here")
@@ -1872,16 +1883,16 @@ def game_name(out, work, nup=None):
             got = game_title.from_nup(nup)
         except (OSError, SystemExit, ValueError, struct.error) as e:
             got = None
-            print("the game's name and icon could not be read from the .nup (%s): the game is named Hookshot" % e, flush=True)
+            print("the game's name and icon could not be read from the .nup (%s): the game is named Xeonshot" % e, flush=True)
         if got:
             game_title.keep(out, *got)
     title, icon = game_title.kept(out)
-    print("the game's name: %s, its icon: %s" % (title or "none (Hookshot)", "yes" if icon else "none"), flush=True)
+    print("the game's name: %s, its icon: %s" % (title or "none (Xeonshot)", "yes" if icon else "none"), flush=True)
     if not LINUX:
         try:
             game_title.write_res(out, os.path.join(work, game_title.RES_FILE))
         except OSError as e:
-            print("the exe's icon and name were not made (%s): it is named Hookshot" % e, flush=True)
+            print("the exe's icon and name were not made (%s): it is named Xeonshot" % e, flush=True)
 
 
 def copy_writable(src, dst):
@@ -1929,7 +1940,7 @@ def check_unpacked_romfs(romfs, source):
     missing = romfs_missing(romfs)
     if missing:
         fail("%s does not hold all of the game's files (no %s): a game built from it could not start. Dump the game again and "
-             "choose the complete dump in Hookshot Builder." % (source, missing))
+             "choose the complete dump in Xeonshot Builder." % (source, missing))
 
 
 def refuse_dump_links(folder):
@@ -2366,7 +2377,7 @@ def ngx_script():
     path = os.path.join(ROOT, "scripts", "ngx_sdk.py")
     if not os.path.isfile(path):   # (a builder without scripts/ngx_sdk.py: an older AppImage carried none)
         fail("NVIDIA DLSS (HOOKSHOT_NGX_SDK) needs %s, which this builder does not carry: its renderer is built without DLSS. "
-             "Unset HOOKSHOT_NGX_SDK, or build Hookshot from source for DLSS." % path)
+             "Unset HOOKSHOT_NGX_SDK, or build Xeonshot from source for DLSS." % path)
     spec = importlib.util.spec_from_file_location("ngx_sdk", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -2407,7 +2418,7 @@ def ngx_built():
     return bool(sdk) and os.path.isfile(ngx_script().library(sdk, ngx_platform()))
 
 
-FSR_MARK = ".hookshot_fsr"   # (in a game folder built with AMD FSR 4: --update builds it with FSR again)
+FSR_MARK = ".xeonshot_fsr"   # (in a game folder built with AMD FSR 4: --update builds it with FSR again)
 
 
 def fsr_wanted(a, out):
@@ -2547,14 +2558,14 @@ def portable_game_home(out):
     if not ntpath.isabs(home) or not ntpath.splitdrive(home)[0] or home.startswith(("\\\\?\\", "\\\\.\\")):
         raise ValueError("The portable Builder home must be a fully qualified drive or UNC folder.")
     home = os.path.abspath(home)
-    with open(os.path.join(home, ".hookshot-portable"), "rb") as f:
+    with open(os.path.join(home, ".xeonshot-portable"), "rb") as f:
         marker = f.read(36)
-    magic = b"Hookshot Builder portable home v1"
+    magic = b"Xeonshot Builder portable home v1"
     if len(marker) > len(magic) + 2 or marker.rstrip(b"\r\n") != magic:
         raise ValueError("The portable Builder home marker is invalid.")
     if os.path.dirname(home) == home:
         raise ValueError("The portable Builder home must be a dedicated folder.")
-    launcher = os.path.join(os.path.dirname(os.path.abspath(ROOT)), "HookshotBuilder-Setup.exe")
+    launcher = os.path.join(os.path.dirname(os.path.abspath(ROOT)), "XeonshotBuilder-Setup.exe")
     if not os.path.isfile(launcher):
         raise ValueError("A portable game needs the packaged Builder setup launcher.")
     try:
@@ -2576,7 +2587,7 @@ def write_build_record(out, work, tag, fsr):
     patches change: the same version and work folder, nothing downloaded (builder/HookshotBuilder/BuildRecord.cs)"""
     record = {"version": tag, "tools": os.path.abspath(ROOT), "python": sys.executable, "work": os.path.abspath(work),
               "env": {k: os.environ[k] for k in RECORD_ENV if os.environ.get(k)}, "fsr": bool(fsr)}
-    path = os.path.join(out, ".hookshot_build.json")
+    path = os.path.join(out, ".xeonshot_build.json")
     try:
         with open(path + ".new", "w", encoding="utf-8", newline="\n") as f:
             json.dump(record, f, indent=1)
@@ -2587,12 +2598,12 @@ def write_build_record(out, work, tag, fsr):
 
 def write_game_home(out, relative):
     """Only called after successful output finalization; never resolves relative to the process cwd."""
-    destination = os.path.join(out, ".hookshot_builder_home")
+    destination = os.path.join(out, ".xeonshot_builder_home")
     if relative is None:
         with contextlib.suppress(FileNotFoundError):
             os.remove(destination)
         return
-    fd, partial = tempfile.mkstemp(prefix=".hookshot-home-", dir=out)
+    fd, partial = tempfile.mkstemp(prefix=".xeonshot-home-", dir=out)
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
             f.write(relative)
@@ -2612,16 +2623,16 @@ def parse_args():
     p.add_argument("--exefs")
     p.add_argument("--out")
     p.add_argument("--work", default=os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"),
-                                                  "hookshot-builder-windows" if CROSS else "hookshot-builder")   # (the objects apart)
+                                                  "xeonshot-builder-windows" if CROSS else "xeonshot-builder")   # (the objects apart)
                    if os.name != "nt" else os.environ.get("HOOKSHOT_SETUP_BASE") or
-                   os.path.join(os.environ.get("LOCALAPPDATA", ROOT), "HookshotBuilder"))
+                   os.path.join(os.environ.get("LOCALAPPDATA", ROOT), "XeonshotBuilder"))
     # (HOOKSHOT_JOBS: fewer compilers on a PC short of memory; the AppImage's builds pass no --jobs)
     p.add_argument("--jobs", type=int)
     p.add_argument("--language", help="the game's language: a code from LANGUAGES, written to language.txt. Not given: the one the "
                                       "folder has; else the system's with --prepare; else en-US")
     p.add_argument("--check", action="store_true")
     p.add_argument("--game", help="your copy: a .nup or .nx file, or a folder with romfs and exefs in it (the same as --nup, or --romfs and --exefs)")
-    p.add_argument("--prepare", action="store_true", help="for RecompLauncher: no window, progress lines, --out ~/Games/Hookshot unless given")
+    p.add_argument("--prepare", action="store_true", help="for RecompLauncher: no window, progress lines, --out ~/Games/Xeonshot unless given")
     p.add_argument("--update", help="a game folder built before: built again from the game files it keeps (the game's update offer)")
     p.add_argument("--romfs-in-place", action="store_true", default=None,
                    help="with --romfs (development: scripts/dev_packs.py): read the romfs where it is, without a copy or links in "
@@ -2631,7 +2642,7 @@ def parse_args():
                    help="leave the shaders' preparation to the game's first start (the builder's \"Prepare shaders now\" unticked)")
     p.add_argument("--compile-shaders", choices=tuple(COMPILE_LEVELS),
                    help="what the shaders' preparation builds: most (the default) every shader and the pipelines the lists name; "
-                        "all the predicted pipelines too (about 40%% longer). Kept in the folder's hookshot_options.ini "
+                        "all the predicted pipelines too (about 40%% longer). Kept in the folder's xeonshot_options.ini "
                         "(compile_shaders=), which the game's own preparations follow; not given: the folder's")
     p.add_argument("--log", metavar="FILE", help="also save build output to a UTF-8 file (replaces the file if it exists)")
     # (NVIDIA DLSS, off unless asked: NVIDIA's SDK into HOOKSHOT_NGX_SDK first, under NVIDIA's license. scripts/ngx_sdk.py)
@@ -2652,9 +2663,9 @@ def parse_args():
     if a.prepare:   # (first: a bad --game below is said as RecompLauncher's "error" line)
         global PREPARE
         PREPARE = True
-        a.out = a.out or (os.path.join(os.path.dirname(os.environ["HOOKSHOT_SETUP_BASE"]), "Hookshot")
+        a.out = a.out or (os.path.join(os.path.dirname(os.environ["HOOKSHOT_SETUP_BASE"]), "Xeonshot")
                           if os.name == "nt" and os.environ.get("HOOKSHOT_BUILDER_PORTABLE") == "1" and
-                          os.environ.get("HOOKSHOT_SETUP_BASE") else os.path.join(os.path.expanduser("~"), "Games", "Hookshot"))
+                          os.environ.get("HOOKSHOT_SETUP_BASE") else os.path.join(os.path.expanduser("~"), "Games", "Xeonshot"))
     if a.game:   # (a path from a launcher: said plainly before any folder is made, not as a traceback halfway in)
         if os.path.isdir(a.game):
             a.romfs, a.exefs = os.path.join(a.game, "romfs"), os.path.join(a.game, "exefs")
@@ -2725,7 +2736,7 @@ def stale_copies(found, parents, visible):
     return [pid for pid in found if pid not in visible and parents.get(pid) not in visible]
 
 
-INSTALLED_NOTE = ".hookshot_installed.json"   # (in the game folder: what the finish copied in, each file's hash and stat)
+INSTALLED_NOTE = ".xeonshot_installed.json"   # (in the game folder: what the finish copied in, each file's hash and stat)
 
 
 def file_sha1(path):
@@ -2789,7 +2800,7 @@ def game_copy(path, roots):
     program the player keeps in the folder is not: the Hookshot Builder's exe kept there would be taken for the game, its window
     named as Hookshot still running and the update stopped, and a windowless one would have been ended"""
     path = os.path.normcase(path)
-    return os.path.basename(path) == "hookshot.exe" and os.path.dirname(path) + os.sep in roots
+    return os.path.basename(path).lower() == "xeonshot.exe" and os.path.dirname(path) + os.sep in roots
 
 
 def end_stale_games(folders):
@@ -2851,7 +2862,7 @@ def end_stale_games(folders):
     for pid in stale_copies(found, parents, visible):
         h = k32.OpenProcess(0x0001 | 0x00100000, False, pid)   # (PROCESS_TERMINATE | SYNCHRONIZE)
         if h:
-            print("A copy of Hookshot left running without a window (process %d) was ended so the update can replace it" % pid,
+            print("A copy of Xeonshot left running without a window (process %d) was ended so the update can replace it" % pid,
                   flush=True)
             k32.TerminateProcess(h, 1)
             k32.WaitForSingleObject(h, 10000)
@@ -2918,11 +2929,11 @@ def main(a=None):
     remaining_assets = None
     say("stage", "read", "Reading your game files")
     clear_folder(exefs)
-    kept = os.path.join(out, ".hookshot_exefs")   # (the game's code as read, kept in the folder: what an update builds from again)
+    kept = os.path.join(out, ".xeonshot_exefs")   # (the game's code as read, kept in the folder: what an update builds from again)
     if a.update:
         if not os.path.isdir(kept) or not os.path.isdir(romfs):
             fail("This game folder has no copy of the game files to update from: it was built before updates came in. Choose your game files "
-                 "in Hookshot Builder and build into the same folder once; updates after that work by themselves.")
+                 "in Xeonshot Builder and build into the same folder once; updates after that work by themselves.")
         check_cache_paths(out, (kept, romfs))
         check_unpacked_romfs(romfs, "This game folder's copy of the game files (%s)" % romfs)
         shutil.copytree(kept, exefs)
@@ -2932,14 +2943,14 @@ def main(a=None):
         # (what an earlier build left is not kept without a reason to trust it: builders before the compressed .nup fix wrote those files as
         # they lay, so a folder they left held broken game data, and the game crashed at start over its empty dictionaries)
         game = os.path.join(out, ".game")
-        good = os.path.join(out, ".hookshot_romfs")
+        good = os.path.join(out, ".xeonshot_romfs")
         check_cache_paths(out, (game, good, kept, romfs))
         # (an update of the builder over the same .nup: nothing to read again, only what the build needs. Issues 21 and 28)
         try:
             st = os.stat(a.nup)
         except OSError as e:
             fail("Could not access your .nup file %s: %s. Check that the file is still there, reconnect its drive if needed, "
-                 "or choose the file again in Hookshot Builder." % (a.nup, e))
+                 "or choose the file again in Xeonshot Builder." % (a.nup, e))
         stamp = "unpacked by this builder: %s %d" % (os.path.basename(a.nup), st.st_size)
         same = False
         if os.path.exists(good) and os.path.isdir(romfs) and os.path.isdir(kept):
@@ -2951,7 +2962,7 @@ def main(a=None):
         else:
             shutil.rmtree(game, ignore_errors=True)
             with contextlib.suppress(FileNotFoundError):   # (a new unpack is checked again)
-                os.remove(os.path.join(out, ".hookshot_romfs_checked"))
+                os.remove(os.path.join(out, ".xeonshot_romfs_checked"))
             # Keep the last usable cache until the new package has been read and validated.
             staged_exefs = os.path.join(game, "exefs")
             # (a .nup alone: nxar.py reads a .nx archive whole)
@@ -3022,13 +3033,13 @@ def main(a=None):
         shutil.rmtree(kept, ignore_errors=True)
         shutil.copytree(exefs, kept)
         with contextlib.suppress(FileNotFoundError):   # (the copies are this dump's now, not the .nup's that stamp names)
-            os.remove(os.path.join(out, ".hookshot_romfs"))
+            os.remove(os.path.join(out, ".xeonshot_romfs"))
     check_supported_build(exefs)
     game_name(out, work, None if a.update else a.nup)
 
     # (made once on the development PC: lists of addresses and counts, no game code)
     # (hookshot_vk.profdata: the renderer's own profile, counts over Hookshot's own code)
-    for name in ("hot_order.txt", "hookshot_pieces.prof", VK_PROFILE, "hookshot.res"):
+    for name in ("hot_order.txt", "hookshot_pieces.prof", VK_PROFILE, "xeonshot.res"):
         src = os.path.join(ROOT, "work", name)
         dst = os.path.join(work, name)
         # (copied only when it differs: a compiler still ending from a cancelled build keeps the profile mapped, WinError 1224)
@@ -3145,7 +3156,7 @@ def main(a=None):
             print("translated files cut short (%s): the game is translated again" % ", ".join(cut[:6]), flush=True)
         else:
             fail("The translated game came out cut short twice (%s). Check that the drive with %s has free space, and that no antivirus "
-                 "and no second Hookshot Builder is working in that folder, then update again." % (", ".join(cut[:6]), work))
+                 "and no second Xeonshot Builder is working in that folder, then update again." % (", ".join(cut[:6]), work))
 
     if remaining_assets:
         print("Reading the remaining game assets alongside translation.", flush=True)
@@ -3217,12 +3228,12 @@ def main(a=None):
                 plan[:] = [int(parts[1]), int(parts[2])]
     linking = []   # (build.py's "compiled in Ns, 0 failed": every object made, the link next)
     failed = []   # (build.py's "FAILED <name> (...": a file that did not compile, alone either)
-    game_linked = []   # (build.py's "linked <...>/hookshot[.exe]: N MB": the game linked, the renderer's link next)
+    game_linked = []   # (build.py's "linked <...>/Xeonshot[.exe]: N MB": the game linked, the renderer's link next)
 
     def compile_line(line):
         if re.match(r"compiled in \d+s, 0 failed$", line):
             linking.append(line)
-        if re.match(r"linked .*[\\/]hookshot(\.exe)?: \d+ MB \(", line):
+        if re.match(r"linked .*[\\/][Xx]eonshot(\.exe)?: \d+ MB \(", line):
             game_linked.append(line)
         m = re.match(r"FAILED (\S+) \(", line)
         if m:
@@ -3256,7 +3267,7 @@ def main(a=None):
     staged = []
     # (Linux) the same launcher, as a script, when this is a packaged builder (the AppImage sets HOOKSHOT_TOOLS). A source
     # checkout leaves hookshot in the folder, as a development build on Windows does when the setup exe is not beside it
-    launcher = os.path.join(os.path.dirname(os.path.abspath(ROOT)), "HookshotBuilder-Setup.exe")
+    launcher = os.path.join(os.path.dirname(os.path.abspath(ROOT)), "XeonshotBuilder-Setup.exe")
     if LINUX:
         script = os.path.join(ROOT, "builder", "linux", "hookshot-folder")
         launcher = script if os.environ.get("HOOKSHOT_TOOLS") and os.path.isfile(script) else None
@@ -3296,13 +3307,13 @@ def main(a=None):
     if not LINUX:   # (a copy of this game still running holds its exe: one with no window is a leftover, ended; else named)
         shown = end_stale_games([game_dir, out])
         if shown:
-            fail("Hookshot is still running from this folder (%s). Close it, then retry. No installed files were replaced."
+            fail("Xeonshot is still running from this folder (%s). Close it, then retry. No installed files were replaced."
                  % ", ".join("process %d" % pid for pid in shown))
     for src, dst in staged:
         try:
             os.replace(dst + ".new", dst)   # (linux: a running copy keeps its own file; windows: a running exe cannot be replaced)
         except PermissionError:
-            fail("Could not replace %s. Close any running copy of Hookshot and check that the file and folder are writable, then retry. "
+            fail("Could not replace %s. Close any running copy of Xeonshot and check that the file and folder are writable, then retry. "
                  "Staged replacements remain beside the installed files; the compiled source remains at %s." % (dst, src))
     if staged:
         note_installed(out, installed, staged)
@@ -3313,9 +3324,9 @@ def main(a=None):
                     os.remove(os.path.join(d, "wgpu_native.dll"))
             except OSError:
                 pass
-    if launcher:   # (a folder built before the launcher: its libraries left the folder for bin\; hookshot is the launcher now)
+    if launcher:   # (a folder built before the launcher: its libraries left the folder for bin\; xeonshot is the launcher now)
         stale = [] if LINUX else sorted(f for f in os.listdir(out) if f.endswith(".dll") and f.startswith(("av", "sw")))
-        for n in BESIDE[1:] + stale + ["hookshot.map", "hookshot-game.exe"]:
+        for n in BESIDE[1:] + stale + ["Xeonshot.map", "xeonshot-game.exe"]:
             try:
                 if os.path.isfile(os.path.join(out, n)):
                     os.remove(os.path.join(out, n))
@@ -3336,12 +3347,12 @@ def main(a=None):
     # every shader of the game, for its first start to translate (gpu/vk/vk_shader.cpp seed_open). Without it the game still runs, compiling them
     # as it meets them: not worth stopping a finished build for
     # (made again only when the game's shader files, the census or the list itself changed: 4 s and 514 MB written at every update)
-    if shader_list_current(work, romfs, os.path.join(out, "hookshot_shaders.bin")):
+    if shader_list_current(work, romfs, os.path.join(out, "xeonshot_shaders.bin")):
         print("the shader list is the one the last build made from the same files: not made again", flush=True)
-    elif run(shader_census_cmd(romfs, os.path.join(out, "hookshot_shaders.bin")), check=False, output=sys.stderr):
+    elif run(shader_census_cmd(romfs, os.path.join(out, "xeonshot_shaders.bin")), check=False, output=sys.stderr):
         print("the shader list was not made: the game will compile its shaders as it plays", flush=True)
     else:
-        note_shader_list(work, romfs, os.path.join(out, "hookshot_shaders.bin"))
+        note_shader_list(work, romfs, os.path.join(out, "xeonshot_shaders.bin"))
     # (hookshot) Some dumps hold textures whose first kilobytes are zeros; the game cannot decode them and never finishes loading
     # the models that need one: the fairy fountains' floor and walls were not drawn, and as an adult the model was loaded again
     # and again for good; a damaged piece of an area's baked lighting leaves what it lights black. tools/dump_repair.py finds
@@ -3370,9 +3381,9 @@ def main(a=None):
         print("the button prompts of other controllers were not made: the game shows its own", flush=True)
         shutil.rmtree(prompts, ignore_errors=True)
     PHASES.part("button prompts")
-    icon = os.path.join(ROOT, "assets", "hookshot.png")
-    if LINUX and not game_title.write_png(out, os.path.join(out, "hookshot.png")) and os.path.exists(icon):   # (the window's icon: host/posix/display_sdl.c; the game's own when its .nup had one)
-        copy_writable(icon, os.path.join(out, "hookshot.png"))   # (a second build overwrites the first's)
+    icon = os.path.join(ROOT, "assets", "xeonshot_splash.png")
+    if LINUX and not game_title.write_png(out, os.path.join(out, "xeonshot.png")) and os.path.exists(icon):   # (the window's icon: host/posix/display_sdl.c; the game's own when its .nup had one)
+        copy_writable(icon, os.path.join(out, "xeonshot.png"))   # (a second build overwrites the first's)
     # (hookshot) the Travel places' positions, arrival events and story marks (gpu/vk/oot_tp_places_data.h), from the
     # player's own maps (nx2/teleport_places.py, zstandard alone). Without them the places arrive with the plain event, no pictures
     if run(PY + [os.path.join(HERE, "teleport_places.py"), "--romfs", romfs, "--out", out], check=False, output=sys.stderr):
@@ -3403,7 +3414,7 @@ def main(a=None):
                 break
     if tag:
         write_game_home(out, portable_home)
-        with open(os.path.join(out, "hookshot_version.txt"), "w", encoding="utf-8", newline="\n") as f:
+        with open(os.path.join(out, "xeonshot_version.txt"), "w", encoding="utf-8", newline="\n") as f:
             f.write("version=%s\n" % tag)
             if portable_home is not None:
                 f.write("builder_local=1\n")
@@ -3485,7 +3496,7 @@ def cli():
                 say("error", drive_error(e))
                 sys.exit(1)
             say("error", "The builder stopped on an error it did not expect: %s: %s. Please send the text under Show details to the "
-                "Hookshot issues page." % (type(e).__name__, str(e)[:300]))
+                "Xeonshot issues page." % (type(e).__name__, str(e)[:300]))
             sys.exit(1)
 
 

@@ -195,7 +195,7 @@ static inline void hos_crash_log_line(HosCrashLog *f, const char *line) {
     if (strstr(line, "] boot: LOW MEMORY")) f->low_memory = 1;
     if (strstr(line, "device lost") || strstr(line, "VK_ERROR_DEVICE_LOST")) f->device_lost = 1;
     /* (what the report names) */
-    if (!f->version[0] && (at = strstr(line, "] hookshot "))) hos_crash_take(f->version, sizeof f->version, at + 11);
+    if (!f->version[0] && (at = strstr(line, "] xeonshot "))) hos_crash_take(f->version, sizeof f->version, at + 11);
     if ((at = strstr(line, "] vk: driver: "))) hos_crash_take(f->driver, sizeof f->driver, at + 14);
     if ((at = strstr(line, "] vk: ")) && strstr(at, ", Vulkan ") && strstr(at, "; mesh shaders ")) {   /* (the device chosen) */
         const char *name = at + 6, *end = strstr(name, ", Vulkan ");
@@ -246,8 +246,8 @@ static inline int hos_crash_record_value(const char *text, const char *key, char
 }
 static inline void hos_crash_record_parse(const char *text, HosCrashRecord *r) {
     memset(r, 0, sizeof *r);
-    if (!strncmp(text, "Hookshot crash record 1\n", 24)) r->kind = 1;
-    else if (!strncmp(text, "Hookshot unclean record 1\n", 26)) r->kind = 2;
+    if (!strncmp(text, "Xeonshot crash record 1\n", 24)) r->kind = 1;
+    else if (!strncmp(text, "Xeonshot unclean record 1\n", 26)) r->kind = 2;
     else return;
     char v[40];
     hos_crash_record_value(text, "reason", r->reason, sizeof r->reason);
@@ -310,13 +310,13 @@ static inline int hos_crash_cause(int verdict, const HosCrashRecord *r, const Ho
     return HOS_CAUSE_UNKNOWN;
 }
 static inline const char *hos_crash_title(int verdict) {
-    return verdict == HOS_CRASH_SHOW_START ? "Hookshot couldn't start" : "Hookshot closed unexpectedly";
+    return verdict == HOS_CRASH_SHOW_START ? "Xeonshot couldn't start" : "Xeonshot closed unexpectedly";
 }
 static inline const char *hos_crash_stage_text(int stage) {
     return stage == HOS_STAGE_PLAY ? "while you were playing" : stage == HOS_STAGE_PREPARING ? "while it prepared the shaders"
          : stage == HOS_STAGE_UNKNOWN ? "" : "during the start";
 }
-/* What happened and when, as a sentence without its full stop: "Hookshot closed unexpectedly while you were playing" */
+/* What happened and when, as a sentence without its full stop: "Xeonshot closed unexpectedly while you were playing" */
 static inline void hos_crash_headline(char *out, size_t cap, const char *what, int stage) {
     const char *when = hos_crash_stage_text(stage);
     snprintf(out, cap, "%s%s%s", what, when[0] ? " " : "", when);
@@ -324,18 +324,18 @@ static inline void hos_crash_headline(char *out, size_t cap, const char *what, i
 static inline const char *hos_crash_cause_text(int cause) {
     switch (cause) {
     case HOS_CAUSE_FILES:
-        return "Hookshot's game files are missing or don't match each other. Build the game again with Hookshot Builder.";
+        return "Xeonshot's game files are missing or don't match each other. Build the game again with Xeonshot Builder.";
     case HOS_CAUSE_VULKAN:
-        return "Vulkan didn't start on your graphics card. Update your graphics driver: Hookshot needs a graphics card and "
+        return "Vulkan didn't start on your graphics card. Update your graphics driver: Xeonshot needs a graphics card and "
                "driver with Vulkan 1.3.";
-    case HOS_CAUSE_WINDOW: return "Hookshot couldn't open its window. Restart your PC, and update your graphics driver.";
+    case HOS_CAUSE_WINDOW: return "Xeonshot couldn't open its window. Restart your PC, and update your graphics driver.";
     case HOS_CAUSE_MEMORY:
-        return "Your PC ran out of memory. Close other programs and try again; Hookshot needs 16 GB of RAM, and on Windows a "
+        return "Your PC ran out of memory. Close other programs and try again; Xeonshot needs 16 GB of RAM, and on Windows a "
                "page file Windows manages.";
     case HOS_CAUSE_GPU_DRIVER:
         return "The graphics driver failed. Update your graphics driver, and turn off overlays and tools hooked into the game.";
     case HOS_CAUSE_ENDED:
-        return "Hookshot ended without a crash report: it was closed from outside (Task Manager, a kill), or the system "
+        return "Xeonshot ended without a crash report: it was closed from outside (Task Manager, a kill), or the system "
                "stopped it, often for running out of memory.";
     default: return "An unexpected error.";
     }
@@ -343,13 +343,13 @@ static inline const char *hos_crash_cause_text(int cause) {
 /* The window's text: what happened and when, why, and what Report does */
 static inline size_t hos_crash_message(char *out, size_t cap, int verdict, int stage, int cause) {
     char headline[160];
-    hos_crash_headline(headline, sizeof headline, verdict == HOS_CRASH_SHOW_START ? "Hookshot stopped" : "Hookshot closed unexpectedly",
+    hos_crash_headline(headline, sizeof headline, verdict == HOS_CRASH_SHOW_START ? "Xeonshot stopped" : "Xeonshot closed unexpectedly",
                        stage);
     const int n = snprintf(out, cap,
                            "%s.\n\nWhat went wrong: %s\n\n"
                            "Report copies a report to your clipboard (the error, your PC's hardware and the end of the log, "
-                           "with your home folder and user name taken out) and opens Hookshot's issue form in your browser, "
-                           "for you to paste it into. Hookshot itself sends nothing.",
+                           "with your home folder and user name taken out) and opens Xeonshot's issue form in your browser, "
+                           "for you to paste it into. Xeonshot itself sends nothing.",
                            headline, hos_crash_cause_text(cause));
     return n < 0 ? 0 : (size_t)n < cap ? (size_t)n : cap ? cap - 1 : 0;
 }
@@ -457,11 +457,11 @@ static inline size_t hos_crash_ready_text(char *out, size_t cap, int copied, int
         copied ? "The report is on your clipboard. "
         : saved ? "The report could not be put on the clipboard. Click Open the report, select all of it and copy it. "
                 : "The report could not be put on the clipboard, nor saved. ",
-        opened ? "In the issue form that opened in your browser, paste it into the hookshot_log.txt box, say what you were doing, "
+        opened ? "In the issue form that opened in your browser, paste it into the xeonshot_log.txt box, say what you were doing, "
                  "and fill in the rest."
                : "Open ",
         opened ? "" : issues,
-        opened ? "" : ", choose Game problem, and paste it into the hookshot_log.txt box.",
+        opened ? "" : ", choose Game problem, and paste it into the xeonshot_log.txt box.",
         saved ? "\n\nIt is saved as " : "", saved ? saved : "");
     size_t used = n < 0 ? 0 : (size_t)n < cap ? (size_t)n : cap ? cap - 1 : 0;
     const char *tail = saved ? "." : "";

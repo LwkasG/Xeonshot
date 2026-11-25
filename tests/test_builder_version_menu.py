@@ -22,7 +22,7 @@ RUN_ALL_ARGS = ["--dotnet", "{dotnet}"]
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def release(tag, assets=("HookshotBuilder.exe", "hookshot-setup.txt", "hookshot-linux.txt"), pre=False, draft=False,
+def release(tag, assets=("XeonshotBuilder.exe", "xeonshot-setup.txt", "hookshot-linux.txt"), pre=False, draft=False,
             published="2026-11-15T06:15:00Z"):
     return {"tag_name": tag, "prerelease": pre, "draft": draft, "published_at": published,
             "assets": [{"name": n} for n in assets]}
@@ -32,7 +32,7 @@ def release(tag, assets=("HookshotBuilder.exe", "hookshot-setup.txt", "hookshot-
 PAGE1 = [release("v2.3.1"), release("v2.3.0"), release("v2.2.0-rc.1", pre=True), release("rc", ("Hookshot-x86_64.AppImage",), pre=True),
          release("v2.1.0"), release("linux-parts", ("a.zip",), pre=True), release("builder-parts", ("b.zip",), pre=True),
          release("v2.4.0", draft=True), release("v2.3.1")]   # (a draft, and a tag twice)
-PAGE1 += [release("v1.%d.0" % i, ("HookshotBuilder.exe", "hookshot-setup.txt")) for i in range(50 - len(PAGE1))]
+PAGE1 += [release("v1.%d.0" % i, ("XeonshotBuilder.exe", "xeonshot-setup.txt")) for i in range(50 - len(PAGE1))]
 PAGE2 = [release("v2.0.6"), release("v2.0.5"), release("v2.2.0-rc.2", ("hookshot-linux.txt",), pre=True)]
 WANT_FIRST = ["v2.3.1", "v2.3.0", "v2.2.0-rc.2", "v2.2.0-rc.1", "v2.1.0", "v2.0.6", "v2.0.5"]
 

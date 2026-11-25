@@ -67,30 +67,30 @@ CROSS = WINDOWS and os.name != "nt"   # (the Windows game built on Linux: it can
 # variants, the state lists (and the older one still read), the prepare's record, and the driver's pipeline cache with
 # its stamp (without it the cache and its play files are dropped, pcache_stamp.h))
 CACHE_DIR = "cache"
-CACHES = ("hookshot_programs.bin", "hookshot_programs.idx", "hookshot_programs.zst.bin", "hookshot_programs.zst.idx",
-          "hookshot_module_ids.bin", "hookshot_pipelines.bin", "hookshot_pipelines.bin.predicted", "hookshot_pipelines.bin.predicted_keys",
-          "hookshot_pipelines.bin.built",
-          "hookshot_computes.bin", "hookshot_compute_variants.bin", "hookshot_pipeline_states.bin",
-          "hookshot_pipeline_states_v1.bin", "hookshot_prepared.bin", "hookshot_vk_pipelines.bin", "hookshot_vk_pipelines.stamp",
-          "hookshot_compiled.bin",   # (RX_VK_SHADER_KEY's list of what the driver built, vk_draw.cpp ledger_path)
+CACHES = ("xeonshot_programs.bin", "xeonshot_programs.idx", "xeonshot_programs.zst.bin", "xeonshot_programs.zst.idx",
+          "xeonshot_module_ids.bin", "xeonshot_pipelines.bin", "xeonshot_pipelines.bin.predicted", "xeonshot_pipelines.bin.predicted_keys",
+          "xeonshot_pipelines.bin.built",
+          "xeonshot_computes.bin", "xeonshot_compute_variants.bin", "xeonshot_pipeline_states.bin",
+          "xeonshot_pipeline_states_v1.bin", "xeonshot_prepared.bin", "xeonshot_vk_pipelines.bin", "xeonshot_vk_pipelines.stamp",
+          "xeonshot_compiled.bin",   # (RX_VK_SHADER_KEY's list of what the driver built, vk_draw.cpp ledger_path)
           # (the textures a draw has sampled, for RX_VK_TEX_AHEAD: gpu/vk/texture_ahead.h)
-          "hookshot_textures_drawn.bin",
-          "hookshot_fsr4_pipelines.bin")   # (AMD FSR 4's unrolled layers' own pipeline cache: gpu/vk/vk_fsr4.cpp)
-PLAY_FILES = re.compile(r"hookshot_vk_pipelines_play_[0-9]+\.bin")   # (what play adds to the pipeline cache: gpu/vk/vk_draw.cpp play_path)
+          "xeonshot_textures_drawn.bin",
+          "xeonshot_fsr4_pipelines.bin")   # (AMD FSR 4's unrolled layers' own pipeline cache: gpu/vk/vk_fsr4.cpp)
+PLAY_FILES = re.compile(r"xeonshot_vk_pipelines_play_[0-9]+\.bin")   # (what play adds to the pipeline cache: gpu/vk/vk_draw.cpp play_path)
 # (what the game writes into its folder at run time, never a build's output: the caches (and the button prompts it makes) in
 # cache/, the logs in logs/ (host/game_layout.c)
 RUNTIME_DIRS = (CACHE_DIR + "/", "logs/")
 # (an older game folder kept its caches loose beside the game, the Vulkan pipeline cache as mkw_vk_pipelines*: a seed from
 # one is copied as it is, and the game's first start moves them into cache/ (host/game_layout.c))
-OLD_CACHES = tuple(c.replace("hookshot_vk_pipelines", "mkw_vk_pipelines") for c in CACHES)
+OLD_CACHES = tuple(c.replace("xeonshot_vk_pipelines", "mkw_vk_pipelines") for c in CACHES)
 OLD_PLAY_FILES = re.compile(r"mkw_vk_pipelines_play_[0-9]+\.bin")
 BUSY = "dev_packs.busy"   # (in a base's folder while a job builds, warms or copies from it)
-SEED = "hookshot_shaders.bin"   # (the shader list the prepare goes through: a new one is prepared again)
+SEED = "xeonshot_shaders.bin"   # (the shader list the prepare goes through: a new one is prepared again)
 # (module, its map, its link list in sa/build, the object that holds the version: nx2/build.py gives hos_main.c and vk_menu.cpp
 # nx2/version.py's describe(), a fingerprint of every source, so those two objects differ in every build of another tree)
-MODULES = ((("hookshot.exe", "hookshot.map", "objs.rsp", "host_hos_main.o"),
-            ("hookshot_vk.dll", "hookshot_vk.map", "vk_objs.rsp", "vk_vk_menu.o")) if WINDOWS else
-           (("hookshot", None, "objs.rsp", "host_hos_main.o"), ("hookshot_vk.so", None, "vk_objs.rsp", "vk_vk_menu.o")))
+MODULES = ((("Xeonshot.exe", "Xeonshot.map", "objs.rsp", "host_hos_main.o"),
+            ("xeonshot_vk.dll", "xeonshot_vk.map", "vk_objs.rsp", "vk_vk_menu.o")) if WINDOWS else
+           (("xeonshot", None, "objs.rsp", "host_hos_main.o"), ("xeonshot_vk.so", None, "vk_objs.rsp", "vk_vk_menu.o")))
 GAME, RENDERER = MODULES[0][0], MODULES[1][0]
 STAMPED_SOURCES = ("host/hos_main.c", "gpu/vk/vk_menu.cpp")
 # (nx2/build.py's shader stamp is made of the files the checkout's own nx2/translator_files.py names (translator_changed); a
@@ -106,11 +106,11 @@ SOURCES = (".c", ".cc", ".cpp") + HEADERS
 # (files the game writes beside itself while it runs, besides the caches: never a build's output, so never "deleted" by a pack)
 # (what the game writes beside itself while it runs, never a build's output: settings, logs and reports, and the markers of a
 # skipped preparation and of a slow load (vk_main.cpp, vk_draw.cpp); not seeded either)
-WRITTEN_IN_PLAY = ("hookshot_options.ini", "hookshot_log.txt", "hookshot_log.1.txt", "hookshot_driver_faults.txt",
-                   "hookshot_prepared.bin.warming", "hookshot_pipelines.bin.predicting", "hookshot_pipelines.bin.running",
-                   "hookshot_pipelines.bin.built.warming", "hookshot_prepare_skipped", "hookshot_load_start.txt",
-                   "hookshot_load_start.txt.waited", "hookshot_pipeline_report.txt", "hookshot_frames.csv",
-                   "hookshot_damaged_files.txt")
+WRITTEN_IN_PLAY = ("xeonshot_options.ini", "xeonshot_log.txt", "xeonshot_log.1.txt", "xeonshot_driver_faults.txt",
+                   "xeonshot_prepared.bin.warming", "xeonshot_pipelines.bin.predicting", "xeonshot_pipelines.bin.running",
+                   "xeonshot_pipelines.bin.built.warming", "xeonshot_prepare_skipped", "xeonshot_load_start.txt",
+                   "xeonshot_load_start.txt.waited", "xeonshot_pipeline_report.txt", "xeonshot_frames.csv",
+                   "xeonshot_damaged_files.txt")
 
 
 def translator_changed(tree, changed):
@@ -323,8 +323,8 @@ def object_store():
     is empty or 0: none): a new base compiles only what no earlier one did. In the user's cache folder; on another drive than the
     bases its objects are copied instead of linked, so set HOOKSHOT_OBJ_STORE to a folder on the bases' drive"""
     if os.name == "nt":
-        return os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "Hookshot", "objects")
-    return os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "hookshot-objects")
+        return os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "Xeonshot", "objects")
+    return os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "xeonshot-objects")
 
 
 def lift_store():
@@ -332,8 +332,8 @@ def lift_store():
     empty or 0: none): a new base or a first pack translates the game only when the translator, the hot list or the game
     changed. Copies are clones where the file system has them (btrfs, XFS), full copies elsewhere"""
     if os.name == "nt":
-        return os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "Hookshot", "lifts")
-    return os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "hookshot-lifts")
+        return os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "Xeonshot", "lifts")
+    return os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "xeonshot-lifts")
 
 
 def run(cmd, cwd, env=None):
@@ -415,12 +415,22 @@ def prepare(game, b, required=True):
         cmd += ["--romfs", b["romfs"]]
     print("+ %s%s" % (" ".join([GAME] + cmd[1:]), " (RX_VK_PREDICT_S=%d)" % b["predict_s"] if b.get("predict_s") else ""), flush=True)
     try:
-        code = subprocess.run(cmd, cwd=game, check=required, env=dict(mg.game_env(), **base_env(b.get("predict_s", 0)))).returncode
+        env = dict(mg.game_env(), **base_env(b.get("predict_s", 0)))
+        def start(extra):
+            return subprocess.run(cmd + extra, cwd=game, env=env).returncode
+
+        supervisor = getattr(mg, "prepare_supervisor", None)
+        code, decision = supervisor.supervise(start, os.path.join(game, "cache")) if supervisor else (start([]), None)
+        if required and code:
+            raise subprocess.CalledProcessError(code, cmd)
     except OSError as e:   # (the game could not start: a missing DLL, launch denied)
         if required:
             raise
         code, why = None, str(e)
-    if code:
+        decision = None
+    if decision and decision.why:
+        why = decision.why
+    elif code:
         why = PREPARE_FAILED.get(code, "the game stopped with exit status %d" % code)
     if code != 0:
         print("the shaders were not prepared now (%s): the game prepares them at its first start" % why, flush=True)

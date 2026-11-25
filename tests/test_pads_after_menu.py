@@ -38,6 +38,9 @@ PRELUDE = r"""#include <stdint.h>
 typedef long LONG;
 typedef uint16_t WORD;
 typedef uint32_t DWORD;
+#include <stddef.h>
+typedef int BOOL;
+typedef size_t SIZE_T;
 typedef void *HMODULE;
 #define WINAPI
 #define ERROR_SUCCESS 0
@@ -50,13 +53,28 @@ typedef struct { WORD wButtons; uint8_t bLeftTrigger, bRightTrigger; int16_t sTh
 typedef struct { DWORD dwPacketNumber; XINPUT_GAMEPAD Gamepad; } XINPUT_STATE;
 typedef DWORD(WINAPI *XInputGetStateFn)(DWORD, XINPUT_STATE *);
 static XInputGetStateFn xinput_get;   /* (no XInput: SDL has the pads) */
+#define LOAD_LIBRARY_SEARCH_SYSTEM32 0x800
+static HMODULE LoadLibraryExA(const char *name, void *file, unsigned flags) { (void)name; (void)file; (void)flags; return NULL; }
 static HMODULE LoadLibraryA(const char *name) { (void)name; return NULL; }
+static HMODULE GetModuleHandleA(const char *name) { (void)name; return NULL; }
 static void *GetProcAddress(HMODULE m, const char *name) { (void)m; (void)name; return NULL; }
 static LONG InterlockedExchange(volatile LONG *p, LONG v) { LONG o = *p; *p = v; return o; }
 typedef int SRWLOCK;
 #define SRWLOCK_INIT 0
 static void AcquireSRWLockShared(SRWLOCK *p) { (void)p; }
 static void ReleaseSRWLockShared(SRWLOCK *p) { (void)p; }
+static void AcquireSRWLockExclusive(SRWLOCK *p) { (void)p; }
+static void ReleaseSRWLockExclusive(SRWLOCK *p) { (void)p; }
+typedef void *HANDLE;
+typedef DWORD(WINAPI *LPTHREAD_START_ROUTINE)(void *);
+static HANDLE CreateThread(void *a, size_t s, LPTHREAD_START_ROUTINE fn, void *arg, DWORD f, DWORD *id) { (void)a; (void)s; (void)fn; (void)arg; (void)f; (void)id; return NULL; }
+static int CloseHandle(HANDLE h) { (void)h; return 1; }
+static void Sleep(DWORD ms) { (void)ms; }
+static void WaitOnAddress(volatile void *addr, void *value, size_t size, DWORD ms) {
+    (void)addr; (void)value; (void)size; Sleep(ms);
+}
+static void WakeByAddressSingle(void *addr) { (void)addr; }
+void hos_host_thread_register_self(const char *name) { (void)name; }
 static void hos_log(const char *format, ...) { (void)format; }
 static int64_t now_ns = 1000000000LL;
 static int64_t hos_now_ns(void) { return now_ns; }
@@ -142,7 +160,7 @@ def main():
         block(hid, "static const signed char pad_default[HOS_SW_N] =") + ";",
         block(hid, "static void stick_max("), block(hid, "static uint64_t bound_pad_buttons("), state,
         block(hid, "void hos_filter_stick("),
-        re.search(r"^static volatile int xinput_pads_now;.*$", hid, re.M).group(0),
+        hid[hid.index("static volatile int xinput_pads_now;"):hid.index("static void pads_read(")],
         block(hid, "static void pads_read("),
         merge, "static void game_pads(uint64_t *buttons, int32_t stick[4]) { (void)pads_merge(buttons, stick); }",
         MAIN))

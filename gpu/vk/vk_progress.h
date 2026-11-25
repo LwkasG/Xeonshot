@@ -124,12 +124,54 @@ inline std::string percent_of(double f) {
     return std::to_string(p) + "%";
 }
 
+struct StartupTrivia {
+    const char* pt;
+    const char* en;
+};
+
+inline constexpr double kTriviaInterval = 9.0;
+inline constexpr size_t kTriviaCount = 12;
+
+/// One fact in both languages every 9 seconds, on the same clock across preparation steps, offset per session.
+inline const StartupTrivia& startup_trivia(double secs, size_t offset = 0) {
+    static constexpr StartupTrivia facts[] = {
+        {"No original, a Canção de Epona faz vacas encherem sua garrafa de leite.",
+         "In the original, Epona's Song makes cows fill your bottle with milk."},
+        {"No original, bombas fazem as Pedras da Verdade voar como foguetes.",
+         "In the original, bombs make Gossip Stones fly like rockets."},
+        {"No original, uma borboleta que toca um graveto Deku pode virar uma fada.",
+         "In the original, a butterfly that touches a Deku Stick can become a fairy."},
+        {"No original, atacar uma Cucco demais faz o bando inteiro perseguir Link.",
+         "In the original, hitting a Cucco too often makes the whole flock chase Link."},
+        {"Uma luta de espadas encenada inspirou o sistema de mira Z do original.",
+         "A staged sword fight inspired the original game's Z-targeting system."},
+        {"No original, o lago de pesca esconde uma espécie rara, o Hylian Loach.",
+         "In the original, the fishing pond hides a rare fish called the Hylian Loach."},
+        {"No Nintendo 64, o analógico muda a afinação das notas da ocarina.",
+         "On Nintendo 64, the control stick changes the pitch of the ocarina's notes."},
+        {"No original, moradores reagem de formas diferentes às máscaras de Link.",
+         "In the original, townspeople react differently to the masks Link wears."},
+        {"No original, usar a Máscara de Coelho impede Stalchildren de surgir à noite.",
+         "In the original, wearing the Bunny Hood stops Stalchildren from spawning at night."},
+        {"No original, tocar a Canção de Ninar de Zelda conserta placas cortadas.",
+         "In the original, playing Zelda's Lullaby repairs wooden signs you cut down."},
+        {"No original, agachar com o Escudo Hylian protege Link das pedras da Montanha da Morte.",
+         "In the original, crouching with the Hylian Shield shields Link from Death Mountain rocks."},
+        {"No original, a Canção das Tempestades cria um paradoxo temporal no moinho de Kakariko.",
+         "In the original, the Song of Storms forms a time paradox in Kakariko's windmill."},
+    };
+    static_assert(sizeof facts / sizeof *facts == kTriviaCount);
+    const size_t step = static_cast<size_t>(std::max(0.0, secs) / kTriviaInterval);
+    return facts[(offset + step) % kTriviaCount];
+}
+
 /// What the start-up screen shows (vk_menu.cpp draw_startup draws it)
 struct StartupView {
     std::string version;            // ("v2.0.5"; empty: the build's)
     std::string step, title, pct;   // ("STEP 1 OF 2", "Preparing shaders", "32%"); an empty title: the wordmark alone
     std::string left, right;        // (under the bar: "12,345 / 38,809 shaders", "about 40 s left")
     std::string hint;
+    const StartupTrivia* trivia = nullptr;
     double fraction = -1;           // (the bar, 0 to 1; negative: none)
     bool operator==(const StartupView&) const = default;
 };
@@ -139,7 +181,7 @@ struct StartupView {
 /// start after an update: two steps, else the pipelines alone); secs since the window opened
 struct StartupState {
     int stage = 0;
-    size_t done = 0, total = 0;
+    size_t done = 0, total = 0, trivia_offset = 0;
     double left = -1, secs = 0;
     bool prepared = false, finished = false, stopping = false;
     bool saving = false;   // (the pipeline cache written out, every pipeline counted: prepare_saving)
@@ -248,7 +290,8 @@ inline StartupView startup_view(const StartupState& s) {
     const bool pipelines = s.stage > 0;
     if (s.prepared) v.step = pipelines ? "STEP 2 OF 2" : "STEP 1 OF 2";
     v.title = !pipelines ? "Preparing shaders" : s.prepared ? "Building pipelines" : "Loading pipelines";
-    if (s.prepared) v.hint = "This happens once after an update. Closing the window keeps what is done.";
+    if (s.prepared) v.hint = "This runs once after an update. Closing the window keeps the progress.";
+    v.trivia = &startup_trivia(s.secs, s.trivia_offset);
     if (!s.total) {
         v.left = !pipelines ? "Reading the game's shaders" : s.stage == 1 ? "Reading the pipeline notes" : "Loading the shader cache";
         if (s.whole >= 0) v.fraction = s.whole, v.pct = percent_of(s.whole), v.right = waiting_text(s);

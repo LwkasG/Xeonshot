@@ -267,7 +267,7 @@ static size_t zs_continue(ZSTD_DCtx *z, uint64_t g, uint64_t src, size_t n) {
 }
 
 /* f_80115c80's loop over one chunk (src, n) of a started stream: its result */
-static int32_t zs_chunk(ZSTD_DCtx *z, uint64_t g, uint64_t src, int32_t n) {
+static int32_t zs_chunk(ZSTD_DCtx *z, uint64_t g, uint64_t src, int32_t n, int checkpoint) {
     while (n >= 1) {
         const size_t want = ZSTD_nextSrcSizeToDecompress(z);
         if (want == 0) {   /* (input after the frame's end) */
@@ -296,6 +296,7 @@ static int32_t zs_chunk(ZSTD_DCtx *z, uint64_t g, uint64_t src, int32_t n) {
                 HOS_WRITTEN(GP(S_STAGE(g)), (size_t)(int64_t)(staged - w));
             }
             S_STAGED(g) = (uint32_t)(staged - w);
+            if (checkpoint) hos_vcore_checkpoint();
             continue;
         }
         if (n < w) {   /* the piece goes on in the next chunk: what is here to the staging buffer */
@@ -312,6 +313,7 @@ static int32_t zs_chunk(ZSTD_DCtx *z, uint64_t g, uint64_t src, int32_t n) {
         if (ZSTD_isError(r)) goto fail;
         src += want;
         n -= w;
+        if (checkpoint) hos_vcore_checkpoint();
         continue;
     fail:
         S_STATE(g) = 3;
@@ -358,7 +360,7 @@ int hos_zstd_stream(Ctx *c) {
         return 0;   /* (a stream that started lifted) */
     }
     const int away = mode == 1 ? hos_vcore_away() : 0;
-    const int32_t ret = zs_chunk(s->z, g, src, n);
+    const int32_t ret = zs_chunk(s->z, g, src, n, mode == 2);
     if (away) hos_vcore_back();
     HOS_WRITTEN(GP(g), 56);   /* (after its last write: a mark taken by the GPU mirror's scan in between would miss them) */
     zs_give(s, S_STATE(g) == 3 || S_STATE(g) == 4);

@@ -1,0 +1,3 @@
+| Date | Build | OS / desktop | GPU / driver | CPU / RAM | Settings | Where | Result |
+|---|---|---|---|---|---|---|---|
+| 2026-11-23 | Xeonshot v3.0.2-dirty, initial Longshot port | Windows 11 25H2 (26200.9974) | NVIDIA GeForce RTX 5080 / 621.24 | Xeon E5-2686 v4 / 64 GB | 5120x2160 configured, frame generation off, uncapped, HOS_LARGE_HEAP_MB=7168, RX_VK_PARALLEL=0, all port switches on, mesh conversion mode 2 | HyruleField_Child, headless from a copied save | field-b1 had a median of 31.2 fps, 29.96 ms replay submit, 9.9 ms GPU and 20459 MB private memory over 22 s. Event samples: 0. Clean exit (0). |

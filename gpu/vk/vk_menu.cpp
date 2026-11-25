@@ -45,6 +45,7 @@
 #include "oot_cheat_items.h"
 #include "vk_progress.h"   // (StartupView, version_text: the start-up screen)
 #include "vk_ui.h"
+#include "vk_splash_anim.h"
 #include "vk_menu_keys.h"   // (which gamepad buttons confirm and go back: those A and B are bound to)         // (how it looks: Dear ImGui, vk_imgui.h)
 #include "oot_teleport_capture.h"   // (hookshot: the Travel page's pictures)
 #include "oot_tp_places.h"   // (hookshot: the Travel page's places)
@@ -858,6 +859,11 @@ const char* tx_texture_detail(int v) {
     static const char* t[] = {"Auto", "Full", "Medium", "Low"};
     return (unsigned)v < 4 ? t[v] : t[0];
 }
+/// Grass distance: the game's reach for the short grass blades, or 2x to 4x (vk_draw.cpp grass_reach)
+const char* tx_grass_distance(int v) {
+    static const char* t[] = {"Game's", "2x", "3x", "4x"};
+    return (unsigned)v < 4 ? t[v] : t[0];
+}
 const char* tx_anisotropy(int v) {
     static const char* t[] = {"Game's", "2x", "4x", "8x", "16x"};
     return (unsigned)v < 5 ? t[v] : t[4];
@@ -1464,14 +1470,14 @@ const char* tx_hud_layout(int v) { return v ? "Middle 16:9" : "Screen's edges"; 
 const char* hn_hud_layout(int v, int variant) {
     static const char* const t[] = {"The hearts, the buttons and the minimap at the screen's own edges and corners.",
                                     "The HUD where it is at 16:9, in the middle (fitted to the width on a narrower screen)."};
-    static const char* const held = "Set by HOS_WIDE_UI (hookshot_env.txt or the environment): remove that line to choose here.";
+    static const char* const held = "Set by HOS_WIDE_UI (xeonshot_env.txt or the environment): remove that line to choose here.";
     const char* env = getenv("HOS_WIDE_UI");
     if (variant < 0) return env && *env ? held : t[v ? 1 : 0];
     return variant == 0 ? t[v ? 1 : 0] : variant == 1 && env && *env ? held : nullptr;
 }
-/// (the ASTC as RGBA8 row's line while RX_VK_ASTC_RGBA8 holds it: the old readme's way, still in some hookshot_env.txt files)
+/// (the ASTC as RGBA8 row's line while RX_VK_ASTC_RGBA8 holds it: the old readme's way, still in some xeonshot_env.txt files)
 const char* hn_astc_rgba8(int, int variant) {
-    return variant <= 0 && getenv("RX_VK_ASTC_RGBA8") ? "Set by RX_VK_ASTC_RGBA8 (hookshot_env.txt or the environment): remove that line to choose here."
+    return variant <= 0 && getenv("RX_VK_ASTC_RGBA8") ? "Set by RX_VK_ASTC_RGBA8 (xeonshot_env.txt or the environment): remove that line to choose here."
                                        : nullptr;
 }
 MENU_HINTS(hn_texture_detail, 0, "Full detail, but on a card with 4.5 GB or less at the Minimum preset: as Medium.",
@@ -1481,14 +1487,14 @@ MENU_HINTS(hn_texture_detail, 0, "Full detail, but on a card with 4.5 GB or less
 /// (the Present queue row's line while RX_VK_PRESENT_QUEUE holds it, as RX_VK_ASTC_RGBA8 the ASTC row)
 const char* hn_present_queue(int, int variant) {
     const char* e = getenv("RX_VK_PRESENT_QUEUE");
-    return variant <= 0 && e && *e ? "Set by RX_VK_PRESENT_QUEUE (hookshot_env.txt or the environment): remove that line to choose here."
+    return variant <= 0 && e && *e ? "Set by RX_VK_PRESENT_QUEUE (xeonshot_env.txt or the environment): remove that line to choose here."
                                    : nullptr;
 }
 const char* tx_intel_compiles(int v) { return v == 1 ? "Side by side" : v == 2 ? "One at a time" : "Auto"; }
 /// (the Intel shader compiles row's line: RX_VK_NO_INTEL_SERIAL holds it, as RX_VK_ASTC_RGBA8 the ASTC row)
 const char* hn_intel_compiles(int v, int variant) {
     if (variant <= 0 && getenv("RX_VK_NO_INTEL_SERIAL"))
-        return "Set by RX_VK_NO_INTEL_SERIAL (hookshot_env.txt or the environment): remove that line to choose here.";
+        return "Set by RX_VK_NO_INTEL_SERIAL (xeonshot_env.txt or the environment): remove that line to choose here.";
     static const char* const t[] = {"Side by side on the Arc B-series (driver 101.9154 or newer), where it was measured; one at "
                                     "a time on other Intel graphics.",
                                     "Shaders are built faster on a CPU with many cores, but Intel's driver can crash the game "
@@ -1729,7 +1735,7 @@ Row rows[] = {
     {TAB_GRAPHICS, "Window scaling filter", &opts.upscale, 0, 2, 1, tx_filter,
      "How the finished picture is scaled to the window, when its size differs from the Output resolution.", hn_filter},
     {TAB_GRAPHICS, "CRT filter", &opts.crt_filter, 0, 4, 1, tx_crt_filter,
-     "Filters the finished picture, including the game's HUD, after window effects. Hookshot's menu and overlays stay "
+     "Filters the finished picture, including the game's HUD, after window effects. Xeonshot's menu and overlays stay "
      "clean. Changes at once; quality presets leave it alone.", hn_crt_filter, false, true},
     {TAB_GRAPHICS, "CRT lines", &opts.crt_lines, 0, 2, 1, tx_crt_lines,
      "Virtual CRT raster, not Render resolution. Capped at half the destination height (at least one line); width follows "
@@ -1766,6 +1772,9 @@ Row rows[] = {
     {TAB_GRAPHICS, "Anisotropic filtering", &opts.anisotropy, 0, 4, 1, tx_anisotropy,
      "Keeps textures sharp on surfaces seen at a slant, such as the ground ahead: higher is sharper in the distance, for a "
      "little GPU time. Game's is the console's own (1x or 2x).", nullptr, false, true},
+    {TAB_GRAPHICS, "Grass distance", &opts.grass_distance, 0, 3, 1, tx_grass_distance,
+     "How far short grass blades reach, including Kokiri Forest's tufts and the moss on its stones. The game stops "
+     "them at about 20 m. Higher costs GPU time and applies at once.", nullptr, false, true},
     {TAB_GRAPHICS, "Shadow resolution", &opts.shadow_res, 0, 3, 1, tx_shadow_res,
      "The size of the sun's shadow maps: higher keeps the shadows of thin things near you, such as chains, fences and "
      "leaves, smooth instead of stair-stepped, for more video memory and a little GPU time. Applies at once.",
@@ -1805,7 +1814,7 @@ Row rows[] = {
      "What the ocarina hears when the game's microphone option is on (playing an instrument, or humming).", hn_mic, false,
      true},
     {TAB_AUDIO, "Microphone gain", &opts.microphone_gain, 0, 400, 10, tx_percent,
-     "Adjust capture for Hookshot only; system volume is unchanged. Use the microphone test to see live levels while adjusting gain. "
+     "Adjust capture for Xeonshot only; system volume is unchanged. Use the microphone test to see live levels while adjusting gain. "
      "Changes apply to new samples.", nullptr, false, true},
     {TAB_AUDIO, "Test microphone", nullptr, 0, 0, 0, nullptr,
      "Start or stop microphone capture. No playback or audio files. You can adjust Microphone gain while testing. "
@@ -2064,7 +2073,7 @@ Row rows[] = {
      "one at a time and quick compute builds. The handheld profile applies after a restart."},
     {TAB_GAMEPLAY, "System", nullptr, 0, 0, 0, nullptr, nullptr, nullptr, false, true, -1, true},
     {TAB_GAMEPLAY, "Discord status", &opts.discord, 0, 1, 1, tx_onoff,
-     "Shows \"Playing Hookshot\" and the time played in your Discord status, while Discord runs on this PC.", nullptr, false,
+     "Shows \"Playing Xeonshot\" and the time played in your Discord status, while Discord runs on this PC.", nullptr, false,
      true},
     // (hookshot) the Gameplay tab's Bug report (vk_bug_report.h): A or Enter writes the report's folder; the help says what is in it
     {TAB_GAMEPLAY, "Bug report", nullptr, 0, 0, 0, nullptr,
@@ -2087,6 +2096,7 @@ bool cheats_env = false;   // (HOS_OOT_CHEATS=1: on whatever the Debug tab says)
 /// The debug tools: the Debug tab's row, or HOS_OOT_CHEATS=1
 bool cheats_on() { return cheats_env || opts.debug_tools; }
 std::atomic<bool> transition_autosave_enabled{true};
+std::atomic<int> grass_distance_now{0};
 void sync_transition_autosave() {
     transition_autosave_enabled.store(opts.transition_autosave != 0, std::memory_order_relaxed);
 }
@@ -3147,7 +3157,7 @@ void prompts_at_once(const Row& r) {
 namespace ps = pipeline_share;
 std::string share_said;    // (the help box's line after a save: where the zip went and what to do, or why there is none)
 std::string share_value;   // (the row's value after a save: Saved, or Not saved)
-constexpr const char* kShareSaidLongest = "Saved hookshot-pipelines-2026-12-31.zip (123456 pipelines) in Downloads. The report "
+constexpr const char* kShareSaidLongest = "Saved xeonshot-pipelines-2026-12-31.zip (123456 pipelines) in Downloads. The report "
     "is in the zip. Open git.notrexed.dev/Hookshot/Hookshot/issues/14 and attach the zip to a comment, then paste the report and say "
     "where you played.";   // (measure_help: the help box's room)
 std::string share_saved;   // (the first sentence: the zip's name, its pipelines and its folder)
@@ -3630,6 +3640,7 @@ void set_row(Row& r, int v, int dir, bool keep = true) {
         }
     }
     if (r.value == &opts.transition_autosave) sync_transition_autosave();
+    if (r.value == &opts.grass_distance) grass_distance_now.store(opts.grass_distance, std::memory_order_relaxed);
     if (r.value == &opts.mic && can_mic()) mic_chosen();   // (hookshot)
     if (r.value == &output_pick) output_chosen();
     if (r.value == &monitor_pick) monitor_chosen();
@@ -3892,6 +3903,8 @@ std::mutex startup_mu;   // (the start-up screen's view, set from its own thread
 StartupView startup;
 std::atomic<bool> startup_on{false};
 std::atomic<float> startup_fade{0};   // (the start-up screen's fade to black at its end, 0 to 1: startup_fade_to)
+std::chrono::steady_clock::time_point startup_t0{};
+std::atomic<bool> startup_t0_set{false};
 std::atomic<int64_t> game_frames{0}, shown_frames{0};
 char fps_text[48] = "";
 char fps_sub[96] = "";   // (UTF-8: a translation's line can be three bytes a character)
@@ -4185,7 +4198,7 @@ void slider_cell(ui::Ctx& c, ImVec2 a, ImVec2 b, const char* value, int permille
     c.d->AddRect(a, b, ui::kEdge, 0, std::max(1.0f, s));
     if (sel) ui::gold(c, a + ImVec2(in, in), b - ImVec2(in, in));
     const float x0 = a.x + in + 24 * s, x1 = b.x - in - 24 * s, xv = x0 + (x1 - x0) * permille / 1000.0f, ty = b.y - in - 5.5f * s;
-    const ImU32 track = sel ? ui::rgba(36, 24, 8, 80) : ui::rgba(255, 255, 255, 40), done = sel ? ui::kGoldInk : ui::kAccent;
+    const ImU32 track = sel ? ui::rgba(10, 20, 36, 80) : ui::rgba(255, 255, 255, 40), done = sel ? ui::kGoldInk : ui::kAccent;
     c.d->AddRectFilled(ImVec2(x0, ty - 1.5f * s), ImVec2(x1, ty + 1.5f * s), track, 1.5f * s);
     c.d->AddRectFilled(ImVec2(x0, ty - 1.5f * s), ImVec2(xv, ty + 1.5f * s), done, 1.5f * s);
     ui::diamond(c, ImVec2(xv, ty), 4.5f * s, done);
@@ -4712,8 +4725,9 @@ void draw_options(ui::Ctx& c) {
     for (int i = 0; i < 2; i++) {
         const float cw = 26 * s, cx = i ? x + total + 22 * s : x - 22 * s - cw;
         const bool hover = hover_tab == TAB_COUNT + i;
-        c.d->AddRectFilled(ImVec2(cx, ty - 13 * s), ImVec2(cx + cw, ty + 13 * s), hover ? ui::kTabInset : ui::kBannerInk, 3 * s);
-        ui::text_mid_centre(c, c.f.strong, 14 * s, cx + cw * 0.5f, ty, ui::kInk, keys[i]);
+        c.d->AddRectFilled(ImVec2(cx, ty - 13 * s), ImVec2(cx + cw, ty + 13 * s), hover ? ui::kAccent : ui::kTabInset, 3 * s);
+        c.d->AddRect(ImVec2(cx, ty - 13 * s), ImVec2(cx + cw, ty + 13 * s), ui::kEdge, 3 * s, std::max(1.0f, s));
+        ui::text_mid_centre(c, c.f.strong, 14 * s, cx + cw * 0.5f, ty, hover ? ui::kGoldInk : ui::kAccent, keys[i]);
         hits.add(i ? cx - 10 * s : 0, 0, i ? c.w : cx + cw + 10 * s, hh, i ? menu_hit::kTabNext : menu_hit::kTabPrev, -1);
     }
     for (int i = 0; i < TAB_COUNT; i++) {
@@ -4723,21 +4737,21 @@ void draw_options(ui::Ctx& c) {
         if (shown || i == hover_tab) {
             c.d->AddRectFilled(ImVec2(x, 0), ImVec2(x + tw[i], hh - 3 * s), shown ? ui::kTabInset : ui::alpha(ui::kTabInset, 0.35f));
             if (shown) {
-                c.d->AddLine(ImVec2(x + 1, 0), ImVec2(x + 1, hh - 3 * s), ui::rgba(52, 34, 16), std::max(1.0f, s));
-                c.d->AddLine(ImVec2(x + tw[i] - 1, 0), ImVec2(x + tw[i] - 1, hh - 3 * s), ui::rgba(52, 34, 16), std::max(1.0f, s));
+                c.d->AddLine(ImVec2(x + 1, 0), ImVec2(x + 1, hh - 3 * s), ui::rgba(36, 208, 255, 180), std::max(1.0f, s));
+                c.d->AddLine(ImVec2(x + tw[i] - 1, 0), ImVec2(x + tw[i] - 1, hh - 3 * s), ui::rgba(36, 208, 255, 180), std::max(1.0f, s));
             }
         }
-        ui::text_mid(c, c.f.heading, 23 * s, x + 28 * s, ty, shown ? ui::kInkBright : ui::kBannerInk, tab_titles[i]);
+        ui::text_mid(c, c.f.heading, 23 * s, x + 28 * s, ty, shown ? ui::kGoldHi : ui::kBannerInk, tab_titles[i]);
         hits.add(x, 0, x + tw[i], hh, menu_hit::kTab, i);
         x += tw[i];
     }
-    {   // (the banner's left: the Hookshot logo and its name, a little larger than the tabs' ink; at Small and Medium smaller
+    {   // (the banner's left: the Xeonshot logo and its name, a little larger than the tabs' ink; at Small and Medium smaller
         // until it fits, at Large at its size or not at all, as the version)
         const float room = (c.w - total) * 0.5f - 60 * s - c.safe, px = 24 * s;
         float aspect = 1;
         ImTextureData* logo = ui::logo(&aspect);
         const auto width = [&](float p) {
-            return (logo ? p * 1.25f * aspect + 10 * s : 0) + ui::size_of(c.f.heading, p, "Hookshot").x;
+            return (logo ? p * 1.25f * aspect + 10 * s : 0) + ui::size_of(c.f.heading, p, "Xeonshot").x;
         };
         const float fit = ui::fit_px(px, opts.menu_size == 3 ? px : 14 * s, 0.5f * s, room, width);
         if (fit > 0) {
@@ -4747,7 +4761,7 @@ void draw_options(ui::Ctx& c) {
                 c.d->AddImage(logo->GetTexRef(), ImVec2(lx, ty - lh * 0.5f), ImVec2(lx + lh * aspect, ty + lh * 0.5f));
                 lx += lh * aspect + 10 * s;
             }
-            ui::text_mid(c, c.f.heading, fit, lx, ty, ui::kBannerInk, "Hookshot");
+            ui::text_mid(c, c.f.heading, fit, lx, ty, ui::kGoldHi, "Xeonshot");
         }
     }
     {   // (which build, at the banner's right, so a report can say it without opening the log: as players see it, version_text,
@@ -4881,7 +4895,7 @@ void draw_options(ui::Ctx& c) {
 void draw_tune_bar(ui::Ctx& c) {
     if (cur_tab == TAB_MODS) {   // (the Mods tab has no rows of the bar's kind, its lines are the host's: its full page, the
                                  // game behind dimmed as under the full menu, which draw_menu leaves out for the bar)
-        c.d->AddRectFilled(ImVec2(0, 0), ImVec2(c.w, c.h), ui::rgba(8, 5, 2, ui::kDimAlpha));
+        c.d->AddRectFilled(ImVec2(0, 0), ImVec2(c.w, c.h), ui::rgba(5, 11, 22, ui::kDimAlpha));
         draw_options(c);
         return;
     }
@@ -4900,7 +4914,7 @@ void draw_tune_bar(ui::Ctx& c) {
     const float by0 = by1 - bh;
 
     // Dark panel with subtle edge
-    c.d->AddRectFilled(ImVec2(bx0, by0), ImVec2(bx1, by1), ui::rgba(14, 10, 6, 235), 6 * s);
+    c.d->AddRectFilled(ImVec2(bx0, by0), ImVec2(bx1, by1), ui::rgba(9, 18, 34, 240), 6 * s);
     c.d->AddRect(ImVec2(bx0, by0), ImVec2(bx1, by1), ui::alpha(ui::kEdge, 0.9f), 6 * s, std::max(1.0f, s));
 
     // Header strip inside card: Tab Name and restart status
@@ -5516,8 +5530,8 @@ void draw_ask(ui::Ctx& c) {
     const float s = c.s, W = 560 * s, H = 232 * s;
     const ImVec2 p((c.w - W) * 0.5f, (c.h - H) * 0.5f), q = p + ImVec2(W, H);
     ui::shadow(c, p, q, 30 * s, 1.0f, 8 * s);
-    c.d->AddRectFilled(p, q, ui::rgba(36, 28, 19, 250));
-    c.d->AddRect(p, q, ui::rgba(122, 98, 64, 230), 0, 2 * s);
+    c.d->AddRectFilled(p, q, ui::rgba(12, 24, 42, 250));
+    c.d->AddRect(p, q, ui::rgba(32, 184, 232, 230), 0, 2 * s);
     const float hb = 50 * s;   // (a tan title strip, as the banner, its title in dark ink)
     c.d->AddRectFilledMultiColor(p, ImVec2(q.x, p.y + hb), ui::kBannerTop, ui::kBannerTop, ui::kBanner, ui::kBanner);
     c.d->AddRectFilled(ImVec2(p.x, p.y + hb - 3 * s), ImVec2(q.x, p.y + hb), ui::kBannerEdge);
@@ -5589,7 +5603,7 @@ float menu_ox = 0;   // (the menu's column's left edge in the window: more than 
 /// middle (a window of 16:9 or narrower: the whole of it). The pages draw from 0 as on 16:9; their vertices and clip
 /// rectangles are moved over after, and menu_tick moves the mouse back by menu_ox before it tests the hits
 void draw_menu(ui::Ctx& c) {
-    if (!(tune_mode && page == 0)) c.d->AddRectFilled(ImVec2(0, 0), ImVec2(c.w, c.h), ui::rgba(8, 5, 2, ui::kDimAlpha));   // (the game behind, dimmed)
+    if (!(tune_mode && page == 0)) c.d->AddRectFilled(ImVec2(0, 0), ImVec2(c.w, c.h), ui::rgba(5, 11, 22, ui::kDimAlpha));   // (the game behind, dimmed)
     ui::Ctx k = c;
     k.w = std::min(c.w, std::floor(c.h * 16.0f / 9.0f + 0.5f));
     menu_ox = std::floor((c.w - k.w) * 0.5f);
@@ -5817,7 +5831,7 @@ void draw_fps(ui::Ctx& c, bool under_banner) {
     if (foot) {   // (the footer, at the column's foot: the version, as the banner says it; at Dev the CPU, the GPU, its driver. A line
         // too long for the column's width loses its end)
         static std::string cpu, gpu, drv, fit[4];
-        static const std::string ver = std::string("Hookshot ") + version_text(HOOKSHOT_VERSION);
+        static const std::string ver = std::string("Xeonshot ") + version_text(HOOKSHOT_VERSION);
         static float fit_w = 0;
         if (gpu.empty()) cpu = hardware_cpu_name(bug_report::cpu_name()), gpu = hardware_gpu_name(device_name_text()), drv = driver_text(), fit_w = 0;
         if (fit_w != gw) {
@@ -6096,16 +6110,30 @@ void draw_startup(ui::Ctx& c) {
         v = startup;
     }
     const float s = c.s, w = c.w, h = c.h, cx = w * 0.5f, k = s * 0.86f;   // (k: the scale of what is under the logo)
-    c.d->AddRectFilled(ImVec2(0, 0), ImVec2(w, h), ui::rgba(14, 10, 6));
-    const float lh = 112 * s, top = h * 0.5f - 176 * s;
-    for (int i = 40; i >= 1; i--) c.d->AddCircleFilled(ImVec2(cx, top + lh * 0.5f + 70 * s), h * 0.021f * i, ui::rgba(46, 33, 18, 4), 128);
+    const float t = startup_t0_set.load(std::memory_order_relaxed)
+                        ? std::chrono::duration<float>(std::chrono::steady_clock::now() - startup_t0).count()
+                        : 0.0f;
+    const float lh = 148 * s, after_logo = 16 * s, progress_offset = (120 + 64) * k;
+    const char* lang = i18n::lang_code();
+    const bool is_pt = lang && std::strncmp(lang, "pt", 2) == 0;
+    const float trivia_offset = v.hint.empty() ? 78 * k : 122 * k;
+    const float trivia_line_y = 22 * k, trivia_px = 16.5f * k;
+    float top = h * 0.5f - 212 * s;
+    if (v.trivia) {
+        const float bottom = lh + after_logo + progress_offset + trivia_offset + trivia_line_y + trivia_px;
+        top = std::min(top, std::max(c.safe, h - c.safe - bottom));
+    }
+    splash::draw_background(c, t, cx, top + lh * 0.5f, lh);
     float aspect = 1;
     ImTextureData* logo = ui::logo(&aspect);
-    if (logo) c.d->AddImage(logo->GetTexRef(), ImVec2(cx - lh * aspect * 0.5f, top), ImVec2(cx + lh * aspect * 0.5f, top + lh));
-    float y = top + lh + 16 * s;
-    ui::spaced(c, c.f.heading, 42 * k, ImVec2(cx, y), ui::rgba(246, 232, 204), "HOOKSHOT", 6 * k);
-    ui::flourish(c, cx - 190 * k, cx + 190 * k, y + 66 * k, ui::kAccent);
-    ui::text_centre(c, c.f.body, 14.5f * k, ImVec2(cx, y + 78 * k), ui::kDim, v.version.c_str());
+    splash::draw_emblem(c, t, cx, top + lh * 0.5f, lh, logo, aspect);
+    float y = top + lh + after_logo;
+    const float wm_a = splash::wordmark_alpha(t);
+    if (wm_a > 0.01f) ui::spaced(c, c.f.heading, 42 * k, ImVec2(cx, y), ui::alpha(ui::kGoldHi, wm_a), "XEONSHOT", 6 * k);
+    const float fl_p = splash::flourish_progress(t);
+    if (fl_p > 0.01f) ui::flourish(c, cx - 190 * k * fl_p, cx + 190 * k * fl_p, y + 66 * k, ui::alpha(ui::kAccent, fl_p));
+    const float ver_a = splash::version_alpha(t);
+    if (ver_a > 0.01f) ui::text_centre(c, c.f.body, 14.5f * k, ImVec2(cx, y + 78 * k), ui::alpha(ui::kDim, ver_a), v.version.c_str());
     if (!v.title.empty()) {
         y += 120 * k;
         if (!v.step.empty()) {   // ("STEP 2 OF 2" as "Step 2 of 2")
@@ -6114,7 +6142,7 @@ void draw_startup(ui::Ctx& c) {
             ui::text_centre(c, c.f.body, 15 * k, ImVec2(cx, y), ui::kAccent, step.c_str());
         }
         ui::text_centre(c, c.f.heading, 24 * k, ImVec2(cx, y + 20 * k), ui::kInk, v.title.c_str());
-        const float x0 = cx - 270 * k, x1 = cx + 270 * k, by = y + 64 * k;
+        const float x0 = cx - 270 * k, x1 = cx + 270 * k, by = top + lh + after_logo + progress_offset;
         float under = by;
         if (v.fraction >= 0) {   // (the bar as a value cell: a dark cell, gold inside, the percentage on it)
             const float bh = 26 * k, in = 4 * k, fx = x0 + in + (x1 - x0 - 2 * in) * (float)std::min(v.fraction, 1.0);
@@ -6137,7 +6165,24 @@ void draw_startup(ui::Ctx& c) {
                  ui::kSoft, v.left.c_str());
         if (!v.right.empty())
             ui::text(c, c.f.body, px, ImVec2(x1 - ui::size_of(c.f.body, px, v.right.c_str()).x, under + 12 * k), ui::kSoft, v.right.c_str());
-        if (!v.hint.empty()) ui::text_centre(c, c.f.body, 15.5f * k, ImVec2(cx, by + 92 * k), ui::kDim, v.hint.c_str());
+        if (!v.hint.empty()) {
+            const char* hint_txt =
+                is_pt ? "Após atualizar, esta etapa roda uma vez. Fechar a janela mantém o progresso." : v.hint.c_str();
+            ui::text_centre(c, c.f.body, 15.5f * k, ImVec2(cx, by + 92 * k), ui::kDim, hint_txt);
+        }
+        if (v.trivia) {
+            const char* trivia_hdr = is_pt ? "Curiosidade" : "Trivia";
+            const char* trivia_txt = is_pt ? v.trivia->pt : v.trivia->en;
+            const float ty = by + trivia_offset;
+            const float room = std::min(680 * k, w - 2 * c.safe);
+            const float text_px = ui::fit_px(trivia_px, 12.0f * k, 0.5f * k, room, [&](float size) {
+                return ui::size_of(c.f.body, size, trivia_txt).x;
+            });
+            if (text_px > 0 && ty + trivia_line_y + text_px <= h - c.safe + 0.5f) {
+                ui::text_centre(c, c.f.strong, 13.5f * k, ImVec2(cx, ty), ui::kGoldHi, trivia_hdr);
+                ui::text_centre(c, c.f.body, text_px, ImVec2(cx, ty + trivia_line_y), ui::kInk, trivia_txt);
+            }
+        }
     }
     if (const float f = startup_fade.load(std::memory_order_relaxed); f > 0)   // (the end: to black, the game's first frame next)
         c.d->AddRectFilled(ImVec2(0, 0), ImVec2(w, h), ui::rgba(0, 0, 0, (int)(std::min(f, 1.0f) * 255 + 0.5f)));
@@ -6174,6 +6219,7 @@ void startup_screen(const StartupView* view) {
     if (!view) {
         startup_on.store(false, std::memory_order_release);
         startup_fade.store(0, std::memory_order_relaxed);
+        startup_t0_set.store(false, std::memory_order_relaxed);
         return;
     }
     StartupView v = *view;
@@ -6182,6 +6228,7 @@ void startup_screen(const StartupView* view) {
         std::lock_guard lk(startup_mu);
         startup = v;
     }
+    if (!startup_t0_set.exchange(true, std::memory_order_relaxed)) startup_t0 = std::chrono::steady_clock::now();
     startup_on.store(true, std::memory_order_release);
     probe_upscalers_soon();
 }
@@ -6297,6 +6344,7 @@ void menu_init() {
     }
     first_start = !has_options;
     sync_transition_autosave();
+    grass_distance_now.store(opts.grass_distance, std::memory_order_relaxed);
     const char* handheld_env = getenv("HOS_HANDHELD");   // (host/nn_applet.c handheld(): the environment over the file's)
     if (!has_output && !(handheld_env ? !env_value_off(handheld_env) : opts.handheld != 0)) {
         // (none chosen, a new install: the size host/nn_applet.c took at boot, the game's 2560x1440 or the main screen's where
@@ -6473,6 +6521,7 @@ void menu_set_gpu_count(int count) {
         if (rows[i].value == &opts.gpu_device) restart_state.restart_value(restart_slot[i], opts.gpu_device);
 }
 
+int menu_grass_distance() { return grass_distance_now.load(std::memory_order_relaxed); }
 bool menu_is_open() { return open_now.load(std::memory_order_relaxed); }
 int menu_take_capture_request() {   // (hookshot: not while the menu covers the picture)
     const int want = teleport_capture_want.exchange(-1, std::memory_order_relaxed);

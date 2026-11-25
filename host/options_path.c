@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "options_path.h"
+#include "prepare_args.h"
 #include "hos_atomic_file.h"
 
 #ifdef _WIN32
@@ -30,7 +31,7 @@
 
 void hos_log(const char *fmt, ...);   /* (hos.h; declared here so a test builds this file alone) */
 
-static const char options_name[] = "hookshot_options.ini";
+static const char options_name[] = "xeonshot_options.ini";
 static char file[MAX_PATH];
 static int chosen;
 
@@ -85,7 +86,9 @@ void hos_options_choose(int argc, char **argv) {
        the image) */
     const char *user = NULL, *image = NULL;
     for (int i = 1; i < argc; i++) {
-        if ((!strcmp(argv[i], "--romfs") || !strcmp(argv[i], "--compile-shaders")) && i + 1 < argc) i++;
+        if ((!strcmp(argv[i], "--romfs") || !strcmp(argv[i], "--compile-shaders") || hos_prepare_arg_switch(argv[i])) &&
+            i + 1 < argc)
+            i++;   /* (and a supervised preparation's own, prepare_args.h: their values are no image) */
         else if (!strcmp(argv[i], "--user") && i + 1 < argc) user = argv[++i];
         else if (!strcmp(argv[i], "--trace") || !strcmp(argv[i], "--prepare-shaders")) continue;
         else if (!image) image = argv[i];

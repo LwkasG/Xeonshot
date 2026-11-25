@@ -620,7 +620,7 @@ VkPipeline make_plain(const Plain& p) {
 /// s and 3 GB of memory each on an RX 6700 XT. Made at the first build; written after a layer's build when its data grew: the
 /// driver may hand a layer over at once from its own disk cache, which a game folder of another path (an update's) does not
 /// share, so a quick build is no sign that the file holds it
-constexpr const char* kOwnCacheFile = "hookshot_fsr4_pipelines.bin";
+constexpr const char* kOwnCacheFile = "xeonshot_fsr4_pipelines.bin";
 size_t own_cache_saved = 0;   // (the bytes last read or written: own_cache, build_unrolled)
 VkPipelineCache own_cache() {
     static std::mutex m;

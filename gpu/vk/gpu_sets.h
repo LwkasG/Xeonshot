@@ -24,16 +24,16 @@
 
 namespace gpu_sets {
 
-inline const char* kOwnerFile = "hookshot_gpu_set.txt";
+inline const char* kOwnerFile = "xeonshot_gpu_set.txt";
 inline const char* kAsidePrefix = "gpu_set_";
 constexpr size_t kKeep = 1;   // (sets kept aside: a laptop has two GPUs)
 
 /// Whether name (a file in cache/) belongs to one GPU's set
 inline bool is_set_file(const std::string& name) {
-    static const char* const exact[] = {"hookshot_programs.bin", "hookshot_programs.idx", "hookshot_programs.zst.bin",
-                                        "hookshot_programs.zst.idx", "hookshot_prepared.bin", "hookshot_prepared.bin.warming",
-                                        "hookshot_pipelines.bin.built", "hookshot_pipelines.bin.built.warming",
-                                        "hookshot_module_ids.bin"};
+    static const char* const exact[] = {"xeonshot_programs.bin", "xeonshot_programs.idx", "xeonshot_programs.zst.bin",
+                                        "xeonshot_programs.zst.idx", "xeonshot_prepared.bin", "xeonshot_prepared.bin.warming",
+                                        "xeonshot_pipelines.bin.built", "xeonshot_pipelines.bin.built.warming",
+                                        "xeonshot_module_ids.bin"};
     for (const char* e : exact)
         if (name == e) return true;
     return name == pcache_stamp::kStampFile || pcache_stamp::is_cache_file(name);

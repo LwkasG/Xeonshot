@@ -40,6 +40,7 @@ FIXTURE = r'''
 #include "upscaler_rows.h"
 #include "auto_settings.h"
 #include "monitor_choice.h"
+#include <atomic>
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
@@ -74,6 +75,7 @@ void logf(const char*, ...) {}   // (declared ahead of the options code cut in b
 Options opts;
 bool debug_warning = false;
 int debug_warning_choice = 0;
+std::atomic<int> grass_distance_now{0};
 void sync_transition_autosave() {}
 void gfx_limits() {}   // (the view distance rows' caps: vk_menu.cpp)
 

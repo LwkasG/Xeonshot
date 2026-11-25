@@ -495,21 +495,21 @@ static void put_switches(Buf *b) {
 #endif
     qsort(lines, (size_t)n, sizeof lines[0], cmp_text);
     if (!n) put(b, "Switches set: none.\n");
-    else put(b, "Switches set (the environment and hookshot_env.txt; a value only when it is a number or on/off, and never for a "
+    else put(b, "Switches set (the environment and xeonshot_env.txt; a value only when it is a number or on/off, and never for a "
                 "name with TOKEN, KEY, ROOM, SECRET, PASS, SERVER or USER in it):\n");
     for (int i = 0; i < n; i++) put(b, lines[i]), put(b, "\n"), free(lines[i]);
 }
-/* hookshot_options.ini's settings, key=value, a value only when it is a number, a size or on/off (a device's name is left
+/* xeonshot_options.ini's settings, key=value, a value only when it is a number, a size or on/off (a device's name is left
    out); not the controls' bindings, nor the file itself */
 static void put_options(Buf *b, const char *options, const char *dir) {
     char path[PATH_MAX_UTF8];   /* (the run's, in the user folder: host/options_path.c; not given, the game folder's) */
     char *text = options ? read_text(options, 256 << 10, NULL)
-                         : join(path, sizeof path, dir, "hookshot_options.ini") ? read_text(path, 256 << 10, NULL) : NULL;
+                         : join(path, sizeof path, dir, "xeonshot_options.ini") ? read_text(path, 256 << 10, NULL) : NULL;
     if (!text) {
-        put(b, "hookshot_options.ini: none (every Insert menu option at its default).\n");
+        put(b, "xeonshot_options.ini: none (every Insert menu option at its default).\n");
         return;
     }
-    put(b, "hookshot_options.ini (a value only when it is a number or on/off; the controls' bindings left out):\n");
+    put(b, "xeonshot_options.ini (a value only when it is a number or on/off; the controls' bindings left out):\n");
     for (char *line = text, *next; line && *line; line = next) {
         next = strchr(line, '\n');
         if (next) *next++ = 0;
@@ -534,8 +534,8 @@ static char *report_text(const Report *in, size_t *len) {
     Buf b = {0};
     char now[17];
     utc_now(now);
-    putf(&b, "Hookshot crash report, made by the window Hookshot shows after a crash (%s UTC). Hookshot sent nothing: paste "
-             "this into the issue form, and attach the game folder's logs/hookshot_log.txt if you can.\n\n", now);
+    putf(&b, "Xeonshot crash report, made by the window Xeonshot shows after a crash (%s UTC). Xeonshot sent nothing: paste "
+             "this into the issue form, and attach the game folder's logs/xeonshot_log.txt if you can.\n\n", now);
     put(&b, "### What happened\n\n");
     char message[1024];
     hos_crash_message(message, sizeof message, in->verdict, in->stage, in->cause);
@@ -548,7 +548,7 @@ static char *report_text(const Report *in, size_t *len) {
     Recent recent = {(int64_t)time(NULL), 0};
     if (pending_of(in->dir, pending, sizeof pending)) each_name(pending, count_recent, &recent);
     putf(&b, "Crash and unclean-end records in the last day: %d.\n\n", recent.count);
-    putf(&b, "### Hookshot version\n\n%s\nChannel (from the version): %s\n\n", in->version, channel_of(in->version));
+    putf(&b, "### Xeonshot version\n\n%s\nChannel (from the version): %s\n\n", in->version, channel_of(in->version));
     putf(&b, "### Graphics card and driver version\n\n%s\n", in->gpu);
     if (in->log->facts.devices[0]) putf(&b, "Devices the log lists: %s\n", in->log->facts.devices);
     putf(&b, "\n### CPU, RAM and operating system\n\n%s\nBuilt for: %s\n\n", in->system, built_for());
@@ -569,7 +569,7 @@ static char *report_text(const Report *in, size_t *len) {
         put(&b, "None: the game's crash handler wrote no record (it stopped before the game could run, or ended normally).\n\n");
     }
     if (in->log->found) {
-        putf(&b, "### The end of hookshot_log.txt\n\nIts last %d lines (the home folder written %s, the user's name <user>):\n\n```\n",
+        putf(&b, "### The end of xeonshot_log.txt\n\nIts last %d lines (the home folder written %s, the user's name <user>):\n\n```\n",
              in->log->count, in->who->windows ? "%USERPROFILE%" : "~");
         for (int i = 0; i < in->log->count; i++) {
             const char *line = in->log->lines[(in->log->next - in->log->count + i + HOS_CRASH_LOG_LINES) % HOS_CRASH_LOG_LINES];
@@ -578,7 +578,7 @@ static char *report_text(const Report *in, size_t *len) {
         }
         put(&b, "```\n\n");
     } else {
-        put(&b, "### hookshot_log.txt\n\nNot found: the game logged to no file (started from a terminal or by a program that "
+        put(&b, "### xeonshot_log.txt\n\nNot found: the game logged to no file (started from a terminal or by a program that "
                 "reads its output), or its log was moved since.\n\n");
     }
     put(&b, "### Not in this report\n\nSaves, game files, the game's executable and caches, memory dumps, keys, the options file "
@@ -943,7 +943,7 @@ static void report(const Shown *s) {
     if (m) hos_crash_ready_text(m, PATH_MAX_UTF8 + 1024, copied, opened, saved ? local : NULL, HOS_CRASH_ISSUES);
     const char *const buttons[] = {"Open the report", "Done"};
     for (int shown = 0;; shown++) {
-        const int hit = box_serving("Hookshot: report ready", m ? m : "", saved ? buttons : buttons + 1, saved ? 2 : 1);
+        const int hit = box_serving("Xeonshot: report ready", m ? m : "", saved ? buttons : buttons + 1, saved ? 2 : 1);
         /* (no box could be shown at all: the saved report opened instead, so the player has it in front of them) */
         if (hit == -2 && !shown && saved) open_thing(local);
         if (!saved || hit != 0) break;
@@ -1162,7 +1162,7 @@ static int spawn(const char *const *args, int n, int wait) {
     CloseHandle(pi.hThread), CloseHandle(pi.hProcess);
     return 1;
 #else
-    char *argv[8] = {(char *)"hookshot"};
+    char *argv[8] = {(char *)"xeonshot"};
     for (int i = 0; i < n && i < 6; i++) argv[i + 1] = (char *)args[i];
     argv[n + 1 < 8 ? n + 1 : 7] = NULL;
     /* (its output to nowhere: not the game's log, and not a launcher's pipe, which it would keep open after the game) */

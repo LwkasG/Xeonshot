@@ -123,6 +123,7 @@ std::vector<gpu_choice::Card> gpu_device_cards;   // (the GPU row's cards, save:
 // (set_row's debug warning and the transition autosave row: stand-ins, as the other menu fixtures have)
 bool debug_warning = false;
 int debug_warning_choice = 0;
+std::atomic<int> grass_distance_now{0};
 void sync_transition_autosave() {}
 void gfx_limits() {}   // (the view distance rows' caps: vk_menu.cpp)
 bool menu_refresh = false;

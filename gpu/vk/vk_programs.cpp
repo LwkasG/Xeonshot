@@ -155,9 +155,9 @@ bool ids_ready() {
         p2.pNext = &ip;
         vkGetPhysicalDeviceProperties2(dev.physical, &p2);
         const std::string cache = program_cache_path();
-        ids.open(cache.substr(0, cache.find_last_of("\\/") + 1) + "hookshot_module_ids.bin", program_cache_stamp(),
+        ids.open(cache.substr(0, cache.find_last_of("\\/") + 1) + "xeonshot_module_ids.bin", program_cache_stamp(),
                  ip.shaderModuleIdentifierAlgorithmUUID);
-        logf("vk: module identifiers: %zu known (hookshot_module_ids.bin): a learned compute variant's pipeline is made at its "
+        logf("vk: module identifiers: %zu known (xeonshot_module_ids.bin): a learned compute variant's pipeline is made at its "
              "program's create call without its code", ids.size());
     });
     return ids_on.load(std::memory_order_acquire);
@@ -392,7 +392,7 @@ void load_wait_note(int64_t ns) {
     logf("vk: first uses waited for loads for %.0f ms in this session (the longest %.0f ms; waits over %.0f ms counted): over "
          "%.0f ms%s, so the next start loads every listed program before the title again%s", long_ms, worst_ms,
          load_default::kLongMs, long_ms > load_default::kNowMs ? load_default::kNowMs : load_default::kStrikeMs,
-         long_ms > load_default::kNowMs ? "" : ", as the session before this one was", wrote ? " (hookshot_load_start.txt)" : "; the marker did not write");
+         long_ms > load_default::kNowMs ? "" : ", as the session before this one was", wrote ? " (xeonshot_load_start.txt)" : "; the marker did not write");
 }
 }
 
@@ -437,7 +437,7 @@ void programs_slow_upload(double ms, uint32_t width, uint32_t height, uint32_t n
 void module_ids_flush() {
     if (ids_on.load(std::memory_order_acquire) && ids.pending() && !ids.flush()) {
         static std::atomic<int> told{0};
-        if (told++ < 3) logf("vk: module identifiers: hookshot_module_ids.bin did not write");
+        if (told++ < 3) logf("vk: module identifiers: xeonshot_module_ids.bin did not write");
     }
 }
 void module_id_learned(uint64_t key, uint64_t variant, VkShaderModule module) {
@@ -458,7 +458,7 @@ void programs_frames_note() {
     const bool wrote = load_default::marker_write_lacked(load_fallback_path(), lacked);
     logf("vk: %lld listed pipelines were in no cache when their programs were loaded in this session (over %lld): they are "
          "compiled in play, so the next start loads every listed program before the title again%s", lacked,
-         load_default::kNotInCacheMost, wrote ? " (hookshot_load_start.txt)" : "; the marker did not write");
+         load_default::kNotInCacheMost, wrote ? " (xeonshot_load_start.txt)" : "; the marker did not write");
 }
 
 void programs_load_wait(uint64_t key) {

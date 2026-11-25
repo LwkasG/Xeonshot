@@ -56,7 +56,7 @@ class DriveErrorTests(unittest.TestCase):
         self.assertIn(TEX, said)
         self.assertIn("Windows error 1392", said)
         self.assertIn('chkdsk D: /f', said)
-        self.assertIn("not of Hookshot or your game files", said)
+        self.assertIn("not of Xeonshot or your game files", said)
         self.assertNotIn("did not expect", said)
         self.assertNotIn("issues page", said)
 

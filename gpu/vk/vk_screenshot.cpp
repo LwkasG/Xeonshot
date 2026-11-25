@@ -39,7 +39,7 @@ std::string screenshot_path(const std::string& folder) {
     localtime_r(&now, &t);
 #endif
     char stamp[64];
-    strftime(stamp, sizeof stamp, "Hookshot %Y-%m-%d %H-%M-%S", &t);
+    strftime(stamp, sizeof stamp, "Xeonshot %Y-%m-%d %H-%M-%S", &t);
     for (int n = 1; n < 100; n++) {
         char tail[16] = "";
         if (n > 1) snprintf(tail, sizeof tail, " (%d)", n);

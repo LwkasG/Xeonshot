@@ -35,15 +35,15 @@ string Pointer() => File.ReadAllText(Path.Combine(home, "versions", "current.txt
 string Zip(string name, string version, bool nested = true, bool executable = true) {
     var path = Path.Combine(root, name + ".zip");
     using var archive = ZipFile.Open(path, ZipArchiveMode.Create);
-    var prefix = nested ? "HookshotBuilder/" : "";
-    if (executable) { using var file = new StreamWriter(archive.CreateEntry(prefix + "HookshotBuilder.exe").Open()); file.Write("authored, never executed"); }
+    var prefix = nested ? "XeonshotBuilder/" : "";
+    if (executable) { using var file = new StreamWriter(archive.CreateEntry(prefix + "XeonshotBuilder.exe").Open()); file.Write("authored, never executed"); }
     using (var file = new StreamWriter(archive.CreateEntry(prefix + "tools/version.txt").Open())) file.Write(version);
     return path;
 }
 void Fails(Action action, string why) { try { action(); } catch (InvalidDataException) { count++; return; } throw new Exception(why); }
 var first = Zip("first", "v1");
 var target = PortableArchive.Install(first, home, "v1");
-Check(File.Exists(Path.Combine(target, "HookshotBuilder.exe")), "complete target");
+Check(File.Exists(Path.Combine(target, "XeonshotBuilder.exe")), "complete target");
 Check(Pointer() == "v1", "initial pointer");
 Check(PortableArchive.Install(first, home, "v1") == target, "same version reuse");
 Fails(() => PortableArchive.Install(Zip("wrong", "other"), home, "v2"), "reject wrong version");
@@ -55,7 +55,7 @@ var flat = PortableArchive.Install(Zip("flat", "v2", nested:false), home, "v2");
 Check(File.Exists(Path.Combine(flat, "tools", "version.txt")), "flat package normalized");
 Check(Pointer() == "v2", "new current");
 Check(File.ReadAllText(Path.Combine(home, "versions", "previous.txt")).Trim() == "v1", "previous pointer");
-Check(File.Exists(Path.Combine(target, "HookshotBuilder.exe")), "old installation retained");
+Check(File.Exists(Path.Combine(target, "XeonshotBuilder.exe")), "old installation retained");
 var invalid = Path.Combine(home, "versions", "v3"); Directory.CreateDirectory(invalid);
 File.WriteAllText(Path.Combine(invalid, "keep"), "preserve");
 Fails(() => PortableArchive.Install(Zip("third", "v3"), home, "v3"), "reject incomplete existing target");

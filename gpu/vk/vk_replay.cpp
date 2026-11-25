@@ -46,6 +46,7 @@
 #endif
 #include "vk_antilag.h"
 #include "vk_draw.h"
+#include "mesh_conv.h"   // (RX_VK_MESH_CONV=2: the indirect mesh draws after a barrier of the game's, scanned there)
 #include "vk_dump.h"
 #include "vk_paths.h"   // (log_path: the frame trace in the game folder's logs/)
 #include "vk_gprof.h"
@@ -2317,6 +2318,48 @@ void op_cost_report(double frames) {
 
 void ubo_check_refs(uint32_t op, const uint8_t* a, uint32_t avail);   // (HL_UBO_CHECK: below)
 
+// (hookshot) RX_VK_MESH_CONV=2: the scans after the game's barriers, by why each ended (mesh_conv.h Stop), and the ops that ended
+// them (kStopOp), for the log's line every 120 frames
+std::atomic<int64_t> st_mc_stops[mesh_conv::kStops];
+std::atomic<int64_t> st_mc_stop_ops[64];
+thread_local const uint8_t* mesh_rescan_at = nullptr;   // (the op the last scan ended at, with mesh draws after it: replay())
+/// Right after a barrier of the game's (the pass ended, a full barrier recorded), or right after the op that ended the scan
+/// before with indirect mesh draws after it (a counter's report, an event's wait, a dispatch, a copy: replay() once the op is
+/// recorded): the indirect mesh draws from next up to the next barrier, the first op that may write buffer memory or the
+/// stream's end, converted here at once (vk_draw.cpp mesh_conv_batch: after a full barrier, which leaves out itself after the
+/// game's)
+void mesh_conv_at_barrier(VkCommandBuffer cmd, const uint8_t* next, const uint8_t* end, bool after_op = false) {
+    mesh_rescan_at = nullptr;
+    if (!mesh_conv_batching()) return mesh_conv_batch(cmd, nullptr, 0);
+    // (records no GPU write to buffer memory in stream order: state, binds, draws (one whose program writes memory drops the
+    // batch as it is drawn: vk_draw.cpp), attachment clears (images), uniform updates (kept in the replay's list, written to
+    // memory at the recording's end), counters' resets, render conditions (read on the CPU))
+    static constexpr uint32_t pass_ops[] = {NOP_BEGIN, NOP_JUMP, NOP_CALL, NOP_UPDATE_UB, NOP_SET_RT, NOP_CLEAR_COLOR,
+                                            NOP_CLEAR_DS, NOP_VIEWPORTS, NOP_SCISSOR, NOP_DEPTH_RANGE, NOP_BIND_PROGRAM,
+                                            NOP_BIND_STATE, NOP_BIND_VATTR, NOP_BIND_VSTREAM, NOP_BIND_VBUF, NOP_BIND_UBO,
+                                            NOP_BIND_SSBO, NOP_BIND_TEX, NOP_BIND_SAMP, NOP_STENCIL, NOP_POLY_OFFSET, NOP_DRAW,
+                                            NOP_DRAW_IDX, NOP_SET_TEX_POOL, NOP_SET_SAMP_POOL, NOP_COPY_STRIDE, NOP_BLEND_COLOR,
+                                            NOP_BIND_IMG, NOP_RESET_COUNTER, NOP_DEPTH_CLAMP, NOP_RENDER_ENABLE,
+                                            NOP_RASTER_DISCARD, NOP_RENDER_COND, NOP_PRIMITIVE_RESTART, NOP_BIND_BUFS,
+                                            NOP_DRAW_INDIRECT, NOP_PUSH_CONST};
+    // (each op's kind in a table made from the list at compile time: the scan looks an op up, it does not walk the list)
+    static_assert(NOP_COUNT_ <= mesh_conv::kOpTable, "mesh_conv.h kOpTable: an op past it would be Stop");
+    static constexpr mesh_conv::Ops ops =
+        mesh_conv::make_ops(NOP_END, NOP_BARRIER, NOP_DRAW_MESH, pass_ops, sizeof pass_ops / sizeof pass_ops[0]);
+    thread_local std::vector<mesh_conv::Item> items;
+    thread_local uint32_t cut_by = 0;   // (the op the scan before this one ended at, for the log)
+    uint32_t stop_op = 0;
+    const uint8_t* at = nullptr;
+    // (at most 1 MB of slots and 256 draws a batch: a quarter of the ring, so the batch never comes round onto itself)
+    const mesh_conv::Stop why = mesh_conv::scan(ops, next, end, items, 1ull << 20, 256, &stop_op, &at);
+    st_mc_stops[why].fetch_add(1, std::memory_order_relaxed);
+    if (after_op && !items.empty()) st_mc_stop_ops[cut_by & 63].fetch_add((int64_t)items.size(), std::memory_order_relaxed);
+    // (an op that may write memory ended it: scanned again once the op is recorded, from the op after it. Each op of the
+    // stretch is walked once, however many such ops it has: the occlusion pass's counter reports, ~200 a frame)
+    if (why == mesh_conv::kStopOp) mesh_rescan_at = at, cut_by = stop_op;
+    mesh_conv_batch(cmd, items.data(), items.size());
+}
+
 /// A draw or a dispatch: what a segment is a count of (dry_work, RX_VK_PARALLEL_SEG)
 bool op_is_work(uint32_t op) {
     return op == NOP_DRAW || op == NOP_DRAW_IDX || op == NOP_DRAW_INDIRECT || op == NOP_DRAW_MESH || op == NOP_DISPATCH ||
@@ -2329,6 +2372,7 @@ void replay(VkCommandBuffer& cmd, NvnState& s, const uint8_t* p, const uint8_t* 
     OpTimer op_timer(dry, worker);
     // (RX_VK_LOG_RB_WRITERS, RX_VK_READBACK_EARLY: each op said, as the writer of what it writes)
     static const bool rb_writers = rb_writers_on(), early = readback_early_on(), note_ops = rb_writers || early;
+    mesh_rescan_at = nullptr;
     for (;;) {
         if (p == end) return;
         nvn_op_hdr h;
@@ -2843,6 +2887,7 @@ void replay(VkCommandBuffer& cmd, NvnState& s, const uint8_t* p, const uint8_t* 
                 else full_barrier(cmd, "barrier (the game's nvnCommandBufferBarrier)");
             }
             st_barriers++;
+            mesh_conv_at_barrier(cmd, p + h.size, end);
             break;
         // ---- work ----
         case NOP_CLEAR_COLOR:
@@ -2926,6 +2971,7 @@ void replay(VkCommandBuffer& cmd, NvnState& s, const uint8_t* p, const uint8_t* 
                 da.groups[0] = d.y, da.groups[1] = 1, da.groups[2] = 1;
                 if (d.kind == 0) da.first_task = d.x;   // (hookshot: the task programs add it, vk_draw.cpp's mesh_args)
                 da.indirect = d.indirect, da.count_addr = d.count_addr, da.max = d.max, da.stride = d.stride;
+                da.op = p;
                 OccSlot os(worker ? occ_wserial : occ_serial);
                 draw(cmd, s, da);
             }
@@ -2979,6 +3025,9 @@ void replay(VkCommandBuffer& cmd, NvnState& s, const uint8_t* p, const uint8_t* 
             if (split_after || memory_split_wanted()) early_split_pending = true;
             if (early_split_pending && part_work >= early_gap) early_split(cmd);
         }
+        // (RX_VK_MESH_CONV=2: the op that ended the last scan, with indirect mesh draws after it before the next barrier, is
+        // recorded, and the part's end if any: those draws converted here at once, after a full barrier of their own)
+        if (!dry && p == mesh_rescan_at) mesh_conv_at_barrier(cmd, p + h.size, end, true);
         p += h.size;
     }
 }
@@ -6572,7 +6621,7 @@ uint64_t vk_retirement_value() {
                       : "the GPU device was lost (VK_ERROR_DEVICE_LOST): the driver stopped or reset the GPU, and nothing sent "
                         "to it runs any more (on Linux, dmesg or journalctl -k around this time names the reset)",
                   dev.present_queue_supported ? ". The presents were on a queue of their own: RX_VK_PRESENT_QUEUE=0 in "
-                                                "hookshot_env.txt turns that off; please report your GPU and driver" : "");
+                                                "xeonshot_env.txt turns that off; please report your GPU and driver" : "");
     replay_fatal(lost);
 }
 
@@ -6869,6 +6918,26 @@ void log_frame_stats() {
             logf("vk: a frame: the game's barriers by their NVN flags:%s", fl.c_str());
             st_barrier_flags.clear();
         }
+        {   // (hookshot, RX_VK_MESH_CONV: the indirect mesh draws' arguments, vk_draw.cpp mesh_indirect_convert and mesh_conv_batch)
+            int64_t mc[7];
+            mesh_conv_stats(mc);
+            int64_t stops[mesh_conv::kStops];
+            for (int i = 0; i < mesh_conv::kStops; i++) stops[i] = st_mc_stops[i].exchange(0, std::memory_order_relaxed);
+            std::string cut;
+            for (int o = 0; o < 64; o++)
+                if (const int64_t n = st_mc_stop_ops[o].exchange(0, std::memory_order_relaxed)) {
+                    char b[32];
+                    snprintf(b, sizeof b, " %d: %.1f;", o, n / 120.0);
+                    cut += b;
+                }
+            logf("vk: a frame: indirect mesh draws' arguments (RX_VK_MESH_CONV=%d): %.1f converted one by one, %.1f from %.1f batches "
+                 "at the game's barriers (%.1f converted in them; %.1f dropped after a write, %.1f the ring came round), %.1f for the "
+                 "compute fallback (no mesh shaders in use: one by one); scans ended at a barrier %.1f, an op %.1f, the end %.1f, full %.1f; the draws "
+                 "batched by a scan right after an op that ended the one before, by op:%s",
+                 mesh_conv_mode(), mc[0] / 120.0, mc[1] / 120.0, mc[2] / 120.0, mc[3] / 120.0, mc[4] / 120.0, mc[5] / 120.0,
+                 mc[6] / 120.0, stops[mesh_conv::kStopBarrier] / 120.0, stops[mesh_conv::kStopOp] / 120.0,
+                 stops[mesh_conv::kStopEnd] / 120.0, stops[mesh_conv::kStopFull] / 120.0, cut.empty() ? " none" : cut.c_str());
+        }
         static int64_t l_gpu;
         static uint64_t l_made;
         logf("vk: GPU time %.1f ms a frame (the longest submission %.1f ms); %.1f textures made a frame",
@@ -6923,7 +6992,7 @@ void status_tick() {
         // (the game folder's logs/: vk_paths.h; with HOS_PROFILE=1, frames.csv in that run's profile folder, which the host
         // chose: host/profiling.c)
         const char* dir = getenv("HOS_PROFILE_DIR");
-        FILE* f = fopen(dir && *dir ? (std::string(dir) + "/frames.csv").c_str() : log_path("hookshot_frames.csv").c_str(), "w");
+        FILE* f = fopen(dir && *dir ? (std::string(dir) + "/frames.csv").c_str() : log_path("xeonshot_frames.csv").c_str(), "w");
         if (f) fprintf(f, "frame,ms,pipe_waits,pipe_wait_ms,left_out,translate_ms,uploads,upload_mb,textures,memsync_ms,pipelines_ms,"
                           "uploads_ms,programs_ms,slot_wait_ms,gpu_behind_ms,draw_ms,desc_ms,cmds_ms,tex_lookup_ms,textures_gone,"
                           "late_wait_ms,readback_wait_ms,tex_frame_ms,game_ms,render_ms,gpu_wait_ms,pace_ms,wait_render_ms,"
@@ -8216,7 +8285,33 @@ void present_image(VkImage src, uint32_t sw, uint32_t sh, const int crop[4], VkI
     }
     menu_record(f.cmd, index, dev.swap_extent.width, dev.swap_extent.height);   // (hookshot) Dear ImGui's overlays, over all of it
     menu_rumble_tick();   // (hookshot: the Rumble strength row's own rumble, vk_menu.cpp)
-    image_barrier(f.cmd, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    bool startup_shot = false;
+    int64_t startup_shot_no = 0;
+    static const char* startup_shots_dir = getenv("RX_VK_SHOTS");
+    static const bool startup_shot_menu = env_on("RX_VK_SHOT_MENU");
+    static const int startup_shot_every = getenv("RX_VK_SHOT_EVERY") ? std::max(1, atoi(getenv("RX_VK_SHOT_EVERY"))) : 300;
+    if (!src && startup_shots_dir && *startup_shots_dir && startup_shot_menu) {
+        static int64_t startup_presents = 0;
+        startup_shot_no = ++startup_presents;
+        if (startup_shot_no % startup_shot_every == 0 && offscreen_init()) {
+            image_barrier(f.cmd, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+            image_barrier(f.cmd, shot_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+            VkImageBlit bl{};
+            bl.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+            bl.srcOffsets[1] = {(int32_t)dev.swap_extent.width, (int32_t)dev.swap_extent.height, 1};
+            bl.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+            bl.dstOffsets[1] = {(int32_t)kShotW, (int32_t)kShotH, 1};
+            vkCmdBlitImage(f.cmd, dst, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, shot_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bl, VK_FILTER_LINEAR);
+            image_barrier(f.cmd, shot_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+            const VkBufferImageCopy c{0, 0, 0, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {kShotW, kShotH, 1}};
+            vkCmdCopyImageToBuffer(f.cmd, shot_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, shot_bufs[0], 1, &c);
+            capture_host_read_barrier(f.cmd, shot_bufs[0], (VkDeviceSize)kShotW * kShotH * 4);
+            image_barrier(f.cmd, dst, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+            startup_shot = true;
+        }
+    }
+    if (!startup_shot)
+        image_barrier(f.cmd, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     if (vkEndCommandBuffer(f.cmd) == VK_ERROR_DEVICE_LOST) device_lost();
     // (no wait: the image was free before the copy was recorded, image_free above. Not on the timeline either: one queue runs
     // submits in order, and a wait for a value another thread had counted but not yet submitted blocked the queue for good)
@@ -8256,6 +8351,14 @@ void present_image(VkImage src, uint32_t sw, uint32_t sh, const int crop[4], VkI
         static int logged;
         if (logged++ < 8) logf("vk: the present's blit submit failed (VkResult %d): this frame is not shown", (int)res);
         return;
+    }
+    if (startup_shot) {
+        vkWaitForFences(dev.device, 1, &f.done, VK_TRUE, UINT64_MAX);
+        invalidate_mapped(shot_allocs[0], (uint64_t)kShotW * kShotH * 4);
+        char path[1024];
+        snprintf(path, sizeof path, "%s/startup_%06lld.png", startup_shots_dir, (long long)startup_shot_no);
+        if (write_png(path, (const uint8_t*)shot_maps[0], kShotW, kShotH))
+            logf("vk: startup shot %lld written to %s", (long long)startup_shot_no, path);
     }
     if (present_defer_into) {   // (present ahead: the copy is queued; present_commit shows it at its time)
         present_defer_into->used = true;

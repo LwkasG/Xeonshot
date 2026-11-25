@@ -31,10 +31,10 @@ import pipeline_states  # noqa: E402  (the list's checks: parse, strict)
 
 ISSUE = 14
 ISSUE_URL = "https://git.notrexed.dev/Hookshot/Hookshot/issues/%d" % ISSUE
-LIST = "hookshot_pipeline_states.bin"
-REPORT = "hookshot_pipeline_report.txt"
+LIST = "xeonshot_pipeline_states.bin"
+REPORT = "xeonshot_pipeline_report.txt"
 # (the issue's template, its lines in its order; gpu/vk/pipeline_share.h writes the same: tests/test_pipeline_share.py)
-FIELDS = ("Hookshot version", "OS, GPU and driver", "Output resolution", "Upscaler + render resolution", "Frame generation / HDR",
+FIELDS = ("Xeonshot version", "OS, GPU and driver", "Output resolution", "Upscaler + render resolution", "Frame generation / HDR",
           "Mods or texture packs", "Where you played (areas, dungeons, age, night/rain, ...)", "Pipelines")
 WHERE = FIELDS[6]
 NOTE = ("Attach this zip to a comment on %s and paste the lines below into it, with where you played filled in.\n"
@@ -94,10 +94,10 @@ def options_file(folder, log=()):
     """The settings the game played with: the file its log names (host/options_path.c: in the user folder, every build's), else
     the game folder's, where a build from before kept them"""
     for line in reversed(list(log)):
-        m = re.search(r"options: the settings file is (.+?hookshot_options\.ini)\s*$", line)
+        m = re.search(r"options: the settings file is (.+?xeonshot_options\.ini)\s*$", line)
         if m:
             return m.group(1)
-    return os.path.join(folder, "hookshot_options.ini")
+    return os.path.join(folder, "xeonshot_options.ini")
 
 
 def read_ini(folder, log=()):
@@ -199,7 +199,7 @@ def mods_text(names):
 def _log_lines(folder):
     for d in (os.path.join(folder, "logs"), folder, os.path.join(folder, "bin")):   # (logs/: host/game_layout.c; the others before it)
         try:
-            with open(os.path.join(d, "hookshot_log.txt"), encoding="utf-8", errors="replace") as f:
+            with open(os.path.join(d, "xeonshot_log.txt"), encoding="utf-8", errors="replace") as f:
                 return f.read(4 << 20).splitlines()
         except OSError:
             continue
@@ -207,14 +207,14 @@ def _log_lines(folder):
 
 
 def version_text(folder, log=None):
-    """The version the game's last run said (its log's first line: the version and its source), else hookshot_version.txt's"""
+    """The version the game's last run said (its log's first line: the version and its source), else xeonshot_version.txt's"""
     log = _log_lines(folder) if log is None else log
     for line in log[:5]:
-        m = re.search(r"\bhookshot (\S+(?: \(source [0-9a-f]+\))?)", line)
+        m = re.search(r"\bxeonshot (\S+(?: \(source [0-9a-f]+\))?)", line)
         if m:
             return m.group(1)
     try:
-        with open(os.path.join(folder, "hookshot_version.txt"), encoding="utf-8") as f:
+        with open(os.path.join(folder, "xeonshot_version.txt"), encoding="utf-8") as f:
             for line in f:
                 if line.startswith("version="):
                     return line[8:].strip()
@@ -300,7 +300,7 @@ def template(values):
 
 
 def zip_name(day=None):
-    return "hookshot-pipelines-%s.zip" % (day or datetime.date.today()).isoformat()
+    return "xeonshot-pipelines-%s.zip" % (day or datetime.date.today()).isoformat()
 
 
 def downloads_dir():

@@ -163,15 +163,15 @@ void disk_init() {
         // (hookshot) RX_VK_PROGRAM_CACHE_ZSTD=1: each record compressed with zstd, in a file of its own so that a build
         // without this switch never reads it. SPIR-V compresses about 7.7x at zstd's level 3.
         disk_zstd = env_on("RX_VK_PROGRAM_CACHE_ZSTD");
-        const std::string path = cache_path(disk_zstd ? "hookshot_programs.zst.bin" : "hookshot_programs.bin");   // (vk_paths.h)
-        // (one Hookshot at a time on a cache: a second one, started while the first wrote, took the record being written for one
+        const std::string path = cache_path(disk_zstd ? "xeonshot_programs.zst.bin" : "xeonshot_programs.bin");   // (vk_paths.h)
+        // (one Xeonshot at a time on a cache: a second one, started while the first wrote, took the record being written for one
         // cut short and cut the file there, under the first, whose list of records then named bytes written over since. Held
         // until the process ends)
         {
             uint64_t h = 0xCBF29CE484222325ull;
             for (const char ch : path) h = (h ^ (uint8_t)tolower((unsigned char)ch)) * 1099511628211ull;
             char name[64];
-            snprintf(name, sizeof name, "Local\\HookshotProgramCache_%016llx", (unsigned long long)h);
+            snprintf(name, sizeof name, "Local\\XeonshotProgramCache_%016llx", (unsigned long long)h);
 #ifdef _WIN32
             const HANDLE held = CreateMutexA(nullptr, FALSE, name);
             const bool taken = !held || GetLastError() == ERROR_ALREADY_EXISTS;
@@ -180,7 +180,7 @@ void disk_init() {
             const bool taken = fd >= 0 && flock(fd, LOCK_EX | LOCK_NB) != 0;
 #endif
             if (taken) {
-                logf("vk: program cache %s: another Hookshot is using it: this one runs without it", path.c_str());
+                logf("vk: program cache %s: another Xeonshot is using it: this one runs without it", path.c_str());
                 return;
             }
         }

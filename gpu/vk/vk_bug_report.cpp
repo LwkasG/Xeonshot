@@ -173,7 +173,7 @@ struct LogFacts {
 };
 void take_facts(const std::string& line, LogFacts& f) {
     size_t at;
-    if (f.version.empty() && (at = line.find("] hookshot ")) != std::string::npos) f.version = trimmed(line.substr(at + 11));
+    if (f.version.empty() && (at = line.find("] xeonshot ")) != std::string::npos) f.version = trimmed(line.substr(at + 11));
     if ((at = line.find("] map: ")) != std::string::npos) f.map = trimmed(line.substr(at + 7));   // (host/hos_main.c, on Link's update)
     if (f.trouble.empty() && (line.find("FATAL:") != std::string::npos || line.find("CRASH:") != std::string::npos ||
                               line.find("device lost") != std::string::npos))
@@ -448,11 +448,11 @@ std::string write(const Inputs& in) {
 
     // the logs: this run's, and the run before's (its own after a start from the icon, which moves the last one to .1)
     const std::string log_dir = in.game_dir + "logs" + sep;   // (the game folder's logs/: host/game_layout.c)
-    const std::string g0 = log_dir + "hookshot_log.txt", g1 = log_dir + "hookshot_log.1.txt";
+    const std::string g0 = log_dir + "xeonshot_log.txt", g1 = log_dir + "xeonshot_log.1.txt";
     const std::string before = same_file(in.current_log, g0, in.windows) ? g1 : exists(g0) ? g0 : g1;
     LogFacts now, last;
-    if (!in.current_log.empty()) now = copy_log(in.current_log, dir + "hookshot_log.txt", in);
-    if (!same_file(before, in.current_log, in.windows)) last = copy_log(before, dir + "hookshot_log.1.txt", in);
+    if (!in.current_log.empty()) now = copy_log(in.current_log, dir + "xeonshot_log.txt", in);
+    if (!same_file(before, in.current_log, in.windows)) last = copy_log(before, dir + "xeonshot_log.1.txt", in);
     const bool picture = asked && wait_picture(ticket, picture_path, in.picture_wait_ms);
 
     // (the first line answers the form's one-line field, as the link fills it in; the second says where it comes from)
@@ -471,11 +471,11 @@ std::string write(const Inputs& in) {
     std::string names;
     const std::string sw = switches(in.env, &names);
     settings += sw.empty() ? "Switches set: none.\n"
-                           : "Switches set (the environment, hookshot_env.txt; a value only when it is a number or on/off, and never for "
+                           : "Switches set (the environment, xeonshot_env.txt; a value only when it is a number or on/off, and never for "
                              "a name with TOKEN, KEY, ROOM, SECRET, PASS, SERVER or USER in it):\n" + sw;
     std::string logs;
     if (now.copied) {
-        logs += "hookshot_log.txt: this run's log as it was when the report was made, " + megabytes(now.size) + ".\n";
+        logs += "xeonshot_log.txt: this run's log as it was when the report was made, " + megabytes(now.size) + ".\n";
         if (now.cut) logs += "  Only its first and its last part are in the copy: it is longer than " + megabytes(kLogCap) + ".\n";
     } else {
         logs += in.current_log.empty() ? "This run's log is not here: it is not in a file (the game was started from a terminal, or by a "
@@ -483,9 +483,9 @@ std::string write(const Inputs& in) {
                                        : "This run's log could not be read.\n";
     }
     if (last.copied) {
-        logs += "hookshot_log.1.txt: the run before's log";
+        logs += "xeonshot_log.1.txt: the run before's log";
         if (!last.version.empty() || last.written)
-            logs += " (" + (last.version.empty() ? std::string() : "hookshot " + last.version) +
+            logs += " (" + (last.version.empty() ? std::string() : "xeonshot " + last.version) +
                     (!last.version.empty() && last.written ? ", " : "") +
                     (last.written ? "last written " + when(last.written, "%Y-%m-%d %H:%M") : std::string()) + ")";
         logs += ", " + megabytes(last.size) + ".\n";
@@ -498,7 +498,7 @@ std::string write(const Inputs& in) {
     logs += in.windows ? "In both, the home folder is written %USERPROFILE% and the user's name <user>.\n"
                        : "In both, the home folder is written ~ and the user's name <user>.\n";
     std::string files = "report.txt (this file)";
-    for (const auto& [here, name] : {std::pair{now.copied, "hookshot_log.txt"}, std::pair{last.copied, "hookshot_log.1.txt"},
+    for (const auto& [here, name] : {std::pair{now.copied, "xeonshot_log.txt"}, std::pair{last.copied, "xeonshot_log.1.txt"},
                                      std::pair{picture, "picture.png"}})
         if (here) files += std::string(", ") + name;
     const std::string gpu = in.gpu.empty() ? "Not known: the game has no Vulkan device." : in.gpu;
@@ -530,16 +530,16 @@ std::string write(const Inputs& in) {
     }
 
     std::string text;
-    text += "Hookshot bug report, made by the Insert menu's Bug report on " + when(in.now, "%Y-%m-%d at %H:%M") + ".\n\n";
+    text += "Xeonshot bug report, made by the Insert menu's Bug report on " + when(in.now, "%Y-%m-%d at %H:%M") + ".\n\n";
     text += std::string("To send it: open ") + kIssues + " and choose Game problem (or the link at the end of this file, which "
             "fills in the answers below), copy the answers below into the fields of the same names, say what happened, and drag "
             "the files of this folder, this one too, into the issue.\n\n";
-    text += "### Hookshot version\n\n" + in.version + "\n\n";
+    text += "### Xeonshot version\n\n" + in.version + "\n\n";
     text += "### Where in the game\n\n" + where + "\n\n";
     text += "### Graphics card and driver version\n\n" + gpu + "\n\n";
     text += "### CPU, RAM and operating system\n\n" + in.system + "\n\n";
     text += "### Changes from the defaults\n\n" + settings + "\n";
-    text += "### hookshot_log.txt\n\n" + logs + "\n";
+    text += "### xeonshot_log.txt\n\n" + logs + "\n";
     text += std::string("### Screenshots or video\n\n") +
             (picture ? "picture.png: the game's picture when the report was made, without the menu.\n\n"
                      : "No picture: the game showed no new frame while the report was made, or its picture could not be written.\n\n");
@@ -559,8 +559,8 @@ std::string write(const Inputs& in) {
     }
     if (in.log) {
         std::string line = "menu: bug report written to " + rel + ": report.txt";
-        if (now.copied) line += ", hookshot_log.txt (" + megabytes(now.size) + ")";
-        if (last.copied) line += ", hookshot_log.1.txt (" + megabytes(last.size) + ")";
+        if (now.copied) line += ", xeonshot_log.txt (" + megabytes(now.size) + ")";
+        if (last.copied) line += ", xeonshot_log.1.txt (" + megabytes(last.size) + ")";
         line += picture ? ", picture.png" : ", no picture";
         in.log(line.c_str());
     }

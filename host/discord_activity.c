@@ -28,8 +28,8 @@
 void discord_settings_default(DiscordSettings *s) {
     memset(s, 0, sizeof *s);
     snprintf(s->status, sizeof s->status, "%s", DEFAULT_STATUS);
-    snprintf(s->image, sizeof s->image, "hookshot");
-    snprintf(s->image_text, sizeof s->image_text, "Hookshot {version} {build}{!version| {commit}}");
+    snprintf(s->image, sizeof s->image, "xeonshot");
+    snprintf(s->image_text, sizeof s->image_text, "Xeonshot {version} {build}{!version| {commit}}");
 }
 
 int discord_settings_line(DiscordSettings *s, const char *line) {
@@ -245,7 +245,7 @@ size_t discord_activity_json(const DiscordSettings *s, const DiscordFields *f, u
     char details[160], state[160], image_text[160], text_two[8], head[160];
     discord_lines(s->status, f, details, sizeof details, state, sizeof state);
     discord_lines(s->image_text, f, image_text, sizeof image_text, text_two, sizeof text_two);
-    const char *image = valid_image(s->image) ? s->image : "hookshot";
+    const char *image = valid_image(s->image) ? s->image : "xeonshot";
     size_t o = 0;
     snprintf(head, sizeof head, "{\"cmd\":\"SET_ACTIVITY\",\"nonce\":\"%u\",\"args\":{\"pid\":%lu,\"activity\":{", nonce, pid);
     int ok = put(out, cap, &o, head);

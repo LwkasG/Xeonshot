@@ -35,54 +35,54 @@ int main(int, char** argv) {
     using namespace gpu_sets;
     const uint64_t build = 0xB0, nv = 0x1111, amd = 0x2222, other_build = 0xB1;
     // (a folder from before the record: whatever is there is left to the caches' own checks; the record is written)
-    put(dir + "hookshot_programs.bin", "nv programs");
-    put(dir + "hookshot_programs.idx", "nv idx");
-    put(dir + "hookshot_vk_pipelines.bin", "nv pipelines");
-    put(dir + "hookshot_vk_pipelines_play_3.bin", "nv play");
-    put(dir + "hookshot_vk_pipelines.stamp", "nvstamp!");
-    put(dir + "hookshot_prepared.bin", "nv prepared");
-    put(dir + "hookshot_module_ids.bin", "nv ids");
-    put(dir + "hookshot_pipelines.bin", "notes");             // (the notes: no GPU's)
-    put(dir + "hookshot_pipelines.bin.built", "nv built");
-    put(dir + "hookshot_pipeline_states.bin", "states");      // (the state list: no GPU's)
-    put(dir + "hookshot_computes.bin", "computes");
-    put(dir + "hookshot_driver_faults.txt", "faults");
+    put(dir + "xeonshot_programs.bin", "nv programs");
+    put(dir + "xeonshot_programs.idx", "nv idx");
+    put(dir + "xeonshot_vk_pipelines.bin", "nv pipelines");
+    put(dir + "xeonshot_vk_pipelines_play_3.bin", "nv play");
+    put(dir + "xeonshot_vk_pipelines.stamp", "nvstamp!");
+    put(dir + "xeonshot_prepared.bin", "nv prepared");
+    put(dir + "xeonshot_module_ids.bin", "nv ids");
+    put(dir + "xeonshot_pipelines.bin", "notes");             // (the notes: no GPU's)
+    put(dir + "xeonshot_pipelines.bin.built", "nv built");
+    put(dir + "xeonshot_pipeline_states.bin", "states");      // (the state list: no GPU's)
+    put(dir + "xeonshot_computes.bin", "computes");
+    put(dir + "xeonshot_driver_faults.txt", "faults");
     Result r = switch_to(dir, build, nv, "NVIDIA");
-    check(r.what == What::kFirst && get(dir + "hookshot_programs.bin") == "nv programs", "a first start leaves the files");
+    check(r.what == What::kFirst && get(dir + "xeonshot_programs.bin") == "nv programs", "a first start leaves the files");
     check(switch_to(dir, build, nv, "NVIDIA").what == What::kSame, "the same GPU again: nothing moves");
     // (the other GPU: NVIDIA's set aside, none for AMD yet)
     r = switch_to(dir, build, amd, "AMD");
     const std::string nv_dir = aside_dir(dir, nv);
     check(r.what == What::kSetAside && r.from == nv && r.aside == 8, "another GPU: the set aside (8 files)");
-    check(!there(dir + "hookshot_programs.bin") && get(nv_dir + "hookshot_programs.bin") == "nv programs" &&
-          get(nv_dir + "hookshot_vk_pipelines_play_3.bin") == "nv play" && get(nv_dir + "hookshot_pipelines.bin.built") == "nv built",
+    check(!there(dir + "xeonshot_programs.bin") && get(nv_dir + "xeonshot_programs.bin") == "nv programs" &&
+          get(nv_dir + "xeonshot_vk_pipelines_play_3.bin") == "nv play" && get(nv_dir + "xeonshot_pipelines.bin.built") == "nv built",
           "the set's files in cache/gpu_set_<stamp>/");
-    check(get(dir + "hookshot_pipelines.bin") == "notes" && get(dir + "hookshot_pipeline_states.bin") == "states" &&
-          get(dir + "hookshot_computes.bin") == "computes" && get(dir + "hookshot_driver_faults.txt") == "faults",
+    check(get(dir + "xeonshot_pipelines.bin") == "notes" && get(dir + "xeonshot_pipeline_states.bin") == "states" &&
+          get(dir + "xeonshot_computes.bin") == "computes" && get(dir + "xeonshot_driver_faults.txt") == "faults",
           "the notes, the state list, the computes and the driver's faults stay");
     // (AMD makes its own)
-    put(dir + "hookshot_programs.bin", "amd programs");
-    put(dir + "hookshot_vk_pipelines.bin", "amd pipelines");
-    put(dir + "hookshot_prepared.bin", "amd prepared");
+    put(dir + "xeonshot_programs.bin", "amd programs");
+    put(dir + "xeonshot_vk_pipelines.bin", "amd pipelines");
+    put(dir + "xeonshot_prepared.bin", "amd prepared");
     // (back on NVIDIA: its set back, AMD's aside)
     r = switch_to(dir, build, nv, "NVIDIA");
     check(r.what == What::kRestored && r.back == 8 && r.aside == 3, "back on the first GPU: its set back, the other's aside");
-    check(get(dir + "hookshot_programs.bin") == "nv programs" && get(dir + "hookshot_vk_pipelines.stamp") == "nvstamp!" &&
-          get(dir + "hookshot_prepared.bin") == "nv prepared", "the first GPU's files as they were");
-    check(!there(nv_dir) && get(aside_dir(dir, amd) + "hookshot_programs.bin") == "amd programs", "the other GPU's set aside");
+    check(get(dir + "xeonshot_programs.bin") == "nv programs" && get(dir + "xeonshot_vk_pipelines.stamp") == "nvstamp!" &&
+          get(dir + "xeonshot_prepared.bin") == "nv prepared", "the first GPU's files as they were");
+    check(!there(nv_dir) && get(aside_dir(dir, amd) + "xeonshot_programs.bin") == "amd programs", "the other GPU's set aside");
     // (and to AMD again: its set back)
     r = switch_to(dir, build, amd, "AMD");
-    check(r.what == What::kRestored && get(dir + "hookshot_programs.bin") == "amd programs" &&
-          get(aside_dir(dir, nv) + "hookshot_programs.bin") == "nv programs", "the second GPU's set back again");
+    check(r.what == What::kRestored && get(dir + "xeonshot_programs.bin") == "amd programs" &&
+          get(aside_dir(dir, nv) + "xeonshot_programs.bin") == "nv programs", "the second GPU's set back again");
     // (a third GPU: at most kKeep sets aside, the newest)
     r = switch_to(dir, build, 0x3333, "Intel");
     check(r.what == What::kSetAside && r.dropped_sets == 1 && there(aside_dir(dir, amd)) && !there(aside_dir(dir, nv)),
           "a third GPU: the oldest set aside goes (kKeep 1)");
     // (a new build: its sets aside are no use and go; the files in cache/ stay for the caches' own checks)
-    put(dir + "hookshot_programs.bin", "intel programs");
+    put(dir + "xeonshot_programs.bin", "intel programs");
     r = switch_to(dir, other_build, amd, "AMD");
     check(r.what == What::kNew && r.dropped_sets == 1 && !there(aside_dir(dir, amd)) &&
-          get(dir + "hookshot_programs.bin") == "intel programs", "a new build: the old build's sets go, cache/ left as it is");
+          get(dir + "xeonshot_programs.bin") == "intel programs", "a new build: the old build's sets go, cache/ left as it is");
     Owner o;
     check(read_owner(dir, &o) && o.build == other_build && o.stamp == amd, "the record says the build and the stamp");
     // (a set aside of another build is let go at any start, and an unknown folder is not touched)

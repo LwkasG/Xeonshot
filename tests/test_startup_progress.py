@@ -56,11 +56,28 @@ int main() {
     {
         StartupState st;
         st.secs = 0.5, st.prepared = true, st.total = 100;
-        CHECK(startup_view(st).title.empty());
+        CHECK(startup_view(st).title.empty() && !startup_view(st).trivia);
+        st.secs = 1;
+        const auto* first = startup_view(st).trivia;
+        CHECK(first && *first->pt && *first->en);
+        st.secs = kTriviaInterval - 0.01;
+        CHECK(startup_view(st).trivia == first);
+        st.secs = kTriviaInterval;
+        const auto* second = startup_view(st).trivia;
+        CHECK(second && second != first);
+        st.stage = 2;
+        CHECK(startup_view(st).trivia == second);
+        st.secs = kTriviaCount * kTriviaInterval;
+        CHECK(startup_view(st).trivia == first);
+        st.secs = 1.0, st.trivia_offset = 1;
+        CHECK(startup_view(st).trivia == second);
+        st.trivia_offset = 0;
+        st.stage = 0;
         st.secs = 30, st.done = 12345, st.total = 38809, st.left = 38;
         StartupView v = startup_view(st);
         CHECK(v.step == "STEP 1 OF 2" && v.title == "Preparing shaders" && v.pct == "31%");
-        CHECK(v.left == "12,345 / 38,809 shaders" && v.right == "about 40 s left" && !v.hint.empty());
+        CHECK(v.left == "12,345 / 38,809 shaders" && v.right == "about 40 s left");
+        CHECK(v.hint == "This runs once after an update. Closing the window keeps the progress.");
         CHECK(v.fraction > 0.31 && v.fraction < 0.32);
         st.stage = 2, st.done = 6120, st.total = 10340, st.left = 4;
         v = startup_view(st);
@@ -68,11 +85,11 @@ int main() {
         st.stage = 1, st.total = 0;   // (the predicted pipelines, not counted yet: no bar)
         v = startup_view(st);
         CHECK(v.step == "STEP 2 OF 2" && v.fraction < 0 && v.left == "Reading the pipeline notes");
-        // a warm start: the pipelines alone, no step, no "after an update" hint
+        // a warm start: the pipelines alone, no step, no "after an update" hint, still shows trivia
         StartupState warm;
         warm.secs = 3, warm.stage = 2, warm.done = 100, warm.total = 3822;
         v = startup_view(warm);
-        CHECK(v.step.empty() && v.title == "Loading pipelines" && v.hint.empty());
+        CHECK(v.step.empty() && v.title == "Loading pipelines" && v.hint.empty() && v.trivia == first);
         // every pipeline counted, the start not over yet: what it still does, not "a few seconds left" for as long as that
         // takes (#714)
         warm.done = 3822, warm.left = 0;
@@ -83,12 +100,15 @@ int main() {
         warm.saving = false, warm.done = 100, warm.left = 4;
         CHECK(startup_view(warm).right == "a few seconds left");
         warm.finished = true;
+        st.finished = true;
+        CHECK(startup_view(st).title == "Starting the game" && !startup_view(st).trivia);
+        st.finished = false;
         CHECK(startup_view(warm).title == "Starting the game");
         warm.secs = 0.4;   // (over before the first second: the wordmark alone, no flash of text)
         CHECK(startup_view(warm).title.empty());
         st.stopping = true;
         v = startup_view(st);
-        CHECK(v.title == "Closing" && v.fraction < 0);
+        CHECK(v.title == "Closing" && v.fraction < 0 && !v.trivia);
     }
 
     // a steady 400 a second: nothing said for the first seconds nor before a sixth is done, then the rest at that rate

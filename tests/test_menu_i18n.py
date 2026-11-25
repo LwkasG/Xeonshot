@@ -121,7 +121,7 @@ class MenuI18nTests(unittest.TestCase):
             "At 100% gain they match. Increasing gain also raises noise and can clip the signal."
         )
         gain_help = (
-            "Adjust capture for Hookshot only; system volume is unchanged. Use the microphone test to see live levels "
+            "Adjust capture for Xeonshot only; system volume is unchanged. Use the microphone test to see live levels "
             "while adjusting gain. Changes apply to new samples."
         )
         test_help = (

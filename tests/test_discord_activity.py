@@ -93,7 +93,7 @@ int main(int argc, char **argv) {
     {   /* (a nightly has no version number: its commit is shown, on the line and in the hover text) */
         const DiscordFields nightly = {"", "", "", "", "N486", "09a20cd6", "nightly-486-09a20cd6", "", "", "", "", ""};
         const DiscordFields nightly_play = {"Kokiri Forest", "KokiriForest_Child", "Child", "", "N486", "09a20cd6", "nightly-486-09a20cd6", "3", "3", "0", "", ""};
-        CHECK(lines(s.status, &nightly, "N486 09a20cd6", "") && lines(s.image_text, &nightly, "Hookshot N486 09a20cd6", ""));
+        CHECK(lines(s.status, &nightly, "N486 09a20cd6", "") && lines(s.image_text, &nightly, "Xeonshot N486 09a20cd6", ""));
         CHECK(lines(s.status, &nightly_play, "Kokiri Forest - Child", "\xe2\x9d\xa4\xef\xb8\x8f 3/3"));
     }   /* (no location: the first part left out) */
     CHECK(lines(s.status, &release, "Kakariko Village - Adult", ""));
@@ -115,7 +115,7 @@ int main(int argc, char **argv) {
         discord_hearts_text(80, h, sizeof h); CHECK(!strcmp(h, "20"));
         discord_hearts_text(-1, h, sizeof h); CHECK(!h[0]);
     }
-    CHECK(lines(s.image_text, &release, "Hookshot v3.0.0", "") && lines(s.image_text, &play, "Hookshot v3.0.0 RC7", ""));
+    CHECK(lines(s.image_text, &release, "Xeonshot v3.0.0", "") && lines(s.image_text, &play, "Xeonshot v3.0.0 RC7", ""));
     CHECK(lines("{location} - {age}{break}Hookshot {version} {build} [{commit}]", &title, "", "Hookshot v3.0.0 RC7 [25-g7a029028]"));
     CHECK(lines("{location|At {location}{age| as {age} Link}}", &play, "At Kakariko Village as Adult Link", ""));   /* (nesting) */
     CHECK(lines("{location|At {location}{age| as {age} Link}}", &title, "", ""));
@@ -249,12 +249,12 @@ def main():
     stamp = {"start": 1700000000}
     want = {
         "play": {"details": "Kakariko Village - Adult", "timestamps": stamp,
-                 "assets": {"large_image": "hookshot", "large_text": "Hookshot v3.0.0 RC7"}},
+                 "assets": {"large_image": "xeonshot", "large_text": "Xeonshot v3.0.0 RC7"}},
         "title": {"details": "v3.0.0 RC7", "timestamps": stamp,
-                  "assets": {"large_image": "hookshot", "large_text": "Hookshot v3.0.0 RC7"}},
+                  "assets": {"large_image": "xeonshot", "large_text": "Xeonshot v3.0.0 RC7"}},
         "custom": {"details": "\"quoted\" \\ back slash Kakariko Village", "timestamps": stamp,
                    "assets": {"large_image": "https://example.org/pic.png"}},
-        "bare": {"timestamps": stamp, "assets": {"large_image": "hookshot"}},
+        "bare": {"timestamps": stamp, "assets": {"large_image": "xeonshot"}},
     }
     for name, expect in want.items():
         if act.get(name) != expect:

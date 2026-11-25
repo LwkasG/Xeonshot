@@ -230,7 +230,7 @@ static int module_of(uintptr_t pc, uintptr_t *base) {
     for (int i = 0; i < nmods; i++)
         if (mods[i].base == *base) return i;
     if (nmods >= 64) return -1;
-    const char *n = d.dli_fname && d.dli_fname[0] ? d.dli_fname : "hookshot";
+    const char *n = d.dli_fname && d.dli_fname[0] ? d.dli_fname : "xeonshot";
     const char *b = strrchr(n, '/');
     mods[nmods].base = *base;
     snprintf(mods[nmods].name, sizeof mods[nmods].name, "%s", b ? b + 1 : n);

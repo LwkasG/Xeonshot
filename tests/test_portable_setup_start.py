@@ -84,7 +84,7 @@ int wmain(int argc, wchar_t **argv) {
                         "-municode", "-I" + str(ROOT / "builder/setup"), str(c), "-o", str(exe)], check=True)
         tree = root / "Portable ü, tree"
         tree.mkdir()
-        home = tree / "HookshotBuilder-data"   # (not HookshotBuilder: the builder the zip carries, beside the setup)
+        home = tree / "XeonshotBuilder"
         profile = root / "authored AppData"
         setup = tree / "Setup.exe"
         import os
@@ -100,16 +100,16 @@ int wmain(int argc, wchar_t **argv) {
         run(root / "downloaded-setup.exe", home, 0, {"HOOKSHOT_SETUP_BASE": str(home), "HOOKSHOT_BUILDER_PORTABLE": "1"})
         moved = root / "Relocated ü, tree"
         tree.rename(moved)
-        home = moved / "HookshotBuilder-data"
+        home = moved / "XeonshotBuilder"
         run(moved / "Setup.exe", home, 0)
-        run(root / "standard-setup.exe", profile / "HookshotBuilder", 3)
+        run(root / "standard-setup.exe", profile / "XeonshotBuilder", 3)
         run(root / "downloaded-setup.exe", home, 2, {"HOOKSHOT_SETUP_BASE": "relative"})
         run(root / "downloaded-setup.exe", home, 2, {"HOOKSHOT_SETUP_BASE": str(profile), "HOOKSHOT_BUILDER_PORTABLE": "1"})
         readonly = root / "write-protected fixture"
         readonly.mkdir()
         run(root / "downloaded-setup.exe", readonly, 4, {"HOOKSHOT_SETUP_BASE": str(readonly)})
-        assert not (readonly / ".hookshot-portable").exists()
-        marker = home / ".hookshot-portable"
+        assert not (readonly / ".xeonshot-portable").exists()
+        marker = home / ".xeonshot-portable"
         marker.write_text("broken")
         run(moved / "Setup.exe", home, 2)
         assert not profile.exists(), "No persistent AppData writes expected during fixture startup"

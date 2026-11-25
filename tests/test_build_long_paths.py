@@ -48,7 +48,7 @@ TREE = {
 DEEP_OBJ = "vk_eden_shader_recompiler_backend_spirv_emit_spirv_bitwise_conversion.o"
 # the scripts the build runs (nx2/make_game.py and the steps it starts), each to install nx2/long_paths.py as it loads
 ENTRY_SCRIPTS = ("make_game", "build", "lift", "nup", "unpack", "split_hot", "shader_census", "text_assets",
-                 "prompt_assets", "third_party_objects")
+                 "prompt_assets", "third_party_objects", "prepare_supervisor")
 
 
 def ext(p):

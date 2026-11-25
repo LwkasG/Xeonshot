@@ -318,7 +318,7 @@ static void write_state(void) {
         hos_log("mods: cannot write %s", tmp);
         return;
     }
-    fputs("# Hookshot's mods: their order and switches, as the Mods tab sets them (Insert menu). One line a mod, top of the\n"
+    fputs("# Xeonshot's mods: their order and switches, as the Mods tab sets them (Insert menu). One line a mod, top of the\n"
           "# list first: \"on <folder>\" or \"off <folder>\". A mod lower in the list wins a file two mods have. Applies at the\n"
           "# next start.\n", f);
     for (int i = 0; i < nmods; i++) fprintf(f, "%s %s\n", mods[i].enabled ? "on" : "off", mods[i].name);
@@ -567,7 +567,7 @@ void hos_mods_init(const char *image_path) {
     slash[1] = 0;
     if (getenv("HOS_MODS")) snprintf(root_dir, sizeof root_dir, "%s", getenv("HOS_MODS"));
     else snprintf(root_dir, sizeof root_dir, "%smods", game_dir);
-    snprintf(state_path, sizeof state_path, "%shookshot_mods.txt", game_dir);
+    snprintf(state_path, sizeof state_path, "%sxeonshot_mods.txt", game_dir);
     snprintf(cache_dir, sizeof cache_dir, "%smodcache/", game_dir);
     if (GetFileAttributesA(root_dir) == INVALID_FILE_ATTRIBUTES) return;
     find_mods(root_dir, "", 0);
@@ -710,13 +710,13 @@ static void mod_text(Mod *m) {
     if (m->cheat_count) ADD("Cheats: %d. ", m->cheat_count);
     else if (m->cheats) ADD("Cheats: no file for this game version. ");
     if (k && d[k - 1] == ' ') d[--k] = 0;
-    if (!k) ADD("Nothing Hookshot uses.");
+    if (!k) ADD("Nothing Xeonshot uses.");
     k = 0, d = m->note;
     if (m->overridden) ADD("%d of its files are taken by a mod lower in the list. ", m->overridden);
     if (m->exefs_waiting && !m->enabled)   /* (the build leaves out the patches of a mod that is off) */
         ADD("Its ExeFS patches are not applied while it is off. ");
     else if (m->exefs_waiting)
-        ADD("%d ExeFS patch file%s %s not in the game yet: build the game again (Hookshot Builder) to apply %s. ", m->exefs_waiting,
+        ADD("%d ExeFS patch file%s %s not in the game yet: build the game again (Xeonshot Builder) to apply %s. ", m->exefs_waiting,
             m->exefs_waiting == 1 ? "" : "s", m->exefs_waiting == 1 ? "is" : "are", m->exefs_waiting == 1 ? "it" : "them");
     if (m->exefs_built && !m->enabled)
         ADD("Its ExeFS patches stay in the game until it is built again. ");

@@ -309,8 +309,8 @@ static void presence_main(void) {
         }
         if (!app_id[0]) {
             if (!said_no_app)
-                hos_log("discord: no application id: discord_app_id= in hookshot_options.ini or HOS_DISCORD_APP_ID (the "
-                        "Discord application named Hookshot); the status stays off");
+                hos_log("discord: no application id: discord_app_id= in xeonshot_options.ini or HOS_DISCORD_APP_ID (the "
+                        "Discord application named Xeonshot); the status stays off");
             said_no_app = 1;
             continue;
         }

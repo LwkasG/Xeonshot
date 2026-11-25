@@ -515,10 +515,10 @@ def load_names(game, progress=lambda text: None, rebuild=False):
 
 
 def romfs_marker(game, count):
-    """What tells one build's game files from another's: the build's version line (hookshot_version.txt), with the
+    """What tells one build's game files from another's: the build's version line (xeonshot_version.txt), with the
     files' count. The same game files give the same marker, so a new build of the same game reads its names once."""
     try:
-        version = (Path(game) / 'hookshot_version.txt').read_text(encoding='utf-8', errors='replace').strip()
+        version = (Path(game) / 'xeonshot_version.txt').read_text(encoding='utf-8', errors='replace').strip()
     except OSError:
         version = ''
     return f'{version}|{count}'

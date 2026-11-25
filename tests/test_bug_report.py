@@ -248,8 +248,8 @@ def wiring():
     check("FormatMessageW(" in made and "WideCharToMultiByte(CP_UTF8," in made and "FormatMessageA" not in made,
           "make_dir's reason on Windows is not Windows' wide text turned into UTF-8")
     form = (ROOT / ".github" / "ISSUE_TEMPLATE" / "1-game-problem.yml").read_text(encoding="utf-8")
-    for label in ("Hookshot version", "Where in the game", "Graphics card and driver version", "CPU, RAM and operating system",
-                  "Changes from the defaults", "hookshot_log.txt", "Screenshots or video"):
+    for label in ("Xeonshot version", "Where in the game", "Graphics card and driver version", "CPU, RAM and operating system",
+                  "Changes from the defaults", "xeonshot_log.txt", "Screenshots or video"):
         check("label: " + label + "\n" in form, "the issue form has no field " + label)
     # (every field the link fills is one of the form's, by the name Forgejo reads: field:<id>)
     filled = re.findall(r'"&field:([a-z]+)="', report)
@@ -279,45 +279,45 @@ def main():
                         str(ROOT / "gpu" / "vk" / "vk_bug_report.cpp"), "-o", str(exe)], check=True)
         user = "alice"
         home = str(tmp / "home" / user)
-        game_path = Path(home) / "Games" / "Hookshot"
+        game_path = Path(home) / "Games" / "Xeonshot"
         game_path.mkdir(parents=True)
         game = str(game_path) + os.sep
         sep = "\\" if windows else "/"
         home_as = "%USERPROFILE%" if windows else "~"
         (game_path / "logs").mkdir()   # (the game folder's logs/: host/game_layout.c)
-        now_log = game_path / "logs" / "hookshot_log.txt"
+        now_log = game_path / "logs" / "xeonshot_log.txt"
         now_log.write_text(
-            "[hos host] hookshot " + VERSION + "\n"
-            "[hos sead::MainThread] fs: mounted content: -> " + home + sep + "Games" + sep + "Hookshot" + sep + "romfs\n"
-            "[hos sead::MainThread] fs: mounted save: -> " + home + "/Games/Hookshot/user\\save\\5a3c\n"
-            "[hos MainThread] vk: pipeline cache /run/media/" + user + "/SD/Hookshot/mkw_vk_pipelines.bin (1 KB)\n"
+            "[hos host] xeonshot " + VERSION + "\n"
+            "[hos sead::MainThread] fs: mounted content: -> " + home + sep + "Games" + sep + "Xeonshot" + sep + "romfs\n"
+            "[hos sead::MainThread] fs: mounted save: -> " + home + "/Games/Xeonshot/user\\save\\5a3c\n"
+            "[hos MainThread] vk: pipeline cache /run/media/" + user + "/SD/Xeonshot/mkw_vk_pipelines.bin (1 KB)\n"
             "[hos Main] map: KokiriForest_Child (child)\n"
             "[hos host] Malice and alice123 stay, as /x/alice123/ does\n"
             "[hos Main] map: HyruleField_Child (child)\n", encoding="utf-8")
-        (game_path / "logs" / "hookshot_log.1.txt").write_text(
-            "[hos host] hookshot v2.0.14\n"
-            "[hos sead::MainThread] fs: mounted content: -> " + home + sep + "Games" + sep + "Hookshot" + sep + "romfs\n"
+        (game_path / "logs" / "xeonshot_log.1.txt").write_text(
+            "[hos host] xeonshot v2.0.14\n"
+            "[hos sead::MainThread] fs: mounted content: -> " + home + sep + "Games" + sep + "Xeonshot" + sep + "romfs\n"
             "[hos Main] map: Market_Child (child)\n"
-            "[hos host] CRASH: exception 0xc0000005 (read 0x0, guest 0x0) at hookshot+0x1234\n"
+            "[hos host] CRASH: exception 0xc0000005 (read 0x0, guest 0x0) at xeonshot+0x1234\n"
             "[hos host] CRASH: thread Main, sp 0x1000\n", encoding="utf-8")
 
-        # 1. started from its icon: this run logs to hookshot_log.txt, the one before is hookshot_log.1.txt; a picture comes
+        # 1. started from its icon: this run logs to xeonshot_log.txt, the one before is xeonshot_log.1.txt; a picture comes
         folders, out = run(exe, "picture", game, str(now_log), home, user, windows)
         check(len(folders) == 1 and folders[0].startswith("bug-reports" + sep), "no report folder: %s" % out)
         folder = game_path / folders[0]
         files = files_of(folder)
-        check(set(files) == {"report.txt", "hookshot_log.txt", "hookshot_log.1.txt", "picture.png"},
+        check(set(files) == {"report.txt", "xeonshot_log.txt", "xeonshot_log.1.txt", "picture.png"},
               "the folder holds %s" % sorted(files))
         check(set(p.name for p in (game_path / "bug-reports").iterdir()) == {folder.name}, "more than the report's folder")
         no_private(files, home, user, game)
-        copy = files["hookshot_log.txt"]
-        for kept in (home_as + sep + "Games" + sep + "Hookshot" + sep + "romfs", home_as + "/Games/Hookshot/user\\save",
-                     "/run/media/<user>/SD/Hookshot", "Malice and alice123 stay, as /x/alice123/ does"):
+        copy = files["xeonshot_log.txt"]
+        for kept in (home_as + sep + "Games" + sep + "Xeonshot" + sep + "romfs", home_as + "/Games/Xeonshot/user\\save",
+                     "/run/media/<user>/SD/Xeonshot", "Malice and alice123 stay, as /x/alice123/ does"):
             check(kept in copy, "the copy of this run's log does not read " + kept)
         check(len(copy.splitlines()) == len(now_log.read_text(encoding="utf-8").splitlines()), "lines lost in the copy")
         report = files["report.txt"]
         section = lambda name: hw.section(report, name)
-        check(section("Hookshot version") == VERSION, "the version: " + section("Hookshot version"))
+        check(section("Xeonshot version") == VERSION, "the version: " + section("Xeonshot version"))
         gpu = section("Graphics card")
         check(gpu == "NVIDIA GeForce RTX 4090, NVIDIA 580.95.05" and hw.classify(gpu) == ("NVIDIA", "RTX 40"),
               "hardware_report.py reads the GPU as %s from %r" % (hw.classify(gpu), gpu))
@@ -335,8 +335,8 @@ def main():
         for unwanted in ("PATH=", "SECRET_TOKEN", "=C:", "93127", "58213", "47731", "hunter2", "192.168", "relay.example", "47732",
                          "1234567890123", "1:INS"):
             check(unwanted not in report, "report.txt holds " + unwanted)
-        logs = section("hookshot_log.txt")
-        check("hookshot v2.0.14" in logs and "CRASH: exception 0xc0000005" in logs, "the logs' section: " + logs)
+        logs = section("xeonshot_log.txt")
+        check("xeonshot v2.0.14" in logs and "CRASH: exception 0xc0000005" in logs, "the logs' section: " + logs)
         check("picture.png" in section("Screenshots or video"), "the picture is not named")
         link = report[report.index("https://git.notrexed.dev/Hookshot/Hookshot/issues/new?template=.github/ISSUE_TEMPLATE/1-game-problem.yml"):].split()[0]
         for part in ("&field:version=v2.1.0-rc.3-39-gbdfe09c%20%28source%20763271ad%29", "&field:gpu=NVIDIA%20GeForce%20RTX%204090",
@@ -360,21 +360,21 @@ def main():
         check("LATE removed (asked for the report's own picture.png)" in out and "picture.png" not in files and
               "No picture" in hw.section(files["report.txt"], "Screenshots or video"), "a late picture: %s %s" % (out, sorted(files)))
 
-        # 3. started from a terminal: no log file this run; the run before's is the game folder's hookshot_log.txt
+        # 3. started from a terminal: no log file this run; the run before's is the game folder's xeonshot_log.txt
         folders, out = run(exe, "terminal", game, "", home, user, windows)
         check(len(folders) == 2 and folders[0] != folders[1] and all(folders), "two reports in a second: %s" % folders)
         files = files_of(game_path / folders[0])
-        check(set(files) == {"report.txt", "hookshot_log.1.txt"}, "from a terminal the folder holds %s" % sorted(files))
-        check("HyruleField_Child" in files["hookshot_log.1.txt"], "the run before's log is not the game folder's last one")
+        check(set(files) == {"report.txt", "xeonshot_log.1.txt"}, "from a terminal the folder holds %s" % sorted(files))
+        check("HyruleField_Child" in files["xeonshot_log.1.txt"], "the run before's log is not the game folder's last one")
         report = files["report.txt"]
-        check("terminal" in hw.section(report, "Where in the game") and "terminal" in hw.section(report, "hookshot_log.txt"),
+        check("terminal" in hw.section(report, "Where in the game") and "terminal" in hw.section(report, "xeonshot_log.txt"),
               "the report does not say where this run's log is")
         no_private(files, home, user, game)
 
         # 4. a log over 10 MB: its first MB and its last 9 MB, and the map in its middle still counts
         big = tmp / "big.log"
         with open(big, "w", encoding="utf-8", newline="\n") as f:
-            f.write("[hos host] hookshot " + VERSION + "\n")
+            f.write("[hos host] xeonshot " + VERSION + "\n")
             filler = "[hos host] vk: status: " + "x" * 100 + " " + home + "/Games\n"
             for _ in range(60000):
                 f.write(filler)
@@ -383,10 +383,10 @@ def main():
                 f.write(filler)
             f.write("[hos host] the last line\n")
         folders, out = run(exe, "big", game, str(big), home, user, windows)
-        copy_path = game_path / folders[0] / "hookshot_log.txt"
+        copy_path = game_path / folders[0] / "xeonshot_log.txt"
         copy = copy_path.read_text(encoding="utf-8")
         check(copy_path.stat().st_size <= (10 << 20) + 4096, "the long log's copy is %d bytes" % copy_path.stat().st_size)
-        check(copy.startswith("[hos host] hookshot " + VERSION) and copy.endswith("[hos host] the last line\n") and
+        check(copy.startswith("[hos host] xeonshot " + VERSION) and copy.endswith("[hos host] the last line\n") and
               "of this log's middle left out here" in copy, "the long log's copy lost its start, its end or the note")
         report = (game_path / folders[0] / "report.txt").read_text(encoding="utf-8")
         check(hw.section(report, "Where in the game").startswith("DeathMountainTrail_Child (child)"), "the middle's map")
@@ -416,20 +416,20 @@ def main():
         # Windows NUL with any extension is the null device, so nothing was written and an empty log was read back; the
         # read-back below says so if a name ever does that again)
         nul = tmp / "power-cut.log"
-        nul_text = ("[hos host] hookshot " + VERSION + "\n[hos Main] fs: mounted content: -> " + home + "/Games\n"
+        nul_text = ("[hos host] xeonshot " + VERSION + "\n[hos Main] fs: mounted content: -> " + home + "/Games\n"
                     "[hos Main] map: KokiriForest_Child (child)\n[hos Main] half a line\0 [hos Main] map: LostWoods_Child (child)\n" +
                     "\0" * 4096)
         nul.write_bytes(nul_text.encode("utf-8"))
         check(nul.read_bytes() == nul_text.encode("utf-8"), "the test's own log with NUL bytes was not written as given")
         folders, out = run(exe, "plain", game, str(nul), home, user, windows)
-        copy = (game_path / folders[0] / "hookshot_log.txt").read_bytes()
+        copy = (game_path / folders[0] / "xeonshot_log.txt").read_bytes()
         check(copy == nul_text.replace(home, home_as).encode("utf-8"), "the copy of a log with NUL bytes differs: %r" % copy[-200:])
         report = (game_path / folders[0] / "report.txt").read_text(encoding="utf-8")
         check(hw.section(report, "Where in the game").startswith("LostWoods_Child (child)"), "the map after a NUL is lost")
 
         # 7. a report's folder that cannot be made (bug-reports is a file here): the system's reason, GetLastError's on Windows
         # (in the system's language there: run() has read it as UTF-8)
-        blocked = tmp / "blocked" / "Hookshot"
+        blocked = tmp / "blocked" / "Xeonshot"
         blocked.mkdir(parents=True)
         (blocked / "bug-reports").write_text("a file where the folder would go", encoding="utf-8")
         folders, out = run(exe, "plain", str(blocked) + os.sep, str(now_log), home, user, windows)

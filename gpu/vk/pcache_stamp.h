@@ -17,9 +17,9 @@
 
 namespace pcache_stamp {
 
-inline const char* kStampFile = "hookshot_vk_pipelines.stamp";
-inline const char* kMainFile = "hookshot_vk_pipelines.bin";
-inline const char* kPlayPrefix = "hookshot_vk_pipelines_play_";
+inline const char* kStampFile = "xeonshot_vk_pipelines.stamp";
+inline const char* kMainFile = "xeonshot_vk_pipelines.bin";
+inline const char* kPlayPrefix = "xeonshot_vk_pipelines_play_";
 
 /// The stamp kept in dir's stamp file; false: none (no file, or not 8 bytes)
 inline bool read(const std::string& dir, uint64_t* stamp) {

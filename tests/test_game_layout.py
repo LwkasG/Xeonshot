@@ -36,17 +36,17 @@ int main(void) {
 }
 '''
 
-LOGS = ("hookshot_log.txt", "hookshot_log.1.txt", "hookshot_log.4.txt", "hookshot_frames.csv")
-CACHES = ("hookshot_programs.bin", "hookshot_programs.idx", "hookshot_pipelines.bin", "hookshot_pipelines.bin.built",
-          "hookshot_computes.bin", "hookshot_pipeline_states.bin", "hookshot_prepared.bin", "hookshot_driver_faults.txt",
-          "hookshot_load_start.txt")
-RENAMED = {"mkw_vk_pipelines.bin": "hookshot_vk_pipelines.bin", "mkw_vk_pipelines_play_3.bin": "hookshot_vk_pipelines_play_3.bin",
-           "mkw_vk_pipelines.stamp": "hookshot_vk_pipelines.stamp"}
+LOGS = ("xeonshot_log.txt", "xeonshot_log.1.txt", "xeonshot_log.4.txt", "xeonshot_frames.csv")
+CACHES = ("xeonshot_programs.bin", "xeonshot_programs.idx", "xeonshot_pipelines.bin", "xeonshot_pipelines.bin.built",
+          "xeonshot_computes.bin", "xeonshot_pipeline_states.bin", "xeonshot_prepared.bin", "xeonshot_driver_faults.txt",
+          "xeonshot_load_start.txt")
+RENAMED = {"mkw_vk_pipelines.bin": "xeonshot_vk_pipelines.bin", "mkw_vk_pipelines_play_3.bin": "xeonshot_vk_pipelines_play_3.bin",
+           "mkw_vk_pipelines.stamp": "xeonshot_vk_pipelines.stamp"}
 CUT_SHORT = ("mkw_vk_pipelines.bin.tmp", "mkw_vk_pipelines_play_4.bin.tmp", "mkw_vk_pipelines.bin.tmp-a1B2c3")
-OLD_LOCKS = ("hookshot_programs.bin.lock", "hookshot_programs.zst.bin.lock")
+OLD_LOCKS = ("xeonshot_programs.bin.lock", "xeonshot_programs.zst.bin.lock")
 MADE_AGAIN = ("prompts/Common.bntx.zs", "prompts/Common.key", "prompts/External.bfotf.zs", "prompts/rsizetable.mod.zs")
-STAY = ("image.bin", "language.txt", "hookshot_options.ini", "hookshot_env.txt", "hookshot_shaders.bin",
-        "hookshot_pipeline_states_shipped.bin", "prompts/Common.bntx", "prompts/External.bfotf", "prompts/rsizetable.zs",
+STAY = ("image.bin", "language.txt", "xeonshot_options.ini", "xeonshot_env.txt", "xeonshot_shaders.bin",
+        "xeonshot_pipeline_states_shipped.bin", "prompts/Common.bntx", "prompts/External.bfotf", "prompts/rsizetable.zs",
         "prompts/xbox/textures.bin", "user/save/0100/file")
 
 
@@ -57,7 +57,7 @@ def game_folder(root, built, in_bin=False):
         (root / name).write_text(name)
     where = root / "bin" if in_bin else root
     where.mkdir(exist_ok=True)
-    exe = where / "hookshot"
+    exe = where / "xeonshot"
     shutil.copy2(built, exe)
     return exe
 
@@ -76,7 +76,7 @@ def check(game, out):
         assert not (game / name).exists(), name
     for name in STAY:
         assert (game / name).read_text() == name, name
-    assert not (game / "cache" / "hookshot_options.ini").exists() and not (game / "cache" / "user").exists()
+    assert not (game / "cache" / "xeonshot_options.ini").exists() and not (game / "cache" / "user").exists()
     moved = len(LOGS) + len(CACHES) + len(RENAMED)
     assert ("%d logs and shader caches moved" % moved) in out, out
 
@@ -111,13 +111,13 @@ def main():
         game = tmp / "b" / "game"
         exe = game_folder(game, built)
         (game / "cache").mkdir()
-        (game / "cache" / "hookshot_programs.bin").write_text("newer")
+        (game / "cache" / "xeonshot_programs.bin").write_text("newer")
         (game / "logs").mkdir()
-        (game / "logs" / "hookshot_log.txt").write_text("newer log")
+        (game / "logs" / "xeonshot_log.txt").write_text("newer log")
         out = run(exe)
-        assert (game / "cache" / "hookshot_programs.bin").read_text() == "newer"
-        assert (game / "hookshot_programs.bin").read_text() == "hookshot_programs.bin"
-        assert (game / "logs" / "hookshot_log.txt").read_text() == "newer log"
+        assert (game / "cache" / "xeonshot_programs.bin").read_text() == "newer"
+        assert (game / "xeonshot_programs.bin").read_text() == "xeonshot_programs.bin"
+        assert (game / "logs" / "xeonshot_log.txt").read_text() == "newer log"
         assert "2 files stayed where they were" in out, out
 
         # the game in bin/ beside image.bin: the folder above bin/ is the game folder, nothing goes into bin/

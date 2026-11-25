@@ -19,7 +19,9 @@
 #include "hos_paths.h"
 #include "oot_heart_containers.h"   /* (the Discord status's pieces of heart) */
 #include "game_layout.h"
+#include "prepare_args.h"
 #include "options_path.h"
+#include "ws_floor.h"
 #include "hos_wide_size.h"   /* (the widescreen picture's size, shared with the Insert menu) */
 #include "../gpu/vk/vk_api.h"
 #include "../gpu/vk/oot_cheat_items.h"
@@ -99,6 +101,22 @@ static void process_priority(void) {
 }
 #endif
 
+#ifdef _WIN32
+/* The game's memory kept in RAM under memory pressure: a soft working-set minimum (host/ws_floor.h, HOS_WS_FLOOR_MB) */
+static void hos_apply_working_set_floor(void) {
+    uint64_t mb, ram_mb;
+    unsigned long err;
+    const int r = ws_floor_apply(getenv("HOS_WS_FLOOR_MB"), &mb, &ram_mb, &err);
+    if (r > 0)
+        hos_log("mem: the working set's minimum is %llu MB of the PC's %llu MB: Windows keeps that much of the game in RAM before "
+                "it trims below it (HOS_WS_FLOOR_MB=0: Windows' own)", (unsigned long long)mb, (unsigned long long)ram_mb);
+    else if (!r)
+        hos_log("mem: the working set's minimum is Windows' own (HOS_WS_FLOOR_MB=0)");
+    else
+        hos_log("mem: a working set minimum of %llu MB was refused (error %lu): Windows' own stays", (unsigned long long)mb, err);
+}
+#endif
+
 int hos_game_is_mkw(void) { return !strcmp(hos_main_build_id, "d00e4f399e411d0613aa8d26b1c02fef"); }
 
 /* gen/hos_image.c (build.py lift) */
@@ -117,11 +135,12 @@ extern const char *hos_romfs_dir, *hos_user_dir;
    once (4 GB, locked), and Windows needs the account to hold "Lock pages in memory" (SeLockMemoryPrivilege, Local
    Security Policy > User Rights Assignment; log off and on after): without it this logs why and uses normal pages. */
 int hos_large_pages;   /* (hos_mem.c: freed pages are not discarded then) */
+uint64_t hos_large_heap_lo, hos_large_heap_hi;   /* (Windows HOS_LARGE_HEAP_MB: [HOS_HEAP_BASE, +bytes) in 2 MB pages) */
 #if defined(_WIN32) && !defined(A64_MEM_ZERO)
 #pragma comment(lib, "advapi32.lib")   /* (the token privilege calls) */
-static void *reserve_large(SIZE_T size) {
+static int enable_lock_memory_privilege(const char *who) {
     HANDLE token;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token)) return NULL;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token)) return 0;
     TOKEN_PRIVILEGES tp = {0};
     tp.PrivilegeCount = 1;
     tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
@@ -130,16 +149,52 @@ static void *reserve_large(SIZE_T size) {
     const DWORD err = GetLastError();
     CloseHandle(token);
     if (!adjusted || err == ERROR_NOT_ALL_ASSIGNED) {
-        hos_log("mem: HOS_LARGE_PAGES: this account does not hold SeLockMemoryPrivilege (\"Lock pages in memory\"): "
-                "normal pages");
-        return NULL;
+        hos_log("mem: %s: this account does not hold SeLockMemoryPrivilege (\"Lock pages in memory\"): "
+                "normal pages", who);
+        return 0;
     }
+    return 1;
+}
+static void *reserve_large(SIZE_T size) {
+    if (!enable_lock_memory_privilege("HOS_LARGE_PAGES")) return NULL;
     const SIZE_T large = GetLargePageMinimum();
     if (!large || size % large) return NULL;
     void *p = VirtualAlloc((void *)A64_HOST_BASE, size, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
     if (!p) hos_log("mem: HOS_LARGE_PAGES: %llu MB of large pages not available (error %lu): normal pages",
                     (unsigned long long)(size >> 20), GetLastError());
     return p;
+}
+static int reserve_large_heap(uint64_t mb) {
+    if (!enable_lock_memory_privilege("HOS_LARGE_HEAP_MB")) return 0;
+    const SIZE_T large = GetLargePageMinimum();
+    if (!large) return 0;
+    const uint64_t bytes = ((mb << 20) + large - 1) & ~((uint64_t)large - 1);
+    if (!bytes || GUEST_SPACE <= HOS_HEAP_BASE || bytes > GUEST_SPACE - HOS_HEAP_BASE) return 0;
+    const uint64_t tail = GUEST_SPACE - HOS_HEAP_BASE - bytes;
+    void *p0 = VirtualAlloc((void *)A64_HOST_BASE, HOS_HEAP_BASE, MEM_RESERVE, PAGE_NOACCESS);
+    void *p1 = p0 == (void *)A64_HOST_BASE
+                   ? VirtualAlloc((void *)(A64_HOST_BASE + HOS_HEAP_BASE), (SIZE_T)bytes,
+                                  MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE)
+                   : NULL;
+    void *p2 = (p1 == (void *)(A64_HOST_BASE + HOS_HEAP_BASE) && tail)
+                   ? VirtualAlloc((void *)(A64_HOST_BASE + HOS_HEAP_BASE + bytes), (SIZE_T)tail, MEM_RESERVE, PAGE_NOACCESS)
+                   : NULL;
+    if (p0 != (void *)A64_HOST_BASE || p1 != (void *)(A64_HOST_BASE + HOS_HEAP_BASE) ||
+        (tail && p2 != (void *)(A64_HOST_BASE + HOS_HEAP_BASE + bytes))) {
+        const DWORD err = GetLastError();
+        if (p0) VirtualFree(p0, 0, MEM_RELEASE);
+        if (p1) VirtualFree(p1, 0, MEM_RELEASE);
+        if (p2) VirtualFree(p2, 0, MEM_RELEASE);
+        hos_log("mem: HOS_LARGE_HEAP_MB: %llu MB of large pages not available (error %lu): normal pages",
+                (unsigned long long)(bytes >> 20), err);
+        return 0;
+    }
+    hos_large_heap_lo = HOS_HEAP_BASE;
+    hos_large_heap_hi = HOS_HEAP_BASE + bytes;
+    hos_large_pages = 1;
+    hos_log("mem: HOS_LARGE_HEAP_MB: %llu MB of the guest heap at %#llx in %llu KB large pages",
+            (unsigned long long)(bytes >> 20), (unsigned long long)HOS_HEAP_BASE, (unsigned long long)(large >> 10));
+    return 1;
 }
 #endif
 
@@ -159,6 +214,15 @@ static int reserve_guest(void) {
         hos_large_pages = 1;
         hos_log("mem: the guest window is in large pages (%llu MB)", (unsigned long long)(GUEST_SPACE >> 20));
         return 1;
+    }
+    {
+        const char *lh = getenv("HOS_LARGE_HEAP_MB");
+        const long long lh_mb = lh ? atoll(lh) : 0;
+        if (lh_mb > 0 && reserve_large_heap((uint64_t)lh_mb)) {
+            void hos_commit_init(void);
+            hos_commit_init();
+            return 1;
+        }
     }
     /* mkw-recomp: 512 GB reserved, committed as the runtime hands memory out (hos_commit) or on first touch */
     void hos_commit_init(void);
@@ -224,7 +288,7 @@ static int reserve_guest(void) {
         if (usable && no_dmabuf && !e)
             hos_log("mem: RX_VK_NO_DMABUF: the guest window is anonymous memory, for host-pointer imports");
         if (e ? !env_value_off(e) : usable && !no_dmabuf) {
-            const int fd = (int)syscall(SYS_memfd_create, "hookshot-guest", 1u /* MFD_CLOEXEC */ | 2u /* MFD_ALLOW_SEALING */);
+            const int fd = (int)syscall(SYS_memfd_create, "xeonshot-guest", 1u /* MFD_CLOEXEC */ | 2u /* MFD_ALLOW_SEALING */);
             if (fd >= 0 && ftruncate(fd, (off_t)GUEST_SPACE) == 0) {
                 fcntl(fd, 1033 /* F_ADD_SEALS */, 0x0002 /* F_SEAL_SHRINK */ | 0x0004 /* F_SEAL_GROW */);
                 void *p = mmap((void *)A64_HOST_BASE, GUEST_SPACE, PROT_READ | PROT_WRITE,
@@ -398,7 +462,7 @@ static const char *saves_dir(const char *beside) {
         snprintf(dir, sizeof dir, "%s/.local/share", home);
     } else return beside;
     CreateDirectoryA(dir, NULL);
-    snprintf(dir + strlen(dir), sizeof dir - strlen(dir), "/hookshot");
+    snprintf(dir + strlen(dir), sizeof dir - strlen(dir), "/xeonshot");
     CreateDirectoryA(dir, NULL);
     if (GetFileAttributesA(dir) == INVALID_FILE_ATTRIBUTES) return beside;
     char pattern[MAX_PATH];
@@ -457,7 +521,7 @@ static const char *saves_dir(const char *beside) {
         const char *sep = strrchr(beside, SEP);
         snprintf(note, sizeof note, "%.*s" SEP_S "saves-moved.txt", sep ? (int)(sep - beside) : 0, beside);
         char text[MAX_PATH + 160];
-        const int n = snprintf(text, sizeof text, "Hookshot's saves are now in\n%s\n\nThey moved there from the user folder that was here.\n", dir);
+        const int n = snprintf(text, sizeof text, "Xeonshot's saves are now in\n%s\n\nThey moved there from the user folder that was here.\n", dir);
         if (n > 0 && (size_t)n < sizeof text) hos_atomic_write(note, text, (size_t)n);
         hos_log("saves: moved from %s to %s", beside, dir);
     }
@@ -538,13 +602,13 @@ static void load_hookshot_env(void) {
     } else {
         DWORD n = hos_game_path_a(path, MAX_PATH);
         while (n && path[n - 1] != 92 && path[n - 1] != 47) n--;
-        memcpy(path + n, "hookshot_env.txt", sizeof "hookshot_env.txt");
+        memcpy(path + n, "xeonshot_env.txt", sizeof "xeonshot_env.txt");
         f = fopen(path, "r");
-        /* (Notepad with the extensions hidden saves "hookshot_env.txt" as hookshot_env.txt.txt: taken too) */
-        if (!f) memcpy(path + n, "hookshot_env.txt.txt", sizeof "hookshot_env.txt.txt"), f = fopen(path, "r");
+        /* (Notepad with the extensions hidden saves "xeonshot_env.txt" as xeonshot_env.txt.txt: taken too) */
+        if (!f) memcpy(path + n, "xeonshot_env.txt.txt", sizeof "xeonshot_env.txt.txt"), f = fopen(path, "r");
     }
     if (!f) {
-        snprintf(hookshot_env_note, sizeof hookshot_env_note, "env: no hookshot_env.txt beside the game (none read)");
+        snprintf(hookshot_env_note, sizeof hookshot_env_note, "env: no xeonshot_env.txt beside the game (none read)");
         return;
     }
     /* The environment the game was started with wins over the file: a switch set for one launch (HOS_FULLSCREEN=0 in a
@@ -577,14 +641,14 @@ static void load_hookshot_env(void) {
                 break;
             }
         if (!(other && *other) && !env_line_allowed(s, eq + 1)) {
-            fprintf(stderr, "env: hookshot_env.txt: %s left out (only the game's switches, and no paths, are taken from it)\n", s);
+            fprintf(stderr, "env: xeonshot_env.txt: %s left out (only the game's switches, and no paths, are taken from it)\n", s);
             continue;
         }
         int ours = 0;
         for (int i = 0; i < from_file_n && !ours; i++) ours = !strcmp(from_file[i], s);
         if (!ours && getenv(s)) {
             fprintf(stderr, "env: %s: %s left out (set in the environment, which goes first)\n",
-                    other && *other ? "HOS_ENV_FILE" : "hookshot_env.txt", s);
+                    other && *other ? "HOS_ENV_FILE" : "xeonshot_env.txt", s);
             continue;
         }
         if (!ours && from_file_n < (int)(sizeof from_file / sizeof *from_file) && strlen(s) < sizeof from_file[0])
@@ -2143,7 +2207,7 @@ static int memory_notice_text(unsigned long long ram_mb, unsigned long long swap
 #if defined(__linux__) && !defined(_WIN32)
     if (ram_mb < HOS_MEMORY_NEEDED_MB) {
         snprintf(out, cap,
-                 "This PC has %.1f GiB of RAM and %.1f GiB of swap. Hookshot recommends 16 GB of RAM or more; "
+                 "This PC has %.1f GiB of RAM and %.1f GiB of swap. Xeonshot recommends 16 GB of RAM or more; "
                  "the game alone can use more than 13 GiB.\n\n"
                  "Swap can prevent an out-of-memory exit, but heavy swapping can make the game and desktop unresponsive. "
                  "Close other programs before playing. More swap is not a replacement for RAM. The game starts anyway.",
@@ -2190,7 +2254,7 @@ static void memory_notice(void) {
     int hos_sdl_load(void);
     hos_sdl_load();   /* (host/posix MessageBoxA shows it through the SDL already loaded) */
 #endif
-    MessageBoxA(NULL, text, "Hookshot", MB_OK | MB_ICONWARNING);
+    MessageBoxA(NULL, text, "Xeonshot", MB_OK | MB_ICONWARNING);
 }
 #endif
 /* (hookshot, linux) What driver_env_choose did with the driver's environment, said again in the game's own log once it is open
@@ -2216,20 +2280,20 @@ static int narrow_paths_ok(int argc, char **argv) {
     if (n && n < MAX_PATH && GetFileAttributesA(a) != INVALID_FILE_ATTRIBUTES) return 1;
     wchar_t w[MAX_PATH * 2] = L"";
     GetModuleFileNameW(NULL, w, MAX_PATH * 2);
-    fprintf(stderr, "hookshot: this folder's path cannot be opened (code page %u, %s): move the game to a folder with a plain name\n",
+    fprintf(stderr, "xeonshot: this folder's path cannot be opened (code page %u, %s): move the game to a folder with a plain name\n",
             GetACP(), n >= MAX_PATH ? "too long" : "has characters the code page lacks");
     int quiet = env_on("HOS_HEADLESS");
     for (int i = 1; i < argc; i++) quiet |= !strcmp(argv[i], "--prepare-shaders");
     if (!quiet) {
         wchar_t text[MAX_PATH * 2 + 640];
         _snwprintf(text, sizeof text / sizeof text[0],
-                   L"Hookshot can't open its files in this folder:\n\n%ls\n\n"
-                   L"%ls\n\nMove the game folder somewhere with a shorter name of plain letters and digits (for example C:\\Games\\Hookshot), "
+                   L"Xeonshot can't open its files in this folder:\n\n%ls\n\n"
+                   L"%ls\n\nMove the game folder somewhere with a shorter name of plain letters and digits (for example C:\\Games\\Xeonshot), "
                    L"or update Windows.",
                    w, GetACP() == CP_UTF8 ? L"The path is too long."
                                           : L"Its name has characters this Windows can only give the game from Windows 10 version 1903 on.");
         text[sizeof text / sizeof text[0] - 1] = 0;
-        MessageBoxW(NULL, text, L"Hookshot", MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
+        MessageBoxW(NULL, text, L"Xeonshot", MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
     }
     return 0;
 }
@@ -2296,15 +2360,15 @@ static int game_main(int argc, char **argv) {
                 memcpy(path + n, "logs", 5);
                 if (GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES) path[n + 4] = path[n - 1], n += 5;
             }
-            memcpy(path + n, "hookshot_log.txt", 17);
+            memcpy(path + n, "xeonshot_log.txt", 17);
             hos_crash_record_prepare(path);   /* recovery before rotation; keep this run's actual destination */
-            /* (the four runs before stay as hookshot_log.1.txt (the last) to .4.txt: a player who started the game again after a
+            /* (the four runs before stay as xeonshot_log.1.txt (the last) to .4.txt: a player who started the game again after a
                crash sent in the new run's log, and the crash was gone) */
             char from[MAX_PATH + 32], to[MAX_PATH + 32];
             for (int k = 4; k >= 1; k--) {
-                if (k == 1) memcpy(from + n, "hookshot_log.txt", 17), memcpy(from, path, n);
-                else memcpy(from, path, n), snprintf(from + n, 32, "hookshot_log.%d.txt", k - 1);
-                memcpy(to, path, n), snprintf(to + n, 32, "hookshot_log.%d.txt", k);
+                if (k == 1) memcpy(from + n, "xeonshot_log.txt", 17), memcpy(from, path, n);
+                else memcpy(from, path, n), snprintf(from + n, 32, "xeonshot_log.%d.txt", k - 1);
+                memcpy(to, path, n), snprintf(to + n, 32, "xeonshot_log.%d.txt", k);
                 MoveFileExA(from, to, MOVEFILE_REPLACE_EXISTING);
             }
             /* (hookshot) the run before's log without the player's user name: its own lines were written so, and what wrote to
@@ -2322,9 +2386,10 @@ static int game_main(int argc, char **argv) {
             }
         } else hos_crash_record_prepare(NULL);   /* an externally supplied stderr, not the game's log */
     }
-    hos_log("hookshot %s", HOOKSHOT_VERSION);   /* (the log's first line: which build a report comes from) */
+    hos_log("xeonshot %s", HOOKSHOT_VERSION);   /* (the log's first line: which build a report comes from) */
     const char *hos_report_run_id(void);
     hos_log("run_id: %s", hos_report_run_id());
+    hos_log("xeonshot: Xeon Bomba compatibility build");
     hos_game_layout_log();
     driver_env_log();
     void hos_crash_record_log_notes(void);
@@ -2354,9 +2419,10 @@ static int game_main(int argc, char **argv) {
             setenv("RX_VK_COMPILE_SHADERS", argv[i + 1], 1);
 #endif
         }
+    hos_prepare_args_env(argc, argv);
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--romfs") && i + 1 < argc) hos_romfs_dir = argv[++i];
-        else if (!strcmp(argv[i], "--compile-shaders") && i + 1 < argc) i++;   /* (taken above) */
+        else if ((!strcmp(argv[i], "--compile-shaders") || hos_prepare_arg_switch(argv[i])) && i + 1 < argc) i++;
         else if (!strcmp(argv[i], "--user") && i + 1 < argc) hos_user_dir = argv[++i];
         else if (!strcmp(argv[i], "--trace")) hos_trace = 1;
         else if (!strcmp(argv[i], "--prepare-shaders")) {   /* (hookshot) a build's last step: no game */
@@ -2426,6 +2492,9 @@ static int game_main(int argc, char **argv) {
         fprintf(stderr, "cannot reserve the guest window\n");
         return 1;
     }
+#ifdef _WIN32
+    hos_apply_working_set_floor();
+#endif
     void hos_crash_test_arm(void);
     hos_crash_test_arm();   /* (HOS_CRASH_TEST: a crash on purpose, once the crash handlers are set up: host/hos_crash_dialog.c) */
 #ifdef A64_MEM_ZERO
@@ -2651,7 +2720,7 @@ static void driver_env_choose(void) {
     } else {
         snprintf(driver_env_said, sizeof driver_env_said,
                  "vk: RADV_FORCE_VRS_CONFIG_FILE=%.300s dropped: with it RADV gives every graphics pipeline another key than the "
-                 "preparation's and compiles them all again; Steam's Half Rate Shading has no effect on Hookshot "
+                 "preparation's and compiles them all again; Steam's Half Rate Shading has no effect on Xeonshot "
                  "(RX_VK_HALF_RATE_SHADING=1 keeps it)", file);
         unsetenv("RADV_FORCE_VRS_CONFIG_FILE");
         setenv("HOOKSHOT_DRIVER_ENV_SET", "RADV_FORCE_VRS_CONFIG_FILE", 1);
@@ -2698,7 +2767,7 @@ int main(int argc, char **argv) {
     int prepare_shaders = 0;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--prepare-shaders")) prepare_shaders = 1;
-        else if (!strcmp(argv[i], "--romfs") || !strcmp(argv[i], "--user") || !strcmp(argv[i], "--compile-shaders")) i++;
+        else if (!strcmp(argv[i], "--romfs") || !strcmp(argv[i], "--user") || !strcmp(argv[i], "--compile-shaders") || hos_prepare_arg_switch(argv[i])) i++;
     }
     /* The builder's preparation worker needs Vulkan, but no SDL display. */
     const int window = prepare_shaders ? 0 : hos_display_init();

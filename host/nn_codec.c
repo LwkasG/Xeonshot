@@ -115,7 +115,9 @@ HLE(_ZN2nn5codec33DecodeOpusInterleavedWithHardwareEPNS0_23HardwareOpusDecoderTy
     const int frames = room < 5760 ? (int)room : 5760;   /* (Opus' longest packet: 120 ms at 48 kHz) */
     opus_int16 *out = (opus_int16 *)hos_guest_range(ARG(3), (uint64_t)frames * 2 * (uint64_t)d->channels);
     if (!out) { RET(0x1F0); return; }
+    const int away = hos_vcore_away();
     const int n = opus_decode(d->dec, in + 8, (opus_int32)len, out, frames, 0);
+    if (away) hos_vcore_back();
     static int logged;
     if (logged++ < 6)
         hos_log("codec: decode %u bytes (of %llu) -> %d samples (room for %d)", len, (unsigned long long)in_size, n, frames);

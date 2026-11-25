@@ -241,10 +241,10 @@ int main(int argc, char **argv) {
     char logs[4096], log[4200];
     snprintf(logs, sizeof logs, "%s/logs", dir);
     mkdir(logs, 0700);
-    snprintf(log, sizeof log, "%s/hookshot_log.txt", logs);
+    snprintf(log, sizeof log, "%s/xeonshot_log.txt", logs);
     hos_crash_record_start(dir, "vtest-1", log);
     FILE *f = fopen(log, "w");
-    fprintf(f, "[hos host] hookshot vtest-1\n[hos host] run_id: %s\n", hos_crash_record_run());
+    fprintf(f, "[hos host] xeonshot vtest-1\n[hos host] run_id: %s\n", hos_crash_record_run());
     for (int i = 3; i < argc; i++) fprintf(f, "%s\n", argv[i]);
     fclose(f);
     char *prepare[] = {argv[0], (char *)"--prepare-shaders", NULL};
@@ -385,13 +385,13 @@ def source_checks():
     import make_game
     assert make_game.stale_copies([10, 11, 12, 13], {10: 1, 11: 10, 12: 99, 13: 10}, {10, 13}) == [12], \
         "the update ends a stray copy, not the game (10), its waiting helper (11) or a helper showing its window (13)"
-    folder = os.path.join("C:" + os.sep, "Games", "Hookshot")
+    folder = os.path.join("C:" + os.sep, "Games", "Xeonshot")
     roots = [os.path.normcase(f) + os.sep for f in (os.path.join(folder, "bin"), folder)]
-    for name, copy in (("hookshot.exe", True), (os.path.join("bin", "hookshot.exe"), True),
-                       ("HookshotBuilder-Setup.exe", False), (os.path.join("bin", "other.exe"), False),
-                       (os.path.join("saves", "hookshot.exe"), False)):
+    for name, copy in (("Xeonshot.exe", True), (os.path.join("bin", "Xeonshot.exe"), True),
+                       ("XeonshotBuilder-Setup.exe", False), (os.path.join("bin", "other.exe"), False),
+                       (os.path.join("saves", "Xeonshot.exe"), False)):
         assert make_game.game_copy(os.path.join(folder, name), roots) == copy, \
-            "only hookshot.exe in the folder or bin\\ is a running game, not the launcher kept there: " + name
+            "only Xeonshot.exe in the folder or bin\\ is a running game, not the launcher kept there: " + name
     for fixture in ("tests/display_startup_failure_test.cpp",):   # (the checks that build a main() cut out of hos_main.c)
         assert "int hos_crash_helper_main(" in (ROOT / fixture).read_text(encoding="utf-8"), fixture + " stands in for the helper"
     code = re.sub(r"/\*.*?\*/|//[^\n]*", "", dialog, flags=re.S)
@@ -495,12 +495,12 @@ def logic_checks(exe, menu, tmp, form):
     # the log: what it says, the stage
     def facts(*lines):
         path = tmp / "facts.txt"
-        path.write_text("".join(l + "\n" for l in lines), encoding="utf-8")
+        path.write_text("".join(l + "\n" for l in lines), encoding="utf-8", newline="\n")
         out = run(exe, "log", path).splitlines()
         values = dict(kv.split("=") for kv in out[0].split())
         values.update(line.split("=", 1) for line in out[1:])
         return values
-    head = ["[hos host] hookshot v3.1.0 (source 1234abcd)", "[hos host] run_id: " + RUN]
+    head = ["[hos host] xeonshot v3.1.0 (source 1234abcd)", "[hos host] run_id: " + RUN]
     f = facts(*head)
     assert f["stage"] == "0" and f["failed"] == "0" and f["version"] == "v3.1.0 (source 1234abcd)"
     f = facts(*head, "[hos host] vk: precompile: 9916 programs", "[hos host] vk: start-up: shaders 10 of 20, 50% of all")
@@ -518,10 +518,10 @@ def logic_checks(exe, menu, tmp, form):
     assert f["devices"] == "NVIDIA GeForce RTX 3090; llvmpipe (LLVM 23.1.4, 256 bits)", f["devices"]
     assert f["dlss"].startswith("NVIDIA DLSS: not available") and f["fsr4"].startswith("AMD FSR 4: no upscaler")
     starts = {
-        "files": ["cannot open /g/image.bin", "usage: ./hookshot [image.bin] [--romfs <dir>]",
+        "files": ["cannot open /g/image.bin", "usage: ./xeonshot [image.bin] [--romfs <dir>]",
                   "/g/image.bin: 1 bytes, the lifted code expects 0x5f00000: lift and image do not match",
                   "[hos host] rx: mkwvk_init version mismatch (3 vs 4): WebGPU"],
-        "vulkan": ["[hos host] rx: RX_BACKEND=vulkan, but /g/bin/hookshot_vk.so did not load (libvulkan.so.1: no such file): nothing is drawn",
+        "vulkan": ["[hos host] rx: RX_BACKEND=vulkan, but /g/bin/xeonshot_vk.so did not load (libvulkan.so.1: no such file): nothing is drawn",
                    "[hos host] vk: load_global failed (Vulkan loader library or vkCreateInstance missing)",
                    "[hos host] vk: vkCreateInstance failed", "[hos host] vk: no Vulkan 1.3 GPU", "[hos host] vk: create_device failed",
                    "[hos host] display: the renderer did not start: the window stays black"],
@@ -536,7 +536,7 @@ def logic_checks(exe, menu, tmp, form):
             f = facts(*head, line, "[hos Main] map: Kokiri Forest")
             assert f["failed"] == "0", "a start that reached play did not fail to start: " + line
     for line in ("[hos host] vk: pipeline cache cannot open the file", "[hos host] mods: cannot open mods/x",
-                 "[hos host] display: windowed", "[hos host] rx: renderer: Vulkan (hookshot_vk.dll)"):
+                 "[hos host] display: windowed", "[hos host] rx: renderer: Vulkan (xeonshot_vk.dll)"):
         f = facts(*head, line)
         assert f["failed"] == "0", line
     assert facts(*head, "[hos host] mem: Windows is out of memory (RAM and page file): close")["memory"] == "1"
@@ -547,15 +547,15 @@ def logic_checks(exe, menu, tmp, form):
 
     # the verdict and the cause
     def record(kind, **values):
-        lines = ["Hookshot %s record 1" % kind, "version: v3.1.0", "run_id: " + RUN, "when: 20261114T101112Z"]
+        lines = ["Xeonshot %s record 1" % kind, "version: v3.1.0", "run_id: " + RUN, "when: 20261114T101112Z"]
         lines += ["%s: %s" % kv for kv in values.items()] + ["record_complete: yes"]
         path = tmp / ("record-%d.txt" % len(list(tmp.glob("record-*.txt"))))
-        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
         return path
 
     def log(*lines):
         path = tmp / ("log-%d.txt" % len(list(tmp.glob("log-*.txt"))))
-        path.write_text("".join(l + "\n" for l in head + list(lines)), encoding="utf-8")
+        path.write_text("".join(l + "\n" for l in head + list(lines)), encoding="utf-8", newline="\n")
         return path
 
     def verdict(rec, lg, have=0, code=0, replaced=0):
@@ -564,21 +564,21 @@ def logic_checks(exe, menu, tmp, form):
         return v, cause, stage, out[1], out[2] + "\n" + out[3]
     QUIET, CRASH, UNCLEAN, START = 0, 1, 2, 3
     UNKNOWN, FILES, VULKAN, WINDOW, MEMORY, DRIVER, ENDED = range(7)
-    crash = record("crash", reason="unhandled exception", exception="0xc0000005", module_offset="hookshot.exe+0x1234")
+    crash = record("crash", reason="unhandled exception", exception="0xc0000005", module_offset="Xeonshot.exe+0x1234")
     plain = log()
     v = verdict(crash, plain)
-    assert v[:3] == (CRASH, UNKNOWN, 0) and v[3] == "Hookshot closed unexpectedly", v
-    assert v[4].startswith("Hookshot closed unexpectedly during the start.") and "An unexpected error." in v[4]
-    assert "Report copies" in v[4] and "Hookshot itself sends nothing" in v[4]
+    assert v[:3] == (CRASH, UNKNOWN, 0) and v[3] == "Xeonshot closed unexpectedly", v
+    assert v[4].startswith("Xeonshot closed unexpectedly during the start.") and "An unexpected error." in v[4]
+    assert "Report copies" in v[4] and "Xeonshot itself sends nothing" in v[4]
     assert verdict(crash, log("[hos Main] map: Hyrule Field"))[:3] == (CRASH, UNKNOWN, 2)
     assert "while you were playing" in verdict(crash, log("[hos Main] map: Hyrule Field"))[4]
     assert "while it prepared the shaders" in verdict(crash, log("[hos host] vk: precompile: 1 programs"))[4]
     v = verdict(crash, None)
-    assert v[0] == CRASH and v[2] == 3 and v[4].startswith("Hookshot closed unexpectedly.\n"), \
+    assert v[0] == CRASH and v[2] == 3 and v[4].startswith("Xeonshot closed unexpectedly.\n"), \
         "no log found: nothing said about when (not \"during the start\" for a crash in play)"
     assert verdict(crash, plain, 1, 0)[0] == CRASH, "a crash record shows whatever the exit code"
     assert verdict(crash, plain, 0, 0, 1)[0] == QUIET, "a run another took the place of says nothing"
-    quit_crash = record("crash", reason="fatal signal", signal="11", module_offset="hookshot+0x10")
+    quit_crash = record("crash", reason="fatal signal", signal="11", module_offset="xeonshot+0x10")
     assert verdict(quit_crash, plain)[0] == CRASH, "a crash after a quit still shows (as PR 498 counts it)"
     unclean = record("unclean", reason="ended without a clean exit", crash_handler="not observed")
     assert verdict(unclean, plain)[:2] == (UNCLEAN, ENDED)
@@ -592,9 +592,9 @@ def logic_checks(exe, menu, tmp, form):
     assert verdict(None, plain)[0] == QUIET and verdict(None, plain, 1, 0)[0] == QUIET, "a clean end"
     assert verdict(None, None)[0] == QUIET, "a clean end with no log"
     assert verdict(None, plain, 1, 2)[0] == QUIET, "an exit code alone (a typo at a terminal) is no window"
-    no_vulkan = log("[hos host] rx: RX_BACKEND=vulkan, but /g/bin/hookshot_vk.so did not load (x): nothing is drawn")
+    no_vulkan = log("[hos host] rx: RX_BACKEND=vulkan, but /g/bin/xeonshot_vk.so did not load (x): nothing is drawn")
     v = verdict(None, no_vulkan)
-    assert v[:2] == (START, VULKAN) and v[3] == "Hookshot couldn't start" and "Vulkan 1.3" in v[4], v
+    assert v[:2] == (START, VULKAN) and v[3] == "Xeonshot couldn't start" and "Vulkan 1.3" in v[4], v
     assert verdict(quit_unclean, no_vulkan)[0] == START, "a black window closed: still a start that failed"
     assert verdict(None, log("cannot open /g/image.bin"))[:2] == (START, FILES)
     assert "Build the game again" in verdict(None, log("cannot open /g/image.bin"))[4]
@@ -621,7 +621,7 @@ def logic_checks(exe, menu, tmp, form):
               "C:\\Users\\Private Users\\x", "[hos host] vk: pipeline cache C:\\USERS\\PRIVATE USER\\AppData\\x.bin"]
     for home, user, windows, sample in ((home_l, user_l, 0, lines), (win_home, win_user, 1, wlines), (home_l + "/", user_l, 0, lines)):
         path = tmp / "redact.txt"
-        path.write_text("".join(l + "\n" for l in sample), encoding="utf-8")
+        path.write_text("".join(l + "\n" for l in sample), encoding="utf-8", newline="\n")
         ours = run(exe, "redact", home, user, windows, path)
         theirs = run(menu, home, user, windows, path)
         assert ours == theirs, (ours, theirs)
@@ -701,19 +701,19 @@ def behaviour(cc, tmp):
     _, got = game("clean")
     assert boxes(got) == [], got
     _, got = game("crash")
-    assert boxes(got) == ["Hookshot closed unexpectedly"] and "during the start" in got[0][1], got
+    assert boxes(got) == ["Xeonshot closed unexpectedly"] and "during the start" in got[0][1], got
     folder, got = game("crash", "[hos Main] map: Kokiri Forest")
     assert "while you were playing" in got[0][1]
     shown = (folder / "bug-reports/shown.txt").read_text(encoding="utf-8")
     assert re.fullmatch(r"crash-\d{8}T\d{6}Z(-\d+-\d+)?\.txt\n", shown), shown
     _, got = game("kill")
-    assert boxes(got) == ["Hookshot closed unexpectedly"] and "ended without a crash report" in got[0][1], got
+    assert boxes(got) == ["Xeonshot closed unexpectedly"] and "ended without a crash report" in got[0][1], got
     _, got = game("quit-kill")
     assert boxes(got) == [], "a quit, then the process killed while it closes: nothing (PR 498)"
     _, got = game("quit-crash")
-    assert boxes(got) == ["Hookshot closed unexpectedly"], "a crash after a quit still shows"
-    _, got = game("clean", "[hos host] rx: RX_BACKEND=vulkan, but /g/hookshot_vk.so did not load (x): nothing is drawn")
-    assert boxes(got) == ["Hookshot couldn't start"] and "Vulkan 1.3" in got[0][1], got
+    assert boxes(got) == ["Xeonshot closed unexpectedly"], "a crash after a quit still shows"
+    _, got = game("clean", "[hos host] rx: RX_BACKEND=vulkan, but /g/xeonshot_vk.so did not load (x): nothing is drawn")
+    assert boxes(got) == ["Xeonshot couldn't start"] and "Vulkan 1.3" in got[0][1], got
     _, got = game("relaunch", ends=2)
     assert boxes(got) == [], "a restart in the same process (execve) says nothing, from the old helper or the new"
     for mode, extra in (("crash", {"HOS_HEADLESS": "1"}), ("crash", {"HOS_CRASH_WATCH": "0"}), ("prepare", {}),
@@ -729,7 +729,7 @@ def behaviour(cc, tmp):
     pending.mkdir(parents=True)
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime(time.time() - 60))
     old = pending / ("crash-%s.txt" % stamp)
-    old.write_text("Hookshot crash record 1\nversion: vtest-0\nrun_id: %s\nwhen: %s\nreason: hos_fatal\nrecord_complete: yes\n"
+    old.write_text("Xeonshot crash record 1\nversion: vtest-0\nrun_id: %s\nwhen: %s\nreason: hos_fatal\nrecord_complete: yes\n"
                    % ("f" * 32, stamp), encoding="utf-8")
     _, got = game("clean", folder=folder)
     assert boxes(got) == [] and old.name in (folder / "bug-reports/shown.txt").read_text(encoding="utf-8"), \
@@ -737,7 +737,7 @@ def behaviour(cc, tmp):
     (folder / "bug-reports/shown.txt").write_text("", encoding="utf-8")
     (folder / "out.txt").unlink()
     _, got = game("clean", folder=folder, ends=2)
-    assert boxes(got) == ["Hookshot closed unexpectedly"] and [e[1] for e in got if e[0] == "END"][0] == "--crash-show", got
+    assert boxes(got) == ["Xeonshot closed unexpectedly"] and [e[1] for e in got if e[0] == "END"][0] == "--crash-show", got
     (folder / "out.txt").unlink()
     _, got = game("clean", folder=folder)
     assert boxes(got) == [], "shown once"
@@ -746,7 +746,7 @@ def behaviour(cc, tmp):
     # Report: what it holds, and what it never does
     folder = home / "Hookshot report"
     folder.mkdir()
-    (folder / "hookshot_options.ini").write_text("options_version=5\nultrawide=1\nmicrophone_device=Private Mic\nkey_a=30\n"
+    (folder / "xeonshot_options.ini").write_text("options_version=5\nultrawide=1\nmicrophone_device=Private Mic\nkey_a=30\n"
                                                  "output_res=1920x1080\n", encoding="utf-8")
     (folder / "user").mkdir()
     (folder / "user/save.bin").write_bytes(b"SAVEDATA")
@@ -755,19 +755,19 @@ def behaviour(cc, tmp):
     (folder / "bug-reports/pending").mkdir(parents=True)
     for k in range(11):   # (reports saved before: the newest ten kept, this one among them)
         (folder / ("bug-reports/pending/report-20200101T0000%02dZ.txt" % k)).write_text("old", encoding="utf-8")
-    cache = "[hos host] vk: pipeline cache %s/Hookshot report/cache/hookshot_vk_pipelines.bin (1 KB)" % home
+    cache = "[hos host] vk: pipeline cache %s/Hookshot report/cache/xeonshot_vk_pipelines.bin (1 KB)" % home
     _, got = game("crash", cache, "[hos host] vk: NVIDIA GeForce RTX 3090, Vulkan 1.4, driver 0x1; mesh shaders yes",
                   "[hos host] vk: driver: NVIDIA 580.95.05", "[hos Main] map: Kokiri Forest", folder=folder, buttons="1,0,1")
     kinds = [e[0] for e in got]
     assert kinds == ["BOX", "OPEN", "BOX", "CLIP", "OPEN", "BOX", "END"], kinds
     assert got[1][1] == str(folder / "logs"), "Open the log folder opens the run's logs folder"
     clip, link = got[3][1], got[4][1]
-    for section in ("### What happened", "### Hookshot version", "### Graphics card and driver version",
+    for section in ("### What happened", "### Xeonshot version", "### Graphics card and driver version",
                     "### CPU, RAM and operating system", "### Changes from the defaults", "### Crash record",
-                    "### The end of hookshot_log.txt", "### Not in this report", "vtest-1", "NVIDIA GeForce RTX 3090, NVIDIA 580.95.05",
-                    "Hookshot crash record 1", "run_id: ", "ultrawide=1", "output_res=1920x1080",
+                    "### The end of xeonshot_log.txt", "### Not in this report", "vtest-1", "NVIDIA GeForce RTX 3090, NVIDIA 580.95.05",
+                    "Xeonshot crash record 1", "run_id: ", "ultrawide=1", "output_res=1920x1080",
                     "microphone_device=(value left out)", "RX_VK_PACE=1", "HOS_SECRET_TOKEN=(value left out)",
-                    "~/Hookshot report/cache/hookshot_vk_pipelines.bin", "while you were playing"):
+                    "~/Hookshot report/cache/xeonshot_vk_pipelines.bin", "while you were playing"):
         assert section in clip, section
     for secret in ("SAVEDATA", "GAMEBYTES", "KEYSECRET", "private-user", str(home), "Private Mic", "abc-secret", "key_a"):
         assert secret not in clip, secret
@@ -806,8 +806,15 @@ def main():
         exe, menu = tmp / ("fixture" + suffix), tmp / ("menu" + suffix)
         (tmp / "fixture.c").write_text(FIXTURE, encoding="utf-8")
         (tmp / "menu.cpp").write_text(MENU_REDACT, encoding="utf-8")
+        manifest = []
+        if os.name == "nt":
+            import sys
+            if str(ROOT / "nx2") not in sys.path:
+                sys.path.insert(0, str(ROOT / "nx2"))
+            import win_manifest
+            manifest = ["-x", "none", win_manifest.write(str(tmp / "manifest.res"))]
         subprocess.run([args.cxx, "-x", "c", "-std=c11", "-D_CRT_SECURE_NO_WARNINGS", "-Wall", "-Wextra", "-Werror", "-I",
-                        str(ROOT / "host"), str(tmp / "fixture.c"), "-o", str(exe)], check=True, timeout=120)
+                        str(ROOT / "host"), str(tmp / "fixture.c"), *manifest, "-o", str(exe)], check=True, timeout=120)
         subprocess.run([args.cxx, "-std=c++20", "-O1", *([] if os.name == "nt" else ["-pthread"]), "-I", str(ROOT / "gpu/vk"),
                         str(tmp / "menu.cpp"), str(ROOT / "gpu/vk/vk_bug_report.cpp"), "-o", str(menu)], check=True, timeout=180)
         logic_checks(exe, menu, tmp, form)

@@ -235,9 +235,11 @@ int hos_regions(uint64_t (*out)[2], int cap) {
 uint64_t hos_region_release_gaps(uint64_t lo, uint64_t hi) {
 #if defined(_WIN32) && !defined(__EMSCRIPTEN__)
     uint64_t done = 0;
+    extern uint64_t hos_large_heap_hi;
     LOCK();
     const uint64_t floor = region_floor < HOS_SPACE_END ? region_floor : HOS_SPACE_END;
     if (lo < floor) lo = floor;
+    if (lo < hos_large_heap_hi) lo = hos_large_heap_hi;
     if (hi > HOS_SPACE_END) hi = HOS_SPACE_END;
     lo = (lo + 0xFFF) & ~0xFFFULL, hi &= ~0xFFFULL;
     /* (the regions are sorted by address, descending: the gaps of [lo, hi) from its top down) */
@@ -547,6 +549,7 @@ HLE(_ZN2nn2os15FreeMemoryPagesEmm) {
         /* (pages the Vulkan back end imported, as part of a pool's 16 MB chunk, stay committed and are zeroed: the GPU
            still maps them, and decommitted pages under an import faulted the device. Read as zero, as freed pages) */
         extern int rx_guest_imported(uint64_t lo, uint64_t hi);
+        extern uint64_t hos_large_heap_lo, hos_large_heap_hi;
         region_count(&region_mapped, -(int64_t)ARG(1)), region_count(&region_freed, (int64_t)ARG(1));
         region_note();
         if (hi > lo && rx_guest_imported(lo, hi)) {
@@ -554,6 +557,8 @@ HLE(_ZN2nn2os15FreeMemoryPagesEmm) {
             region_count(&region_kept, (int64_t)(hi - lo));
         }
 #if defined(_WIN32)
+        else if (hi > lo && hos_large_heap_hi > hos_large_heap_lo && lo < hos_large_heap_hi && hi > hos_large_heap_lo)
+            memset(GP(lo), 0, (size_t)(hi - lo));
         else if (hi > lo && hos_gp_ready() && hos_gp_touches(GP(lo), (size_t)(hi - lo))) hos_gp_decommit(GP(lo), (size_t)(hi - lo));
         else if (hi > lo) hos_gp_hold(1), VirtualFree(GP(lo), (SIZE_T)(hi - lo), MEM_DECOMMIT), hos_gp_hold(0);
 #else

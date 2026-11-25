@@ -87,19 +87,19 @@ int main() {
     // ---- the log's line
     const std::string gm = describe(env_of(game_mode), true, true, true);
     check(gm.find("MESA_SHADER_CACHE_DIR") != std::string::npos && gm.find("VRS forced") != std::string::npos, "Game Mode's");
-    check(gm.find("set by Hookshot") == std::string::npos, "Steam's folder is not Hookshot's");
+    check(gm.find("set by Xeonshot") == std::string::npos, "Steam's folder is not Xeonshot's");
     Vars ours = desktop;
     ours["MESA_SHADER_CACHE_DIR"] = "/g/cache/driver";
     ours["HOOKSHOT_DRIVER_ENV_SET"] = "MESA_SHADER_CACHE_DIR";
-    check(describe(env_of(ours), true, true, false).find("set by Hookshot") != std::string::npos,
-          "a Mesa folder the host set is named as Hookshot's");
+    check(describe(env_of(ours), true, true, false).find("set by Xeonshot") != std::string::npos,
+          "a Mesa folder the host set is named as Xeonshot's");
     // (Game Mode with the host's drop, host/hos_main.c driver_env_choose: the variable gone, named in HOOKSHOT_DRIVER_ENV_SET)
     Vars dropped = game_mode;
     dropped.erase("RADV_FORCE_VRS_CONFIG_FILE");
     dropped["HOOKSHOT_DRIVER_ENV_SET"] = "RADV_FORCE_VRS_CONFIG_FILE";
     check(!radv_vrs_forced(env_of(dropped), true, exists), "dropped: not forced");
-    check(describe(env_of(dropped), true, true, false).find("RADV_FORCE_VRS_CONFIG_FILE dropped by Hookshot") != std::string::npos,
-          "the drop is named as Hookshot's");
+    check(describe(env_of(dropped), true, true, false).find("RADV_FORCE_VRS_CONFIG_FILE dropped by Xeonshot") != std::string::npos,
+          "the drop is named as Xeonshot's");
     check(fingerprint(env_of(dropped), true, false).keys == d.keys, "dropped: the keys of a start outside Game Mode");
     check(describe(env_of(Vars{{"HOME", "/h"}, {"RADV_FORCE_VRS_CONFIG_FILE", "/gone"}}), true, true, false).find("names no file") !=
               std::string::npos, "a missing file is said");

@@ -104,8 +104,8 @@ def test_caches_named_in_renderer():
     check("the predicted and built notes' suffixes, and the index's", all(s in text for s in ('".predicted"', '".predicted_keys"', '".built"', '".idx"')))
     # (and the other way round: every .bin or .idx the renderer names beside the game is a cache, or one of the two files a
     # build makes (the shader seed, the shipped state list); a new cache file in the renderer fails here until it is classified)
-    named = set(re.findall(r'"(hookshot_[A-Za-z0-9_.]*\.(?:bin|idx))"', text))
-    unknown = sorted(n for n in named if not packs.is_cache(n) and n not in (packs.SEED, "hookshot_pipeline_states_shipped.bin"))
+    named = set(re.findall(r'"(xeonshot_[A-Za-z0-9_.]*\.(?:bin|idx))"', text))
+    unknown = sorted(n for n in named if not packs.is_cache(n) and n not in (packs.SEED, "xeonshot_pipeline_states_shipped.bin"))
     check("every file the renderer keeps beside the game is classified (unknown: %s)" % unknown, not unknown)
 
 
@@ -243,44 +243,44 @@ def test_generated_and_runtime(d):
     write(game / "romfs" / "prompts" / "icon.bntx", b"base icon")
     write(game / game_mod, b"base game")
     write(game / vk_mod, b"base renderer")
-    write(game / "cache" / "hookshot_programs.bin", b"cache")
+    write(game / "cache" / "xeonshot_programs.bin", b"cache")
     write(game / "cache" / "prompts" / "Common.bntx.zs", b"made at run time")   # (the game's, never a build's output)
-    write(game / "logs" / "hookshot_log.txt", b"a log")
+    write(game / "logs" / "xeonshot_log.txt", b"a log")
     write(game / "language.txt", b"en-US")
     write(game / "prompts" / "Common.bntx", b"base prompts")
-    write(game / "hookshot_pipeline_states_shipped.bin", b"shipped")
-    write(game / "hookshot_options.ini", b"[menu]")
-    write(game / "cache" / "hookshot_vk_pipelines_play_2.bin", b"seeded play cache")   # (what --seed brings, before the build records outputs)
-    write(game / "cache" / "hookshot_vk_pipelines.stamp", b"the pipeline cache's stamp")
+    write(game / "xeonshot_pipeline_states_shipped.bin", b"shipped")
+    write(game / "xeonshot_options.ini", b"[menu]")
+    write(game / "cache" / "xeonshot_vk_pipelines_play_2.bin", b"seeded play cache")   # (what --seed brings, before the build records outputs)
+    write(game / "cache" / "xeonshot_vk_pipelines.stamp", b"the pipeline cache's stamp")
     write(game / "mkw_vk_pipelines_play_4.bin", b"an older layout's seeded play cache")   # (moved into cache/ at the first start)
-    write(game / "hookshot_pipelines.bin.predicting", b"a prediction a crash left unfinished")
+    write(game / "xeonshot_pipelines.bin.predicting", b"a prediction a crash left unfinished")
     if packs.MODULES[0][1]:   # (the game's map: Windows only)
         write(game / packs.MODULES[0][1], b"map")
     outputs = packs.build_outputs(str(game))
     check("a play cache and the pipeline stamp are not build outputs (%s)" % outputs,
-          "cache/hookshot_vk_pipelines_play_2.bin" not in outputs and "cache/hookshot_vk_pipelines.stamp" not in outputs
-          and "mkw_vk_pipelines_play_4.bin" not in outputs and "hookshot_pipelines.bin.predicting" not in outputs)
+          "cache/xeonshot_vk_pipelines_play_2.bin" not in outputs and "cache/xeonshot_vk_pipelines.stamp" not in outputs
+          and "mkw_vk_pipelines_play_4.bin" not in outputs and "xeonshot_pipelines.bin.predicting" not in outputs)
     write(game / "user" / "save0.bin", b"a save, made in play")
-    write(game / "hookshot_env.txt", b"HOS_X=1")
+    write(game / "xeonshot_env.txt", b"HOS_X=1")
     os.makedirs(out / "romfs" / "a")
     os.link(game / "romfs" / "a" / "data.bin", out / "romfs" / "a" / "data.bin")
     write(out / "romfs" / "prompts" / "icon.bntx", b"new icon")
     write(out / game_mod, b"built game")
-    write(out / "cache" / "hookshot_programs.bin", b"other cache")
-    write(out / "cache" / "hookshot_vk_pipelines_play_5.bin", b"a play cache the pack's build has")
+    write(out / "cache" / "xeonshot_programs.bin", b"other cache")
+    write(out / "cache" / "xeonshot_vk_pipelines_play_5.bin", b"a play cache the pack's build has")
     write(out / "language.txt", b"en-US")
     gen, gone = packs.generated_changes(str(game), str(out), outputs)
     check("a regenerated file is kept, the same ones, the modules and the caches are not: %s" % gen, gen == ["romfs/prompts/icon.bntx"])
     check("generated files the build no longer makes are gone; saves, settings and the game's own files are not: %s" % gone,
-          gone == ["hookshot_pipeline_states_shipped.bin", "prompts/Common.bntx"])
+          gone == ["xeonshot_pipeline_states_shipped.bin", "prompts/Common.bntx"])
     check("a base that recorded no outputs (adopted) loses nothing", packs.generated_changes(str(game), str(out))[1] == [])
     # (a list recorded before caches and the preparation's recovery markers were filtered: a crash mid-prediction leaves one)
-    legacy = outputs + ["mkw_vk_pipelines.stamp", "mkw_vk_pipelines_play_2.bin", "hookshot_pipelines.bin.predicting",
-                        "hookshot_pipelines.bin.running", "hookshot_pipelines.bin.built.warming"]
+    legacy = outputs + ["mkw_vk_pipelines.stamp", "mkw_vk_pipelines_play_2.bin", "xeonshot_pipelines.bin.predicting",
+                        "xeonshot_pipelines.bin.running", "xeonshot_pipelines.bin.built.warming"]
     gone = packs.generated_changes(str(game), str(out), legacy)[1]
     check("an older base's outputs list never deletes a cache or a recovery marker, and still a generated file the build no "
           "longer makes: %s" % gone,
-          gone == ["hookshot_pipeline_states_shipped.bin", "prompts/Common.bntx"])
+          gone == ["xeonshot_pipeline_states_shipped.bin", "prompts/Common.bntx"])
     write(out / "stale.bin", b"an earlier pack's")
     packs.clear_output(str(out))
     check("the output folder keeps only romfs for the next build", sorted(os.listdir(out)) == ["romfs"])
@@ -301,7 +301,7 @@ def test_generated_and_runtime(d):
     check("the pack's game", (rt / game_mod).read_bytes() == b"pack cpu")
     check("the base's renderer", (rt / vk_mod).read_bytes() == b"base renderer")
     check("romfs hard-linked", os.path.samefile(rt / "romfs" / "a" / "data.bin", game / "romfs" / "a" / "data.bin"))
-    check("the caches copied, not linked (the game writes them)", not os.path.samefile(rt / "cache" / "hookshot_programs.bin", game / "cache" / "hookshot_programs.bin"))
+    check("the caches copied, not linked (the game writes them)", not os.path.samefile(rt / "cache" / "xeonshot_programs.bin", game / "cache" / "xeonshot_programs.bin"))
     check("the pack's generated file", (rt / "romfs" / "prompts" / "icon.bntx").read_bytes() == b"new icon")
     check("...not written through the base's hard link", (game / "romfs" / "prompts" / "icon.bntx").read_bytes() == b"base icon")
     check("the pack's deleted file is not in the runtime", not (rt / "prompts" / "Common.bntx").exists())
@@ -362,7 +362,7 @@ def test_resolves_inside(d):
     if os.path.exists(upper) and os.path.samefile(upper, rt / "romfs"):   # (a case-insensitive folder: the usual one on Windows)
         check("a path written in another case is the same folder (compared by identity, not by name)",
               packs.resolves_inside(str(rt), upper))
-    for rel, ok in (("romfs/a.bin", True), ("hookshot.exe", True), ("..", False), ("a/../b", False), ("a\\..\\b", False),
+    for rel, ok in (("romfs/a.bin", True), ("Xeonshot.exe", True), ("..", False), ("a/../b", False), ("a\\..\\b", False),
                     (".", False), ("", False), ("/x", False), ("romfs/foo:evil", False), ("romfs/foo::$DATA", False)):
         check("in_runtime(%r) is %s" % (rel, ok), packs.in_runtime(str(rt), rel) == ok)
 
@@ -397,7 +397,7 @@ def test_romfs_in_place(d):
             write(Path(game) / m[0], b"built")
             if m[1]:
                 write(Path(work) / "sa" / "build" / m[1], b"map")
-        write(Path(game) / "cache" / "hookshot_programs.bin", b"programs")
+        write(Path(game) / "cache" / "xeonshot_programs.bin", b"programs")
 
     def fake_run(argv, **kw):
         calls.append(argv)
@@ -415,13 +415,14 @@ def test_romfs_in_place(d):
     check("the base's build reads the romfs in place (%s)" % got, got.get("HOOKSHOT_ROMFS_IN_PLACE") == "1")
     check("base.json says so", b.get("romfs_in_place") is True)
     check("its preparation names the romfs (%s)" % calls,
-          len(calls) == 1 and calls[0][-2:] == ["--romfs", os.path.abspath(d / "dump" / "romfs")])
+          len(calls) == 1 and "--romfs" in calls[0] and
+          calls[0][calls[0].index("--romfs") + 1] == os.path.abspath(d / "dump" / "romfs"))
     rt = d / "rt"
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
         packs.main(["rt", str(d / "b"), str(rt)])
     check("its runtime has no romfs", not (rt / "romfs").exists())
-    check("...and the base's files", (rt / "cache" / "hookshot_programs.bin").read_bytes() == b"programs")
+    check("...and the base's files", (rt / "cache" / "xeonshot_programs.bin").read_bytes() == b"programs")
     check("...and says the game takes --romfs (%s)" % out.getvalue(), "--romfs" in out.getvalue())
 
 
@@ -431,8 +432,8 @@ def fake_base(d, predict_s=0):
     write(game / "romfs" / "a" / "data.bin", b"romfs")
     write(game / packs.GAME, b"base game")
     write(game / packs.RENDERER, b"base renderer")
-    write(game / "cache" / "hookshot_programs.bin", b"programs")
-    write(game / "cache" / "hookshot_vk_pipelines.bin", b"pipelines")
+    write(game / "cache" / "xeonshot_programs.bin", b"programs")
+    write(game / "cache" / "xeonshot_vk_pipelines.bin", b"pipelines")
     packs.write_base(str(base_dir), {"commit": "c" * 40, "work": str(base_dir / "work"), "game": str(game), "romfs": "r",
                                      "exefs": "e", "predict_s": predict_s})
     return base_dir, game
@@ -523,14 +524,14 @@ def test_outputs_before_prepare(d):
             write(Path(game) / m[0], b"built")
             if m[1]:
                 write(Path(work) / "sa" / "build" / m[1], b"map")
-        write(Path(game) / "hookshot_shaders.bin", b"seed")
+        write(Path(game) / "xeonshot_shaders.bin", b"seed")
 
     def fake_run(argv, **kw):
         calls.append(("prepare", list(argv[1:])))
         game = Path(kw["cwd"])
-        write(game / "cache" / "hookshot_vk_pipelines.stamp", b"stamp")
-        write(game / "cache" / "hookshot_pipelines.bin.predicted_keys", b"keys")
-        write(game / "hookshot_some_future_cache.dat", b"a file a later renderer writes")
+        write(game / "cache" / "xeonshot_vk_pipelines.stamp", b"stamp")
+        write(game / "cache" / "xeonshot_pipelines.bin.predicted_keys", b"keys")
+        write(game / "xeonshot_some_future_cache.dat", b"a file a later renderer writes")
         return packs.subprocess.CompletedProcess(argv, 0)
     saved = packs.make_game, packs.changed_files, packs.git, packs.subprocess.run
     packs.make_game, packs.changed_files, packs.git = fake_make_game, (lambda tree, commit: set()), (lambda tree, *a: "c" * 40)
@@ -546,9 +547,9 @@ def test_outputs_before_prepare(d):
         check("the preparation runs once, after the build, with the Compile shaders level (%s)" % prep,
               len(prep) == 1 and prep[0][1][:1] == ["--prepare-shaders"] and "--compile-shaders" in prep[0][1])
         check("what the preparation wrote is not an output (%s)" % outputs,
-              not {"cache/hookshot_vk_pipelines.stamp", "cache/hookshot_pipelines.bin.predicted_keys", "hookshot_some_future_cache.dat"}
+              not {"cache/xeonshot_vk_pipelines.stamp", "cache/xeonshot_pipelines.bin.predicted_keys", "xeonshot_some_future_cache.dat"}
               & set(outputs))
-    check("what make_game.py made is (%s)" % outputs, "hookshot_shaders.bin" in outputs)
+    check("what make_game.py made is (%s)" % outputs, "xeonshot_shaders.bin" in outputs)
 
 
 def test_prepare_outcomes(d):
@@ -604,12 +605,12 @@ def test_seed(d):
     nothing else: those in its cache/ into the game's cache/, and an older layout's loose ones as they are (the game's first
     start moves them into cache/)"""
     seed = d / "seed"
-    for name, data in (("hookshot_vk_pipelines.bin", b"p"), ("hookshot_vk_pipelines_play_4.bin", b"play"),
-                       ("hookshot_vk_pipelines.stamp", b"stamp"), ("hookshot_log.txt", b"not a cache")):
+    for name, data in (("xeonshot_vk_pipelines.bin", b"p"), ("xeonshot_vk_pipelines_play_4.bin", b"play"),
+                       ("xeonshot_vk_pipelines.stamp", b"stamp"), ("xeonshot_log.txt", b"not a cache")):
         write(seed / "cache" / name, data)
     for name, data in (("mkw_vk_pipelines.bin", b"p"), ("mkw_vk_pipelines_play_3.bin", b"play"), (packs.CACHES[0], b"c"),
-                       ("mkw_vk_pipelines.stamp", b"stamp"), ("hookshot_pipelines.bin.predicted_keys", b"keys"),
-                       ("hookshot_log.txt", b"log"), ("image.bin", b"game")):
+                       ("mkw_vk_pipelines.stamp", b"stamp"), ("xeonshot_pipelines.bin.predicted_keys", b"keys"),
+                       ("xeonshot_log.txt", b"log"), ("image.bin", b"game")):
         write(seed / name, data)
 
     def fake_make_game(tree, b, work, game, env):
@@ -626,11 +627,11 @@ def test_seed(d):
         packs.make_game, packs.changed_files, packs.git, packs.subprocess.run = saved
     game = d / "b" / "game"
     for name in ("mkw_vk_pipelines.bin", "mkw_vk_pipelines_play_3.bin", packs.CACHES[0], "mkw_vk_pipelines.stamp",
-                 "hookshot_pipelines.bin.predicted_keys"):
+                 "xeonshot_pipelines.bin.predicted_keys"):
         check("the seed's %s is copied" % name, (game / name).exists())
-    for name in ("hookshot_vk_pipelines.bin", "hookshot_vk_pipelines_play_4.bin", "hookshot_vk_pipelines.stamp"):
+    for name in ("xeonshot_vk_pipelines.bin", "xeonshot_vk_pipelines_play_4.bin", "xeonshot_vk_pipelines.stamp"):
         check("the seed's cache/%s is copied into cache/" % name, (game / "cache" / name).exists())
-    for name in ("hookshot_log.txt", "image.bin", "cache/hookshot_log.txt"):
+    for name in ("xeonshot_log.txt", "image.bin", "cache/xeonshot_log.txt"):
         check("the seed's %s is not" % name, not (game / name).exists())
 
 
@@ -640,23 +641,23 @@ def test_warm(d):
     play = d / "play.py"
     play.write_text("import sys, os\n"
                     "rt = sys.argv[1]\n"
-                    "open(os.path.join(rt, 'cache', 'hookshot_programs.bin'), 'ab').write(b' and more')\n"
-                    "open(os.path.join(rt, 'cache', 'hookshot_vk_pipelines_play_1.bin'), 'wb').write(b'played')\n"
+                    "open(os.path.join(rt, 'cache', 'xeonshot_programs.bin'), 'ab').write(b' and more')\n"
+                    "open(os.path.join(rt, 'cache', 'xeonshot_vk_pipelines_play_1.bin'), 'wb').write(b'played')\n"
                     "os.makedirs(os.path.join(rt, 'logs'), exist_ok=True)\n"
-                    "open(os.path.join(rt, 'logs', 'hookshot_log.txt'), 'w').write('a log')\n"
-                    "open(os.path.join(rt, 'cache', 'hookshot_log.txt'), 'w').write('not a cache either')\n"
+                    "open(os.path.join(rt, 'logs', 'xeonshot_log.txt'), 'w').write('a log')\n"
+                    "open(os.path.join(rt, 'cache', 'xeonshot_log.txt'), 'w').write('not a cache either')\n"
                     "open(os.path.join(rt, %r), 'wb').write(b'not a cache')\n" % packs.GAME)
     cmd = '"%s" -I "%s" "{runtime}"' % (sys.executable.replace("\\", "/"), str(play).replace("\\", "/"))
     packs.main(["warm", str(base_dir), "--run", cmd])
-    check("a grown cache comes back", (game / "cache" / "hookshot_programs.bin").read_bytes() == b"programs and more")
-    check("a new play file comes back", (game / "cache" / "hookshot_vk_pipelines_play_1.bin").read_bytes() == b"played")
-    check("an unchanged cache stays", (game / "cache" / "hookshot_vk_pipelines.bin").read_bytes() == b"pipelines")
-    check("a log is not a cache", not (game / "logs").exists() and not (game / "cache" / "hookshot_log.txt").exists())
+    check("a grown cache comes back", (game / "cache" / "xeonshot_programs.bin").read_bytes() == b"programs and more")
+    check("a new play file comes back", (game / "cache" / "xeonshot_vk_pipelines_play_1.bin").read_bytes() == b"played")
+    check("an unchanged cache stays", (game / "cache" / "xeonshot_vk_pipelines.bin").read_bytes() == b"pipelines")
+    check("a log is not a cache", not (game / "logs").exists() and not (game / "cache" / "xeonshot_log.txt").exists())
     check("a module is never copied back", (game / packs.GAME).read_bytes() == b"base game")
     check("the warm-up's runtime is gone", not (base_dir / "warm-runtime").exists())
     b = json.loads((base_dir / "base.json").read_text())
     check("base.json records the warm-up (%s)" % b.get("warmed"),
-          b.get("warmed", {}).get("files") == ["hookshot_programs.bin", "hookshot_vk_pipelines_play_1.bin"])
+          b.get("warmed", {}).get("files") == ["xeonshot_programs.bin", "xeonshot_vk_pipelines_play_1.bin"])
     check("the busy marker is gone after the job", not (base_dir / packs.BUSY).exists())
     packs.main(["rt", str(base_dir), str(base_dir / "warm-runtime")])
     packs.main(["warm", str(base_dir), "--run", cmd])
@@ -673,7 +674,7 @@ def test_warm(d):
     outside = d / "outside.bin"
     outside.write_bytes(b"not a cache of this runtime")
     packs.main(["rt", str(base_dir), str(base_dir / "warm-runtime")])
-    lnk = base_dir / "warm-runtime" / "cache" / "hookshot_vk_pipelines_play_7.bin"
+    lnk = base_dir / "warm-runtime" / "cache" / "xeonshot_vk_pipelines_play_7.bin"
     try:
         os.symlink(outside, lnk)
     except OSError:
@@ -683,7 +684,7 @@ def test_warm(d):
         shutil.rmtree(base_dir / "warm-runtime")
     else:
         packs.main(["warm", str(base_dir), "--run", '"%s" -c "pass"' % sys.executable.replace("\\", "/")])
-        check("a linked cache file is not copied back", not (game / "cache" / "hookshot_vk_pipelines_play_7.bin").exists())
+        check("a linked cache file is not copied back", not (game / "cache" / "xeonshot_vk_pipelines_play_7.bin").exists())
 
 
 def test_busy(d):

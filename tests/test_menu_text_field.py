@@ -617,7 +617,7 @@ def main():
                      block(menu, "void restart_values("),
                      between(menu, "bool output_size_char(", "struct FieldRow {"),
                      between(menu, "TextField* editing =", "// ---- (hookshot) the Controls page:")])
-    host_cut = between(backend, "enum { TEXT_QUEUE", "static const MkwVkHost vk_host")
+    host_cut = between(backend, "enum { TEXT_QUEUE", "static int host_ab_value(")
     focused = block(menu, "if (open_now.load() && editing) {")
     win = (ROOT / "host/display.c").read_text(encoding="utf-8")
     win_keys = block(win[win.index("case WM_KEYDOWN: {"):], "if (hos_text_focus()) {")

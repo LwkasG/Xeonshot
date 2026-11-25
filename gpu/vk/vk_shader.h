@@ -49,7 +49,8 @@ struct Stage {
 uint32_t stage_handle(const NvnState& s, const Stage& st, uint32_t program, uint32_t element = 0);
 /// The handles of elements 0 .. count-1 of such a table (one shadow map per light, say), into out: stage_handle for each,
 /// with the constant words and storage buffer addresses the program reads read once
-void stage_handles(const NvnState& s, const Stage& st, uint32_t program, uint32_t count, uint32_t* out);
+/// (key: the program's, for the log line that names which programs a table's count cuts)
+void stage_handles(const NvnState& s, const Stage& st, uint32_t program, uint32_t count, uint32_t* out, uint64_t key = 0);
 void handle_memo_next();   // (hookshot) a new draw or dispatch on this thread: the handles kept for the last one go
 
 /// A translated program variant: its stages, in descriptor order. The pipeline layout and pipelines made for it live
@@ -103,6 +104,8 @@ struct Program {
     mutable std::atomic<int64_t> wm_sig{-1};   // (hookshot: what its write masks are made from, vk_draw.cpp program_wm_sig; -1: not asked yet)
     // (hookshot) how many buffer, image and texel view descriptors its stages have, packed (draw_key.h desc_counts_pack); ~0: not counted yet
     mutable std::atomic<uint64_t> desc_counts{~0ull};
+    // (hookshot) texture descriptor count (for TexSlot cache) and total VkWriteDescriptorSet count (for out.writes.reserve); ~0: not counted yet
+    mutable std::atomic<uint64_t> extra_desc_counts{~0ull};
     // (hookshot) the translation's texture questions as answered, in the order asked: what makes this variant again with nothing
     // bound (the pipeline state list, vk_draw.cpp)
     std::vector<uint8_t> questions;

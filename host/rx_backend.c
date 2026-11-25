@@ -6,6 +6,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(__AVX2__)
+#include <immintrin.h>
+#endif
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
@@ -101,7 +104,9 @@ static int64_t collect_in(const uint64_t (*ranges)[2], int nranges, uint32_t **p
        branch, where the ladder tested 32 pages per load-and-branch: ~25 GB/s of a core), and one pass over the
        union of the ranges (sorted, cursor) instead of a pass per range: 38.1 us a call -> 31.6, 51 ms/s -> 41 ms/s
        of a core at 110 fps; fps unchanged (the scene is GPU-bound here: the win is CPU freed for smaller CPUs). */
+#if !defined(__AVX2__)
     typedef long long v64x4 __attribute__((vector_size(32)));
+#endif
     /* the merged GPU ranges (hos_gpu_guest_ranges) arrive sorted; the submit-time list (the renderer's mirrored
        pools) may not be and may overlap: sort a copy, or the cursor would skip pages the walk owes the GPU. */
     const uint64_t (*use)[2] = ranges;
@@ -125,6 +130,58 @@ static int64_t collect_in(const uint64_t (*ranges)[2], int nranges, uint32_t **p
         uint64_t p1 = (hi + 4095) >> 12;
         if (p1 > A64_DIRTY_PAGES) p1 = A64_DIRTY_PAGES;
         if (p1 <= upto) continue;
+#if defined(__AVX2__)
+        const __m256i zero = _mm256_setzero_si256();
+        for (uint64_t p = lo >> 12 < upto ? upto : lo >> 12; p < p1;) {
+            if (!(p & 255) && p + 256 <= p1) {   /* (256 pages at a time while none is marked) */
+                const __m256i a = _mm256_loadu_si256((const __m256i *)(const void *)&a64_dirty[p]);
+                const __m256i b = _mm256_loadu_si256((const __m256i *)(const void *)&a64_dirty[p + 32]);
+                const __m256i c = _mm256_loadu_si256((const __m256i *)(const void *)&a64_dirty[p + 64]);
+                const __m256i d = _mm256_loadu_si256((const __m256i *)(const void *)&a64_dirty[p + 96]);
+                const __m256i e = _mm256_loadu_si256((const __m256i *)(const void *)&a64_dirty[p + 128]);
+                const __m256i f = _mm256_loadu_si256((const __m256i *)(const void *)&a64_dirty[p + 160]);
+                const __m256i g = _mm256_loadu_si256((const __m256i *)(const void *)&a64_dirty[p + 192]);
+                const __m256i h = _mm256_loadu_si256((const __m256i *)(const void *)&a64_dirty[p + 224]);
+                const __m256i o = _mm256_or_si256(
+                    _mm256_or_si256(_mm256_or_si256(a, b), _mm256_or_si256(c, d)),
+                    _mm256_or_si256(_mm256_or_si256(e, f), _mm256_or_si256(g, h)));
+                if (_mm256_testz_si256(o, o)) {
+                    p += 256;
+                    continue;
+                }
+            }
+            if (!(p & 31) && p + 32 <= p1) {   /* (32 pages at a time: extract marked byte offsets directly) */
+                const __m256i v = _mm256_loadu_si256((const __m256i *)(const void *)&a64_dirty[p]);
+                if (!_mm256_testz_si256(v, v)) {
+                    uint32_t mask = (uint32_t)~_mm256_movemask_epi8(_mm256_cmpeq_epi8(v, zero));
+                    while (mask) {
+                        const uint32_t bit = (uint32_t)__builtin_ctz(mask);
+                        mask &= mask - 1;
+                        const uint64_t pg = p + bit;
+                        if (__atomic_exchange_n(&a64_dirty[pg], 0, __ATOMIC_ACQUIRE)) {
+                            if (n == cap) out = realloc(out, (cap *= 2) * sizeof *out);
+                            out[n++] = (uint32_t)pg;
+                        }
+                    }
+                }
+                p += 32;
+                continue;
+            }
+            if (!(p & 7) && p + 8 <= p1) {   /* (eight pages a load while none is marked) */
+                uint64_t w;
+                memcpy(&w, &a64_dirty[p], 8);
+                if (!w) {
+                    p += 8;
+                    continue;
+                }
+            }
+            if (__atomic_load_n(&a64_dirty[p], __ATOMIC_RELAXED) && __atomic_exchange_n(&a64_dirty[p], 0, __ATOMIC_ACQUIRE)) {
+                if (n == cap) out = realloc(out, (cap *= 2) * sizeof *out);
+                out[n++] = (uint32_t)p;
+            }
+            p++;
+        }
+#else
         for (uint64_t p = lo >> 12 < upto ? upto : lo >> 12; p < p1;) {
             if (!(p & 255) && p + 256 <= p1) {   /* (256 pages at a time while none is marked) */
                 v64x4 a, b, c, d, e, f, g, h, o;
@@ -164,6 +221,7 @@ static int64_t collect_in(const uint64_t (*ranges)[2], int nranges, uint32_t **p
             }
             p++;
         }
+#endif
         upto = p1;
     }
     *pages = out;
@@ -338,6 +396,8 @@ uint64_t hos_mods_changed(void);
 int hos_cheat_info(int i, const char **name, const char **mod, const char **note, int *kind, int *on);
 void hos_cheat_set(int i, int on);
 
+static int host_ab_value(const char *name, int normal) { return hos_ab_value(name, normal); }
+
 static const MkwVkHost vk_host = {
     MKWVK_API_VERSION, host_log, hos_guest_base, hos_guest_size, hos_gpu_ptr, nvn_gpu_guest, nvn_gpu_read,
     nvn_gpu_write, host_collect, host_free_pages, host_mark_written, hos_ticks, hos_now_ns, nvn_tex_layout,
@@ -357,6 +417,7 @@ static const MkwVkHost vk_host = {
     hos_sdl_rumble_test,
     hos_nfc_count, hos_nfc_name, hos_nfc_tap, hos_nfc_state, hos_nfc_dir, hos_nfc_scan, hos_nfc_scan_name,
     hos_ab_frame,   /* (version 35, hookshot: the frame trace's ab_side, host/hos_ab.c) */
+    host_ab_value,  /* (version 36, hookshot: a renderer switch's A/B value) */
 };
 
 static const MkwVkRenderer *vk;   /* the Vulkan back end, when it was chosen and started */
@@ -435,19 +496,19 @@ static const MkwVkRenderer *load_vulkan(const char *dll) {
 #ifdef _WIN32
         const DWORD err = GetLastError();
         hos_log("rx: %s did not load (%lu): nothing is drawn", path, err);
-        /* (hookshot) Two of a player's logs: hookshot_vk.dll "did not load (126)" and no SDL either, the game started
+        /* (hookshot) Two of a player's logs: xeonshot_vk.dll "did not load (126)" and no SDL either, the game started
            from a folder without them (the libraries are in bin\ since the launcher), and a window that stayed black for good
            with nothing on screen to say why. Said in plain words, and in a box (not while shaders are prepared) */
-        hos_log("rx: the renderer could not be loaded (%s): nothing will be drawn. Start the game from Hookshot (the launcher), "
+        hos_log("rx: the renderer could not be loaded (%s): nothing will be drawn. Start the game from Xeonshot (the launcher), "
                 "or install the game again there", err == ERROR_MOD_NOT_FOUND ? "the file or a library it needs is missing"
                                                  : err == ERROR_BAD_EXE_FORMAT ? "the file is damaged" : "Windows refused it");
-        if (!preparing_shaders && !env_on("HOS_HEADLESS") && strcmp(dll, "hookshot_vk.dll") == 0) {
+        if (!preparing_shaders && !env_on("HOS_HEADLESS") && strcmp(dll, "xeonshot_vk.dll") == 0) {
             char text[MAX_PATH + 512];
             snprintf(text, sizeof text,
-                     "Hookshot's renderer could not be loaded:\n\n%s\n(Windows error %lu)\n\nThe window would stay black. Start the "
-                     "game from Hookshot (the launcher), not from a copy of hookshot.exe elsewhere; if it still happens, use "
-                     "Update in Hookshot, or install the game again from it.", path, err);
-            MessageBoxA(NULL, text, "Hookshot", MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
+                     "Xeonshot's renderer could not be loaded:\n\n%s\n(Windows error %lu)\n\nThe window would stay black. Start the "
+                     "game from Xeonshot (the launcher), not from a copy of Xeonshot.exe elsewhere; if it still happens, use "
+                     "Update in Xeonshot, or install the game again from it.", path, err);
+            MessageBoxA(NULL, text, "Xeonshot", MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
         }
 #else   /* (why, as dlerror() said: a missing file, a glibc too old, a wrong ELF class. The line names the file
            LoadLibraryA opened, hookshot_vk.so, and drops dlerror()'s leading "<that file>: ", so the path, home folder
@@ -481,7 +542,7 @@ static const MkwVkRenderer *load_vulkan(const char *dll) {
 
 int rx_start(void *hwnd) {
     /* (hookshot: Vulkan, the only renderer; RX_BACKEND, which once picked the WebGPU one, is not read) */
-    const char *dll = "hookshot_vk.dll";
+    const char *dll = "xeonshot_vk.dll";
     const MkwVkRenderer *r = load_vulkan(dll);
     /* (the crash report's renderer: host/hos_crash_dialog.h. Before start(), which prepares the shaders: a crash in there
        is a crash of this renderer too) */
@@ -497,11 +558,11 @@ int rx_start(void *hwnd) {
     flush_early();
     return ok;
 }
-/* (hookshot) hookshot --prepare-shaders: the Vulkan back end started with no window and no game, which prepares
+/* (hookshot) xeonshot --prepare-shaders: the Vulkan back end started with no window and no game, which prepares
    every shader in its start (gpu/vk/vk_main.cpp started_up) and is then let go. 0 when there is no usable Vulkan */
 int rx_prepare_shaders(void) {
     preparing_shaders = 1;
-    const MkwVkRenderer *r = load_vulkan("hookshot_vk.dll");
+    const MkwVkRenderer *r = load_vulkan("xeonshot_vk.dll");
     return r && r->start(NULL);
 }
 /* (hookshot) the window is being closed: a back end still preparing its shaders stops and keeps what it made first (a few

@@ -272,6 +272,8 @@ Dropped check(const std::string&, uint64_t) { return {0, 0}; }
 }
 // (pcache_load_off's rule, gpu/vk/pcache_load.h, and whether programs load at their create calls: not here)
 #include "pcache_load.h"
+#include "nvidia_cache_limit.h"
+nvidia_cache_limit::Limit nvidia_limit() { return {}; }   // this fixture has no NVIDIA driver
 bool programs_load_at_create() { return false; }
 // (init's conditional read uses the read-result stub; play writes keep the real mapped-file writer)
 #define PipelineCacheFile ReadPart
@@ -541,21 +543,21 @@ int run(const std::string& name) {
         CHECK(play_files_merge() == 1 && has(pcache, 40));
     } else if (name == "merge") {
         pcache = cache_of({1});
-        write_file(at("hookshot_vk_pipelines_play_3.bin"), "FAKE", {40});
-        write_file(at("hookshot_vk_pipelines_play_7.bin"), "FAKE", {41, 1});
-        write_file(at("hookshot_vk_pipelines_play_5.bin"), "OTHR", {42});      // (another driver's: removed)
-        write_file(at("hookshot_vk_pipelines_play_.bin"), "FAKE", {43});       // (not a play file's name: left alone)
-        write_file(at("hookshot_vk_pipelines_play_x1.bin"), "FAKE", {44});
-        write_file(at("hookshot_vk_pipelines_play_9.bin.tmp"), "FAKE", {45});
-        write_file(at("hookshot_vk_pipelines_play_1234567890.bin"), "FAKE", {46});
+        write_file(at("xeonshot_vk_pipelines_play_3.bin"), "FAKE", {40});
+        write_file(at("xeonshot_vk_pipelines_play_7.bin"), "FAKE", {41, 1});
+        write_file(at("xeonshot_vk_pipelines_play_5.bin"), "OTHR", {42});      // (another driver's: removed)
+        write_file(at("xeonshot_vk_pipelines_play_.bin"), "FAKE", {43});       // (not a play file's name: left alone)
+        write_file(at("xeonshot_vk_pipelines_play_x1.bin"), "FAKE", {44});
+        write_file(at("xeonshot_vk_pipelines_play_9.bin.tmp"), "FAKE", {45});
+        write_file(at("xeonshot_vk_pipelines_play_1234567890.bin"), "FAKE", {46});
         write_file(pcache_path, "FAKE", {1});
         CHECK(play_files_merge() == 2);
         CHECK(keys_of(pcache) == (std::set<uint64_t>{1, 40, 41}) && play_seq == 8);
-        CHECK(!exists(at("hookshot_vk_pipelines_play_5.bin")) && exists(at("hookshot_vk_pipelines_play_.bin")));
-        CHECK(exists(at("hookshot_vk_pipelines_play_x1.bin")) && exists(at("hookshot_vk_pipelines_play_9.bin.tmp")));
-        CHECK(exists(at("hookshot_vk_pipelines_play_1234567890.bin")));
+        CHECK(!exists(at("xeonshot_vk_pipelines_play_5.bin")) && exists(at("xeonshot_vk_pipelines_play_.bin")));
+        CHECK(exists(at("xeonshot_vk_pipelines_play_x1.bin")) && exists(at("xeonshot_vk_pipelines_play_9.bin.tmp")));
+        CHECK(exists(at("xeonshot_vk_pipelines_play_1234567890.bin")));
         // (under 16: put together into one play file, numbered after the highest, in their place: issue 2579)
-        CHECK(!exists(at("hookshot_vk_pipelines_play_3.bin")) && !exists(at("hookshot_vk_pipelines_play_7.bin")));
+        CHECK(!exists(at("xeonshot_vk_pipelines_play_3.bin")) && !exists(at("xeonshot_vk_pipelines_play_7.bin")));
         CHECK(file_keys(play_path(8)) == (std::set<uint64_t>{1, 40, 41}));
         CHECK(file_keys(pcache_path) == std::set<uint64_t>{1});   // (the start's file as it was)
         play_cache_begin();
@@ -650,6 +652,6 @@ int run(const std::string& name) {
 int main(int argc, char** argv) {
     if (argc != 3) return 2;
     pcache_dir = std::string(argv[2]) + "/";
-    pcache_path = pcache_dir + "hookshot_vk_pipelines.bin";
+    pcache_path = pcache_dir + "xeonshot_vk_pipelines.bin";
     return run(argv[1]);
 }

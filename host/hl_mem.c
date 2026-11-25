@@ -354,6 +354,15 @@ static DWORD WINAPI cold_main(void *unused) {
 void hl_mem_init(void) {
     const char *e = getenv("HL_MEM_COLD");
     const int want = e && e[0] ? atoi(e) != 0 : HL_MEM_COLD_DEFAULT;
+    if (!e || !e[0]) {
+        MEMORYSTATUSEX ms;
+        ms.dwLength = sizeof ms;
+        if (GlobalMemoryStatusEx(&ms) && ms.ullTotalPhys >= (32ULL << 30)) {
+            hos_log("hl mem: cold pages: off (%llu GB RAM; HL_MEM_COLD=1 to force)",
+                    (unsigned long long)(ms.ullTotalPhys >> 30));
+            return;
+        }
+    }
     if (!want) {
         hos_log("hl mem: cold pages: off (HL_MEM_COLD=0)");
         return;

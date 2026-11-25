@@ -51,8 +51,8 @@ static class Finder
 
     // ---- shortcuts to the built game ----
 
-    public static string DesktopLink => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Hookshot.lnk");
-    public static string StartLink => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Hookshot.lnk");
+    public static string DesktopLink => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Xeonshot.lnk");
+    public static string StartLink => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Xeonshot.lnk");
 
     /// Made or removed as the two ticks say (Windows' own shell object writes the .lnk)
     /// The shortcuts the player has, made again (onto the folder's launcher now that it has one); none made where there was none
@@ -62,8 +62,8 @@ static class Finder
     {
         // (hookshot.exe: the game's launcher in a folder built since it came (Play, and Update when a newer release is out), else the
         // game. The icon is the game's own: bin\hookshot.exe when it is there)
-        var exe = Path.Combine(gameFolder, "hookshot.exe");
-        var icon = File.Exists(Path.Combine(gameFolder, "bin", "hookshot.exe")) ? Path.Combine(gameFolder, "bin", "hookshot.exe") : exe;
+        var exe = Path.Combine(gameFolder, "Xeonshot.exe");
+        var icon = File.Exists(Path.Combine(gameFolder, "bin", "Xeonshot.exe")) ? Path.Combine(gameFolder, "bin", "Xeonshot.exe") : exe;
         foreach (var (link, want) in new[] { (DesktopLink, desktop), (StartLink, start) })
         {
             try
@@ -80,7 +80,7 @@ static class Finder
                 sl.SetPath(exe);
                 sl.SetWorkingDirectory(gameFolder);
                 sl.SetIconLocation(icon, 0);
-                sl.SetDescription("The Legend of Zelda: Ocarina of Time, built by Hookshot");
+                sl.SetDescription("The Legend of Zelda: Ocarina of Time, built by Xeonshot");
                 Directory.CreateDirectory(Path.GetDirectoryName(link)!);
                 ((System.Runtime.InteropServices.ComTypes.IPersistFile)sl).Save(link, true);
             }

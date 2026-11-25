@@ -18,10 +18,10 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # (python -I leaves the script folder off)
 import nup as _nup  # noqa: E402
 
-TITLE_FILE = "hookshot_title.txt"
-ICON_FILE = ".hookshot_icon.jpg"
-RES_FILE = "hookshot_game.res"   # (in the work folder: the name Windows shows, linked into the exe beside Hookshot's icon, nx2/build.py)
-SUFFIX = " (Hookshot)"
+TITLE_FILE = "xeonshot_title.txt"
+ICON_FILE = ".xeonshot_icon.jpg"
+RES_FILE = "xeonshot_game.res"   # (in the work folder: the name Windows shows, linked into the exe beside Xeonshot's icon, nx2/build.py)
+SUFFIX = " (Xeonshot)"
 ICON, NAME = 3, 5
 # (the names in a .nup are fit for a file name: its dumper drops what Windows refuses in one, so the colon of the name the game
 # itself shows is gone. These are the names as the games write them, by title id)
@@ -128,7 +128,7 @@ def write_res(out, path):
         if os.path.exists(path):
             os.remove(path)
         return False
-    strings = {"FileDescription": title, "ProductName": title, "InternalName": "hookshot", "OriginalFilename": "hookshot.exe"}
+    strings = {"FileDescription": title, "ProductName": title, "InternalName": "xeonshot", "OriginalFilename": "Xeonshot.exe"}
     write_if_changed(path, make_icon.res_of((), strings))
     return True
 

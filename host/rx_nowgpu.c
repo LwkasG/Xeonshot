@@ -8,7 +8,7 @@
 
 int wgr_start(void *hwnd) {
     (void)hwnd;
-    hos_log("rx: no WebGPU renderer in this build: only the Vulkan back end (hookshot_vk.dll) draws");
+    hos_log("rx: no WebGPU renderer in this build: only the Vulkan back end (xeonshot_vk.dll) draws");
     return 0;
 }
 void wgr_resize(int width, int height) { (void)width, (void)height; }

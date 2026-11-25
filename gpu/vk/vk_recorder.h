@@ -572,17 +572,22 @@ inline void Recorder::main() {
 }
 /// (the recorder, nothing published to run) spins a while, then sleeps until woken (or 2 ms); false: stop asked and nothing left
 inline bool Recorder::idle(uint64_t r, uint64_t& seen, uint64_t& last_log) {
+    for (uint32_t j = 0; j < 64; j++) {
+        if ((seen = W.load(std::memory_order_acquire)) != r || stop_req.load(std::memory_order_acquire))
+            return seen != r || W.load(std::memory_order_acquire) != r;
+        cpu_pause();
+    }
     const uint64_t t0 = now_ns();
     if (!spin_limit) spin_limit = g_idle_wait ? kSpinLo : g_spin_ns ? g_spin_ns : kSpinHi;   // (fixed, or adaptive from the top)
     for (uint32_t i = 0;; i++) {
         if ((seen = W.load(std::memory_order_acquire)) != r || stop_req.load(std::memory_order_acquire)) {
-            spin_ns.fetch_add(now_ns() - t0, std::memory_order_relaxed);
+            if (g_stats_log) spin_ns.fetch_add(now_ns() - t0, std::memory_order_relaxed);
             return seen != r || W.load(std::memory_order_acquire) != r;
         }
         cpu_pause();
-        if ((i & 15) == 15 && now_ns() - t0 > spin_limit) break;   // (spin_limit: a replay's gaps between calls, spun through)
+        if ((i & 127) == 127 && now_ns() - t0 > spin_limit) break;   // (spin_limit: a replay's gaps between calls, spun through)
     }
-    spin_ns.fetch_add(now_ns() - t0, std::memory_order_relaxed);
+    if (g_stats_log) spin_ns.fetch_add(now_ns() - t0, std::memory_order_relaxed);
     sleeps.fetch_add(1, std::memory_order_relaxed);
     if (g_stats_log && t0 - last_log > 10000000000ull) {
         if (last_log) log_stats((double)(t0 - last_log) / 1e9);
@@ -619,11 +624,11 @@ inline bool Recorder::idle(uint64_t r, uint64_t& seen, uint64_t& last_log) {
     return true;
 }
 inline void Recorder::loop() {
-    uint64_t r = R.load(std::memory_order_relaxed), seen = r, last_log = now_ns(), n = 0, busy0 = 0;
+    uint64_t r = R.load(std::memory_order_relaxed), seen = r, last_log = g_stats_log ? now_ns() : 0, n = 0, busy0 = 0;
     const bool poison = g_poison.load(std::memory_order_relaxed);
     for (;;) {
         if (r == seen && (seen = W.load(std::memory_order_acquire)) == r) {
-            if (busy0) busy_ns.fetch_add(now_ns() - busy0, std::memory_order_relaxed), busy0 = 0;
+            if (g_stats_log && busy0) busy_ns.fetch_add(now_ns() - busy0, std::memory_order_relaxed), busy0 = 0;
             if (n) packets.fetch_add(n, std::memory_order_relaxed), n = 0;
 #ifdef TRACY_ENABLE
             HT_WAIT(ht_idle, "recorder idle");   // (HOOKSHOT_TRACY: between these the recorder thread runs its packets)
@@ -631,7 +636,7 @@ inline void Recorder::loop() {
             if (!idle(r, seen, last_log)) return;
             continue;
         }
-        if (!busy0) busy0 = now_ns();
+        if (g_stats_log && !busy0) busy0 = now_ns();
         const size_t off = (size_t)(r & mask), tail = cap - off;
         const Packet* p = reinterpret_cast<const Packet*>(base + off);
         if (tail < sizeof(Packet) || !p->run) {   // (the ring's tail: the next packet is at its start)

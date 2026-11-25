@@ -20,7 +20,7 @@ import sys
 
 MANIFEST = b"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <assemblyIdentity type="win32" name="Hookshot.Game" version="1.0.0.0"/>
+  <assemblyIdentity type="win32" name="Xeonshot.Game" version="1.0.0.0"/>
   <application xmlns="urn:schemas-microsoft-com:asm.v3">
     <windowsSettings>
       <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
@@ -49,7 +49,7 @@ def res_bytes(manifest=MANIFEST):
 
 
 def write(path):
-    """hookshot_manifest.res at path, rewritten only when its bytes change (the link reads it each time)"""
+    """xeonshot_manifest.res at path, rewritten only when its bytes change (the link reads it each time)"""
     data = res_bytes()
     try:
         with open(path, "rb") as f:
@@ -63,4 +63,4 @@ def write(path):
 
 
 if __name__ == "__main__":
-    print(write(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.getcwd(), "hookshot_manifest.res")))
+    print(write(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.getcwd(), "xeonshot_manifest.res")))

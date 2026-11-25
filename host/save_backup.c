@@ -182,12 +182,12 @@ int hos_save_backups_dir(char *out, size_t cap) {
 #ifdef _WIN32
     const char *base = getenv("LOCALAPPDATA");
     if (!base || !*base) return 0;
-    return snprintf(out, cap, "%s\\Hookshot\\save-backups", base) < (int)cap;
+    return snprintf(out, cap, "%s\\Xeonshot\\save-backups", base) < (int)cap;
 #else
     const char *data = getenv("XDG_DATA_HOME"), *home = getenv("HOME");
-    if (data && *data) return snprintf(out, cap, "%s/hookshot/save-backups", data) < (int)cap;
+    if (data && *data) return snprintf(out, cap, "%s/xeonshot/save-backups", data) < (int)cap;
     if (!home || !*home) return 0;
-    return snprintf(out, cap, "%s/.local/share/hookshot/save-backups", home) < (int)cap;
+    return snprintf(out, cap, "%s/.local/share/xeonshot/save-backups", home) < (int)cap;
 #endif
 }
 

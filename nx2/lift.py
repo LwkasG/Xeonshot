@@ -33,12 +33,14 @@ import insn
 import fastvec   # (hookshot) TBL/EXT, vector loads, DUP and FMUL by element as single vector instructions
 import oot_patches   # (hookshot) the game's patches: asked which functions they change (nx2/guest_locals.py)
 import guest_locals as local_regs   # (hookshot) registers and flags as C locals (A64_LOCAL_REGS, A64_LOCAL_FLAGS): nx2/guest_locals.py
+import cmpflags   # (hookshot) a subtraction's V as N xor (a < b): wraps translate
 import dead_flags   # (hookshot) the kit's dead_flags, answered at once for a function that writes no flag
 import walk   # (hookshot) the kit's walk, with one shared entry per plain op's word
 import discover   # (hookshot) the discovery's walks in new processes where there is no fork
 import lift_fixes
 import entry_hooks
 import suyu_rt_fixes
+import fpxkeep   # (hookshot) NaN and infinite operands, exact-zero multiply-adds kept off the software bodies (A64_FPXKEEP)
 import chunks
 import standalone
 import adr_entries  # noqa: E402
@@ -52,6 +54,7 @@ import a64_rtgen
 
 insn.install()
 fastvec.install()   # (around the kit's vectorize_fpx, op_text and fpx_header)
+cmpflags.install()   # (around translate, after the forms are chosen)
 local_regs.install(oot_patches.touches)   # (around the kit's emit_function, its fast float regions' too, and localize_regs; the defaults; the patches asked)
 local_regs.install_plain()   # (around those: the functions the patches name keep the kit's context-flag text)
 dead_flags.install()
@@ -59,6 +62,7 @@ walk.install()
 lift_fixes.install()
 entry_hooks.install()   # (host/*.c's ENTRY_HOOK_SYM hooks at the entry of their SDK functions: add() below)
 suyu_rt_fixes.install()
+fpxkeep.install()   # (after fastvec's: it edits the kit's lane routes and wraps fpx_header around fastvec's)
 
 
 def module_of(img, pc):

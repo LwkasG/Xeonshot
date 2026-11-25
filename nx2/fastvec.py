@@ -100,6 +100,93 @@ def vfpx_mul_elem(m):
             % (rm, off, rd, rn))
 
 
+VFPX_FMA_ELEM = re.compile(
+    r"\{ uint32_t _a\[4\],_r\[4\],_m; memcpy\(_a,c->vreg\[(\d+)\],16\); "
+    r"memcpy\(&_m,\(const uint8_t\*\)c->vreg\[(\d+)\]\+(\d+),4\); memcpy\(_r,c->vreg\[(\d+)\],16\);"
+    r"for\(int _i=0;_i<4;\+\+_i\)\{uint64_t _n=_a\[_i\],_z0=_r\[_i\];\{uint64_t _a=_n,_b=_m,_z=_z0,_v;"
+    r"_v=a64_fpx_fma32_fma32\(c,_a,_b,_z\);_r\[_i\]=\(uint32_t\)_v;\}\}"
+    r"c->vreg\[(\d+)\]\[0\]=0; c->vreg\[\5\]\[1\]=0; memcpy\(c->vreg\[\5\],_r,16\); \}")
+
+
+def vfpx_fma_elem(m):
+    rn, rm, off, rd_in, rd = m.groups()
+    if rd_in != rd:
+        return m.group(0)
+    return ("{ uint32_t _m; memcpy(&_m,(const uint8_t*)c->vreg[%s]+%s,4); a64_vfpx_fma32_elem(c,c->vreg[%s],c->vreg[%s],_m); }"
+            % (rm, off, rd, rn))
+
+
+VFPX_FMA_ELEM_HEADER = r"""
+/* (fpx-by-element) FMLA Vd.4S, Vn.4S, Vm.S[i]: each lane of Vd += Vn[i] * element m */
+static inline __attribute__((always_inline)) void a64_vfpx_fma32_elem(Ctx *c, uint64_t *d, const uint64_t *n, uint32_t m) {
+    uint32_t a[4], r[4];
+    memcpy(a, n, 16);
+    memcpy(r, d, 16);
+    for (int i = 0; i < 4; i++) r[i] = (uint32_t)a64_fpx_fma32_fma32(c, a[i], m, r[i]);
+    d[0] = 0;
+    d[1] = 0;
+    memcpy(d, r, 16);
+}
+"""
+
+HOT_VFPX_ELEM = re.compile(r"\ba64_vfpx_(mul32_elem|fma32_elem)\(c,")
+
+NAT_MUL_ELEM_HOST = r"""
+/* (fpx-by-element) Native FMUL by element in XMM with by-value cold fallback (preserves A64_LOCAL_VREGS register allocation) */
+static __attribute__((noinline, cold)) __m128i a64_vfpx_slow_mul32_elem(Ctx *c, __m128i a, uint32_t m) {
+    uint64_t d[2] = {0, 0}, n[2];
+    _mm_storeu_si128((__m128i *)n, a);
+    a64_vfpx_mul32_elem(c, d, n, m);
+    return _mm_loadu_si128((const __m128i *)d);
+}
+A64_NAT_INL void a64_vfpx_nat_mul32_elem(Ctx *c, uint64_t *d, const uint64_t *n, uint32_t m) {
+    const __m128i ai = _mm_loadu_si128((const __m128i *)n);
+    __m128i ri;
+    if (A64_NAT_OPEN(c)) {
+        const __m128 a = _mm_castsi128_ps(ai), b = _mm_castsi128_ps(_mm_set1_epi32((int)m));
+        const __m128 r = _mm_mul_ps(a, b);
+        const __m128 odd = _mm_andnot_ps(_mm_xor_ps(_mm_cmpunord_ps(a, a), _mm_cmpunord_ps(b, b)), _mm_cmpunord_ps(r, r));
+        if (RECOMP_LIKELY(!_mm_movemask_ps(odd))) {
+            ri = _mm_castps_si128(r);
+            goto done;
+        }
+    }
+    ri = a64_vfpx_slow_mul32_elem(c, ai, m);
+    done: _mm_storeu_si128((__m128i *)d, ri);
+}
+"""
+
+NAT_FMA_ELEM_HOST = r"""
+/* (fpx-by-element) Native FMLA by element in 128-bit FMA3 with by-value cold NaN fallback (preserves A64_LOCAL_VREGS) */
+#if RECOMP_FPX_FMA64
+#include <immintrin.h>
+static __attribute__((noinline, cold)) __m128i a64_vfpx_slow_fma32_elem(Ctx *c, __m128i acc, __m128i a, uint32_t m) {
+    uint64_t d[2], n[2];
+    _mm_storeu_si128((__m128i *)d, acc);
+    _mm_storeu_si128((__m128i *)n, a);
+    a64_vfpx_fma32_elem(c, d, n, m);
+    return _mm_loadu_si128((const __m128i *)d);
+}
+A64_NAT_INL void a64_vfpx_nat_fma32_elem(Ctx *c, uint64_t *d, const uint64_t *n, uint32_t m) {
+    const __m128i zi = _mm_loadu_si128((const __m128i *)d), ai = _mm_loadu_si128((const __m128i *)n);
+    __m128i ri;
+    if (A64_NAT_OPEN(c)) {
+        const __m128 a = _mm_castsi128_ps(ai), b = _mm_castsi128_ps(_mm_set1_epi32((int)m)), z = _mm_castsi128_ps(zi);
+        const __m128 r = _mm_fmadd_ps(a, b, z);
+        if (RECOMP_LIKELY(!_mm_movemask_ps(_mm_cmpunord_ps(r, r)))) {
+            ri = _mm_castps_si128(r);
+            goto done;
+        }
+    }
+    ri = a64_vfpx_slow_fma32_elem(c, zi, ai, m);
+    done: _mm_storeu_si128((__m128i *)d, ri);
+}
+#else
+#define a64_vfpx_nat_fma32_elem a64_vfpx_fma32_elem
+#endif
+"""
+
+
 # (vmoves) two moves the compiler leaves slow, on the final text (after widen_vstores):
 # - a 128-bit vector load (LDR Q, LDP Q, LD1 one register) as recomp_ldp64 into the register's two halves: two 8-byte
 #   stores, and the next 16-byte read of the register cannot be forwarded from them (a stall of ~10 cycles). Now one
@@ -283,12 +370,14 @@ def install():
                          "the kit changed; bring KIT_MUL32 and NEW_MUL32 in line with it")
     a64_lift.VFPX_MUL_HEADER = a64_lift.VFPX_MUL_HEADER.replace(KIT_MUL32, NEW_MUL32)
     base_vfpx, base_op_text, base_header = a64_lift.vectorize_fpx, a64_lift.op_text, a64_lift.fpx_header
+    base_hot_text, base_native_header = a64_lift.hot_text, a64_lift.native_header
 
     def vectorize_fpx(text):
         text = base_vfpx(vectorize_bytes(text))
         if os.environ.get("A64_NO_VFPX") or os.environ.get("A64_NO_VFPX_ELEM"):
             return text
-        return VFPX_MUL_ELEM.sub(vfpx_mul_elem, text)
+        text = VFPX_MUL_ELEM.sub(vfpx_mul_elem, text)
+        return VFPX_FMA_ELEM.sub(vfpx_fma_elem, text)
 
     def op_text(text, fpx):
         return vectorize_moves(base_op_text(text, fpx))
@@ -298,6 +387,39 @@ def install():
         at = a64_lift.VSET_HEADER + "\n"
         if text.count(at) != 1:
             raise SystemExit("fastvec: a64_fpx.h no longer holds the kit's VSET_HEADER once: where its helpers go")
-        return text.replace(at, at + VBYTE_HEADER + "\n" + VMOVE_HEADER + "\n")
+        extra = VBYTE_HEADER + "\n" + VMOVE_HEADER + "\n"
+        if ("fma32", "fma32", 3, 3) in used:
+            extra += VFPX_FMA_ELEM_HEADER + "\n"
+        return text.replace(at, at + extra)
+
+    def hot_text(text):
+        text = base_hot_text(text)
+        if not a64_lift.NATIVE_FP:
+            return text
+        return HOT_VFPX_ELEM.sub(r"a64_vfpx_nat_\1(c,", text)
+
+    def native_header(used):
+        text = base_native_header(used)
+        has_mul = ("mul32", "fma32", 2, 3) in used
+        has_fma = ("fma32", "fma32", 3, 3) in used
+        if not has_mul and not has_fma:
+            return text
+        marker = "\n#endif\n" + a64_lift.NATIVE_CONV
+        if text.count(marker) != 1:
+            raise SystemExit("fastvec: a64_hot_fp.inc no longer holds unique NATIVE_CONV #endif boundary")
+        before_conv, rest = text.split(marker, 1)
+        if "\n#else\n" not in before_conv:
+            raise SystemExit("fastvec: a64_hot_fp.inc no longer holds outer #else before NATIVE_CONV")
+        before, after = before_conv.rsplit("\n#else\n", 1)
+        host_extra = ""
+        fallback_extra = ""
+        if has_mul:
+            host_extra += NAT_MUL_ELEM_HOST
+            fallback_extra += "#define a64_vfpx_nat_mul32_elem a64_vfpx_mul32_elem\n"
+        if has_fma:
+            host_extra += NAT_FMA_ELEM_HOST
+            fallback_extra += "#define a64_vfpx_nat_fma32_elem a64_vfpx_fma32_elem\n"
+        return before + host_extra + "\n#else\n" + fallback_extra + after + marker + rest
 
     a64_lift.vectorize_fpx, a64_lift.op_text, a64_lift.fpx_header = vectorize_fpx, op_text, fpx_header
+    a64_lift.hot_text, a64_lift.native_header = hot_text, native_header

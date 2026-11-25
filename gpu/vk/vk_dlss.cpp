@@ -211,12 +211,12 @@ std::vector<fs::path> runtime_dirs(const fs::path& game) {
 #ifdef _WIN32
     if (fs::path e = env_path(L"RX_VK_DLSS_DIR"); !e.empty()) dirs.push_back(e);
     dirs.push_back(game / L"ngx");
-    if (fs::path l = env_path(L"LOCALAPPDATA"); !l.empty()) dirs.push_back(l / L"Hookshot" / L"ngx");
+    if (fs::path l = env_path(L"LOCALAPPDATA"); !l.empty()) dirs.push_back(l / L"Xeonshot" / L"ngx");
 #else
     if (fs::path e = env_path("RX_VK_DLSS_DIR"); !e.empty()) dirs.push_back(e);
     dirs.push_back(game / "ngx");
-    if (fs::path x = env_path("XDG_DATA_HOME"); !x.empty()) dirs.push_back(x / "hookshot" / "ngx");
-    else if (fs::path h = env_path("HOME"); !h.empty()) dirs.push_back(h / ".local" / "share" / "hookshot" / "ngx");
+    if (fs::path x = env_path("XDG_DATA_HOME"); !x.empty()) dirs.push_back(x / "xeonshot" / "ngx");
+    else if (fs::path h = env_path("HOME"); !h.empty()) dirs.push_back(h / ".local" / "share" / "xeonshot" / "ngx");
 #endif
     return dirs;
 }
@@ -301,7 +301,7 @@ bool ngx_init() {
         else if (!runtime) logf("vk: NVIDIA DLSS: not available: no %s in %s (scripts/ngx_sdk.py fetches it)", kRuntime, where.c_str());
         else if (!loadable)
             logf("vk: NVIDIA DLSS: not available: %s is only in folders whose path is not all ASCII (%s), and NVIDIA's NGX on "
-                 "Linux loads it only from one that is: put it in $XDG_DATA_HOME/hookshot/ngx, or RX_VK_DLSS_DIR=<an ASCII folder>",
+                 "Linux loads it only from one that is: put it in $XDG_DATA_HOME/xeonshot/ngx, or RX_VK_DLSS_DIR=<an ASCII folder>",
                  kRuntime, where.c_str());
         else logf("vk: NVIDIA DLSS: not available on this GPU (%#x): DLSS needs an NVIDIA RTX GPU", (unsigned)init);
         g_why = needs_driver ? DLSS_NEEDS_DRIVER : !runtime ? DLSS_NO_RUNTIME : !loadable ? DLSS_RUNTIME_NOT_ASCII : DLSS_NEEDS_RTX;

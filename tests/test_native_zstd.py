@@ -87,6 +87,7 @@ void zs_mark(const void *p, size_t n);
 #define HOS_WRITTEN(p, n) zs_mark((p), (n))
 int hos_vcore_away(void);
 void hos_vcore_back(void);
+void hos_vcore_checkpoint(void);
 void hos_log(const char *fmt, ...);
 ''' % BASE
 
@@ -97,7 +98,7 @@ FIXTURE = r'''
 #define SIZE 0x%xull
 uint8_t *zs_mem;
 static uint8_t marks[SIZE >> 12], *shadow;   /* (a page as it was at its last mark: the GPU mirror may copy it then) */
-static int aways, backs;
+static int aways, backs, ckpts;
 void zs_mark(const void *p, size_t n) {
     const size_t a = (size_t)((const uint8_t *)p - zs_mem);
     if (n && a < SIZE)
@@ -106,6 +107,7 @@ void zs_mark(const void *p, size_t n) {
 }
 int hos_vcore_away(void) { aways++; return 1; }
 void hos_vcore_back(void) { backs++; }
+void hos_vcore_checkpoint(void) { ckpts++; }
 void hos_log(const char *fmt, ...) { (void)fmt; }
 #include "hos_zstd.c"
 static FILE *in;
@@ -140,7 +142,7 @@ int main(int argc, char **argv) {
         const uint64_t g = frames ? 0x%xull : c.x[0];   /* (for the whole-buffer decode: the stream fields read anywhere) */
         memcpy(before, zs_mem, SIZE);
         memset(marks, 0, sizeof marks);
-        aways = backs = 0;
+        aways = backs = ckpts = 0;
         const int32_t handled = frames ? hos_zstd_frames(&c) : hos_zstd_stream(&c);
         int32_t changed = 0, unmarked = 0;
         for (size_t q = 0; q < SIZE >> 12; q++)
@@ -152,6 +154,7 @@ int main(int argc, char **argv) {
         const int32_t st[2] = {*(uint8_t *)GP(g), (int32_t)G32(g + 20)};   /* (the object's state, still to come, output) */
         fwrite(st, 4, 2, out);
         fwrite(GP(g + 8), 8, 1, out);
+        fwrite(&ckpts, 4, 1, out);
     }
     fwrite(zs_mem, 1, SIZE, out);
     fclose(out);
@@ -195,6 +198,7 @@ uint8_t *zs_mem;
 void zs_mark(const void *p, size_t n) { (void)p, (void)n; }
 int hos_vcore_away(void) { return 1; }
 void hos_vcore_back(void) {}
+void hos_vcore_checkpoint(void) {}
 static int armed, b_done, stuck, n_on, n_note;
 static int (*fn)(Ctx *);
 static Ctx cb;
@@ -389,8 +393,8 @@ def run(exe, tmp, ops, mode="1", pre=()):
     if r.returncode:
         raise Crash("the fixture stopped with %#x" % (r.returncode & 0xFFFFFFFF))
     raw = res.read_bytes()
-    calls = [struct.unpack_from("<5iQiiQ", raw, 44 * k) for k in range(len(ops))]
-    mem = raw[44 * len(ops):]
+    calls = [struct.unpack_from("<5iQiiQi", raw, 48 * k) for k in range(len(ops))]
+    mem = raw[48 * len(ops):]
     return calls, mem
 
 
@@ -534,8 +538,13 @@ def checks(exe, tmp, quick=False):
     chk(all(c[0] == 1 for c in calls[:64]) and calls[64][0] == 0 and calls[64][1] == 0,
         "64 entries: the 65th stream %s" % (calls[64][:2],))
     chk(calls[65][0] == 1 and signed(calls[65][5]) == 0 and calls[66][0] == 1, "64 entries: not free again after a stream ended")
-    # the core kept with =2
+    # the core kept with =2, with per-block checkpoint on multi-block streams (none when giving it up with =1)
     good(chk, exe, tmp, "HOS_NATIVE_ZSTD=2", text, compress(text), 4096, mode="2")
+    c2, _ = run(exe, tmp, stream(0, compress(text), "whole", 0, s_init(0)), mode="2")
+    chk(any(c[9] > 0 for c in c2) and all(c[3] == 0 and c[4] == 0 for c in c2),
+        "HOS_NATIVE_ZSTD=2 multi-block did not checkpoint per block: %s" % ([c[9] for c in c2],))
+    c1, _ = run(exe, tmp, stream(0, compress(text), "whole", 0, s_init(0)), mode="1")
+    chk(all(c[9] == 0 for c in c1), "HOS_NATIVE_ZSTD=1 unexpectedly checkpointed: %s" % ([c[9] for c in c1],))
     # the default: unset or empty, done on the host and the core kept, as with =2
     good(chk, exe, tmp, "the switch unset", text, compress(text), 4096, mode=None)
     good(chk, exe, tmp, "the switch empty", text, compress(text), 4096, mode="")

@@ -95,7 +95,7 @@ static inline const char *hos_game_title(const char *fallback) {
         DWORD n = hos_game_path_w(path, MAX_PATH);
         if (n && n < MAX_PATH) {
             while (n && path[n - 1] != L'\\' && path[n - 1] != L'/') n--;
-            wcscpy(path + n, L"hookshot_title.txt");
+            wcscpy(path + n, L"xeonshot_title.txt");
             f = _wfopen(path, L"rb");
         }
 #else
@@ -103,7 +103,7 @@ static inline const char *hos_game_title(const char *fallback) {
         DWORD n = hos_game_path_a(path, MAX_PATH);
         if (n && n < MAX_PATH) {
             while (n && path[n - 1] != '/') n--;
-            strcpy(path + n, "hookshot_title.txt");
+            strcpy(path + n, "xeonshot_title.txt");
             f = fopen(path, "rb");
         }
 #endif

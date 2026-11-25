@@ -18,7 +18,7 @@ static class UpscalerParts
         try
         {
             if (dlss && !File.Exists(Path.Combine(folder, "ngx", "nvngx_dlss.dll"))) missing.Add("NVIDIA DLSS");
-            if (fsr && (!File.Exists(Path.Combine(folder, ".hookshot_fsr")) || fsrLicense && !HasFsrRuntime(folder)))
+            if (fsr && (!File.Exists(Path.Combine(folder, ".xeonshot_fsr")) || fsrLicense && !HasFsrRuntime(folder)))
                 missing.Add("AMD FSR 4");
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException) { }

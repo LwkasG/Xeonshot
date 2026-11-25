@@ -78,8 +78,8 @@ PGO = os.environ.get("RX_PGO", "")
 LINUX = not toolchain.windows()   # (hookshot: RX_TARGET=windows on Linux builds the Windows game, with llvm-mingw)
 POSIX = os.path.join(kit.HERE, "..", "host", "posix")
 SYSROOT = os.environ.get("HOOKSHOT_SYSROOT", "")
-EXE = "hookshot" if LINUX else "hookshot.exe"
-VK_LIB = "hookshot_vk.so" if LINUX else "hookshot_vk.dll"
+EXE = "xeonshot" if LINUX else "Xeonshot.exe"
+VK_LIB = "xeonshot_vk.so" if LINUX else "xeonshot_vk.dll"
 
 
 def check_vk_symbols(so):
@@ -460,15 +460,15 @@ def native_sources():
 FFMPEG = None   # (found in the CPM caches below, once cpm_dirs is defined)
 
 
-BRAND_ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "builder", "setup", "hookshot.ico")
-BRAND_RES = "hookshot_brand.res"
+BRAND_ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "builder", "setup", "xeonshot.ico")
+BRAND_RES = "xeonshot_brand.res"
 
 
 def exe_resources(work=None, brand=BRAND_ICON):
-    """(Windows) the .res files to link into the exe: Hookshot's icon, always (builder/setup/hookshot.ico, the builder's and the
-    launcher's, made into work/hookshot_brand.res: icon 1, which the window loads, host/display.c), so every build has it in
+    """(Windows) the .res files to link into the exe: Xeonshot's icon, always (builder/setup/xeonshot.ico, the builder's and the
+    launcher's, made into work/xeonshot_brand.res: icon 1, which the window loads, host/display.c), so every build has it in
     its window and taskbar, a release's too; and the name Windows shows for the exe when the builder read the game's from its
-    .nup (work/hookshot_game.res, nx2/game_title.py: version strings only)"""
+    .nup (work/xeonshot_game.res, nx2/game_title.py: version strings only)"""
     work = work or kit.WORK
     out = []
     try:
@@ -490,7 +490,7 @@ def exe_resources(work=None, brand=BRAND_ICON):
             with open(res, "wb") as f:
                 f.write(made)
         out.append(res)
-    named = os.path.join(work, "hookshot_game.res")
+    named = os.path.join(work, "xeonshot_game.res")
     if os.path.exists(named):
         if out:   # (a standalone build may reuse a pre-branding resource containing a game icon)
             import game_title
@@ -500,7 +500,7 @@ def exe_resources(work=None, brand=BRAND_ICON):
             if title_only != cached:
                 if title_only == make_icon.res_of():
                     return out
-                named = os.path.join(work, "hookshot_game_title_only.res")
+                named = os.path.join(work, "xeonshot_game_title_only.res")
                 game_title.write_if_changed(named, title_only)
         out.append(named)
     return out
@@ -2360,13 +2360,13 @@ def main():
             shutil.copyfile(sdl, os.path.join(out, "libSDL2-2.0.so.0"))
         copy_renhdrum(out, "renhdrum.so")
     elif a.standalone and not vk_only:
-        exe = os.path.join(out, "hookshot.exe")   # (+ hookshot.map: crash offsets -> f_<guest address>)
+        exe = os.path.join(out, "Xeonshot.exe")   # (+ Xeonshot.map: crash offsets -> f_<guest address>)
         t = time.time()
         r = run_link([cc] + toolchain.native_target() + toolchain.native_link() +
                            ["-o", exe] + linker("/map:" + exe[:-4] + ".map") + [toolchain.link_opt("/stack:8388608"), "@" + rsp] + HOT_ORDER() + HOST_LIBS +
                            ([toolchain.link_opt("/nodefaultlib:clang_rt.profile.lib")] if PGO == "gen" else []) +
                            exe_resources() +   # (the exe's icon and name: nx2/game_title.py, nx2/make_icon.py)
-                           [win_manifest.write(os.path.join(out, "hookshot_manifest.res"))] +   # (UTF-8 paths: nx2/win_manifest.py)
+                           [win_manifest.write(os.path.join(out, "xeonshot_manifest.res"))] +   # (UTF-8 paths: nx2/win_manifest.py)
                            ([toolchain.link_opt("/subsystem:windows"), toolchain.link_opt("/entry:mainCRTStartup")] if os.environ.get("RX_RELEASE") == "1" else []) +   # (no console window)
                            ([os.path.join(FFMPEG, "lib", l + ".lib") for l in ("avcodec", "swscale", "swresample", "avutil")] +
                             ["-lbcrypt", "-lmfplat", "-lmfuuid", "-lstrmiids", "-lole32"] if FFMPEG else []) +
@@ -2433,7 +2433,7 @@ def main():
             return 1
         print("linked %s: %d MB (%.0fs)" % (vdll, os.path.getsize(vdll) >> 20, time.time() - t))
     if a.dll:
-        dll = os.path.join(out, "hookshot_game.dll")   # (+ hookshot_game.map: crash offsets -> f_<guest address>)
+        dll = os.path.join(out, "xeonshot_game.dll")   # (+ xeonshot_game.map: crash offsets -> f_<guest address>)
         t = time.time()
         r = subprocess.run([cc] + toolchain.native_target() + toolchain.native_link() +
                            ["-shared", "-o", dll] + linker("/map:" + dll[:-4] + ".map") + ["@" + rsp],

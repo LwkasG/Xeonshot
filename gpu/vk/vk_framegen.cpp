@@ -621,7 +621,7 @@ VkImage record_crt(VkCommandBuffer cmd, VkImageView src, uint32_t sw, uint32_t s
     static int last_mode = 0;
     static uint32_t last_w = 0, last_h = 0, last_lines = 0;
     if (last_mode != mode || last_w != dw || last_h != dh || last_lines != raster.h) {
-        logf("vk: CRT %s: %ux%u virtual raster, %ux%u output; after scaling, before Hookshot overlays",
+        logf("vk: CRT %s: %ux%u virtual raster, %ux%u output; after scaling, before Xeonshot overlays",
              labels[mode], raster.w, raster.h, dw, dh);
         last_mode = mode, last_w = dw, last_h = dh, last_lines = raster.h;
     }

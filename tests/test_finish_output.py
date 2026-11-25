@@ -50,7 +50,7 @@ class FinishOutputTests(unittest.TestCase):
         self.built = self.work / "sa" / "build"
         self.built.mkdir(parents=True)
         self.out.mkdir()
-        self.source, self.destination = self.built / "hookshot.exe", self.out / "hookshot.exe"
+        self.source, self.destination = self.built / "Xeonshot.exe", self.out / "Xeonshot.exe"
         self.source.write_bytes(b"new synthetic executable")
         self.destination.write_bytes(b"existing synthetic executable")
         (self.work / "sa" / "image").mkdir()
@@ -67,8 +67,8 @@ class FinishOutputTests(unittest.TestCase):
 
     def finish(self, launcher=False):
         if launcher:
-            (self.root / "HookshotBuilder-Setup.exe").write_bytes(b"new synthetic launcher")
-        with mock.patch.object(make_game, "BESIDE", ["hookshot.exe"]):
+            (self.root / "XeonshotBuilder-Setup.exe").write_bytes(b"new synthetic launcher")
+        with mock.patch.object(make_game, "BESIDE", ["Xeonshot.exe"]):
             # Comprehensions use globals. Keep one namespace, as in production, and discover only authored setup files.
             namespace = dict(make_game.__dict__, built=str(self.built), out=str(self.out), work=str(self.work),
                              ROOT=str(self.root / "tools"), LINUX=False if launcher else make_game.LINUX,
@@ -81,7 +81,7 @@ class FinishOutputTests(unittest.TestCase):
 
     def assert_no_staging_files(self):
         self.assertEqual(sorted(path.name for path in self.out.iterdir() if path.name != make_game.INSTALLED_NOTE),
-                         ["hookshot.exe", "image.bin"])   # (sorted: the game's name before image.bin)
+                         ["Xeonshot.exe", "image.bin"])   # (sorted: the game's name before image.bin)
 
     def stopped_output(self):
         output = io.StringIO()
@@ -127,7 +127,7 @@ class FinishOutputTests(unittest.TestCase):
         self.assert_no_staging_files()
 
     def test_launcher_stages_all_three_files_before_replacement(self):
-        binary = self.out / "bin" / "hookshot.exe"
+        binary = self.out / "bin" / "Xeonshot.exe"
         binary.parent.mkdir()
         binary.write_bytes(b"existing synthetic game in bin")
         copy = make_game.shutil.copy2
@@ -144,20 +144,20 @@ class FinishOutputTests(unittest.TestCase):
 
         with mock.patch.object(make_game.shutil, "copy2", side_effect=observe_copy):
             self.finish(launcher=True)
-        self.assertEqual(copied, [self.source, self.image, self.root / "HookshotBuilder-Setup.exe"])
+        self.assertEqual(copied, [self.source, self.image, self.root / "XeonshotBuilder-Setup.exe"])
         self.assertEqual(binary.read_bytes(), self.source.read_bytes())
         self.assertEqual(self.destination.read_bytes(), b"new synthetic launcher")
         self.assertEqual((self.out / "image.bin").read_bytes(), self.image.read_bytes())
         self.assertEqual(list(self.out.rglob("*.new")), [])
 
     def test_partial_launcher_copy_preserves_game_image_and_launcher(self):
-        binary = self.out / "bin" / "hookshot.exe"
+        binary = self.out / "bin" / "Xeonshot.exe"
         binary.parent.mkdir()
         binary.write_bytes(b"existing synthetic game in bin")
         copy = make_game.shutil.copy2
 
         def partial_launcher(source, destination):
-            if Path(source) == self.root / "HookshotBuilder-Setup.exe":
+            if Path(source) == self.root / "XeonshotBuilder-Setup.exe":
                 Path(destination).write_bytes(b"partial launcher")
                 raise OSError(errno.ENOSPC, "synthetic disk-full error")
             return copy(source, destination)
@@ -167,9 +167,9 @@ class FinishOutputTests(unittest.TestCase):
                 self.finish(launcher=True)
         self.assert_installed_unchanged()
         self.assertEqual(binary.read_bytes(), b"existing synthetic game in bin")
-        self.assertEqual(binary.with_name("hookshot.exe.new").read_bytes(), self.source.read_bytes())
+        self.assertEqual(binary.with_name("Xeonshot.exe.new").read_bytes(), self.source.read_bytes())
         self.assertEqual((self.out / "image.bin.new").read_bytes(), self.image.read_bytes())
-        self.assertEqual((self.out / "hookshot.exe.new").read_bytes(), b"partial launcher")
+        self.assertEqual((self.out / "Xeonshot.exe.new").read_bytes(), b"partial launcher")
 
     def test_partial_executable_copy_preserves_both_installed_files(self):
         def partial_copy(source, destination):
@@ -180,7 +180,7 @@ class FinishOutputTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 self.finish()
         self.assert_installed_unchanged()
-        self.assertEqual((self.out / "hookshot.exe.new").read_bytes(), b"incomplete replacement")
+        self.assertEqual((self.out / "Xeonshot.exe.new").read_bytes(), b"incomplete replacement")
         self.assertFalse((self.out / "image.bin.new").exists())
 
     def test_partial_image_copy_preserves_both_installed_files(self):
@@ -197,7 +197,7 @@ class FinishOutputTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 self.finish()
         self.assert_installed_unchanged()
-        self.assertEqual((self.out / "hookshot.exe.new").read_bytes(), self.source.read_bytes())
+        self.assertEqual((self.out / "Xeonshot.exe.new").read_bytes(), self.source.read_bytes())
         self.assertEqual((self.out / "image.bin.new").read_bytes(), b"incomplete image")
 
     def test_readonly_source_mode_is_preserved_on_success(self):
@@ -225,7 +225,7 @@ class FinishOutputTests(unittest.TestCase):
         the image, which changed, is staged and swapped as before"""
         self.assertEqual(self.copied_by_finish(), [self.source, self.image])
         self.image.write_bytes(b"newer synthetic image")
-        (self.out / "hookshot.exe.new").write_bytes(b"left by a stopped build")
+        (self.out / "Xeonshot.exe.new").write_bytes(b"left by a stopped build")
         before = self.destination.stat()
         self.assertEqual(self.copied_by_finish(), [self.image])
         after = self.destination.stat()
@@ -271,8 +271,8 @@ class FinishOutputTests(unittest.TestCase):
         self.assertIn("writable", message)
         self.assertNotIn("the game is running", message)
         self.assert_installed_unchanged()
-        self.assertEqual((self.out / "hookshot.exe.new").read_bytes(), self.source.read_bytes())
-        self.assertFalse((self.out / "hookshot.exe.new").stat().st_mode & stat.S_IWRITE)
+        self.assertEqual((self.out / "Xeonshot.exe.new").read_bytes(), self.source.read_bytes())
+        self.assertFalse((self.out / "Xeonshot.exe.new").stat().st_mode & stat.S_IWRITE)
         self.assertEqual((self.out / "image.bin.new").read_bytes(), self.image.read_bytes())
 
     def test_stage_copy_permission_failure_has_actionable_paths(self):
@@ -283,13 +283,13 @@ class FinishOutputTests(unittest.TestCase):
         with mock.patch.object(make_game.shutil, "copy2", side_effect=denied_copy):
             message = self.stopped_output()
         self.assertIn("stage", message)
-        self.assertIn(str(self.out / "hookshot.exe.new"), message)
+        self.assertIn(str(self.out / "Xeonshot.exe.new"), message)
         self.assertIn(str(self.source), message)
         self.assertIn("readable", message)
         self.assertIn("writable", message)
         self.assertIn("No installed files were replaced", message)
         self.assert_installed_unchanged()
-        self.assertEqual((self.out / "hookshot.exe.new").read_bytes(), b"partial staged copy")
+        self.assertEqual((self.out / "Xeonshot.exe.new").read_bytes(), b"partial staged copy")
 
     @unittest.skipUnless(os.name == "nt", "Windows file-sharing contract")
     def test_locked_destination_reports_action_and_retains_staged_build(self):
@@ -309,7 +309,7 @@ class FinishOutputTests(unittest.TestCase):
             self.assertIn(str(self.destination), message)
             self.assertIn(str(self.source), message)
             self.assert_installed_unchanged()
-            self.assertEqual((self.out / "hookshot.exe.new").read_bytes(), self.source.read_bytes())
+            self.assertEqual((self.out / "Xeonshot.exe.new").read_bytes(), self.source.read_bytes())
             self.assertEqual((self.out / "image.bin.new").read_bytes(), self.image.read_bytes())
         finally:
             self.assertTrue(kernel.CloseHandle(handle))
@@ -329,7 +329,7 @@ class FinishOutputTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "nt", "Windows read-only staging-file contract")
     def test_readonly_existing_stage_is_not_removed_or_unlocked(self):
-        staged = self.out / "hookshot.exe.new"
+        staged = self.out / "Xeonshot.exe.new"
         staged.write_bytes(b"pre-existing staged content")
         staged.chmod(stat.S_IREAD)
         with mock.patch.object(make_game.os, "chmod", wraps=make_game.os.chmod) as chmod:

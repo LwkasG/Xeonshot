@@ -161,19 +161,19 @@ static int mount(const char *name, const char *root, int writable) {   /* 0: the
             hos_log("fs: the RomFS has no System\\Resource\\ResourceSizeTable file: the game files are incomplete");
             snprintf(text, sizeof text, "The game files in %s are not the game's own RomFS: its System\\Resource folder has no "
                      "ResourceSizeTable file, and the game will most likely close at once.\n\nA romfs folder taken from another PC "
-                     "port or tool holds the game in its own format and does not work with Hookshot. Install again from your own dump "
+                     "port or tool holds the game in its own format and does not work with Xeonshot. Install again from your own dump "
                      "of the game (the .nup file, or the romfs and exefs folders dumped from it).", root);
         } else {
             hos_log("fs: RomFS resource table %s (%lu bytes)", fd.cFileName, (unsigned long)fd.nFileSizeLow);
             if (found == 2) {
                 hos_log("fs: that is not the supported version's (%s): the game files are from another version", expected);
-                snprintf(text, sizeof text, "The game files in %s are from another version of the game (%s; Hookshot supports the "
+                snprintf(text, sizeof text, "The game files in %s are from another version of the game (%s; Xeonshot supports the "
                          "one with %s), and the game may close or misbehave.\n\nInstall again from a dump of the game with its "
                          "update applied, its romfs and exefs from the same dump.", root, fd.cFileName, expected);
             }
         }
         if (text[0] && !env_on("HOS_HEADLESS"))
-            MessageBoxA(NULL, text, "Hookshot: game files", MB_OK | MB_ICONWARNING | MB_SETFOREGROUND);
+            MessageBoxA(NULL, text, "Xeonshot: game files", MB_OK | MB_ICONWARNING | MB_SETFOREGROUND);
     }
 #endif
     return 1;

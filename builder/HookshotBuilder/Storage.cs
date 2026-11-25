@@ -49,7 +49,7 @@ static class Storage
     public static void MoveWork(string? picked)
     {
         var old = Work;
-        var to = picked == null ? Base : Path.Combine(picked, "Hookshot build files");
+        var to = picked == null ? Base : Path.Combine(picked, "Xeonshot build files");
         if (Same(old, to)) return;
         Directory.CreateDirectory(to);
         Directory.CreateDirectory(Base);
@@ -62,7 +62,7 @@ static class Storage
 
     /// What a build makes in its work folder (make_game.py, lift.py, build.py)
     static IEnumerable<string> WorkParts(string work) =>
-        new[] { "objcache", "sa", "exefs", "probe", "image", "system_headers.txt", "hot_funcs.txt", "hot_order.txt", "hookshot_pieces.prof", "hookshot.res" }
+        new[] { "objcache", "sa", "exefs", "probe", "image", "system_headers.txt", "hot_funcs.txt", "hot_order.txt", "hookshot_pieces.prof", "xeonshot.res" }
             .Select(n => Path.Combine(work, n));
 
     /// The builder versions that stay: the one installed last (current.txt) and the one running

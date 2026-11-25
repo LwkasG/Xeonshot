@@ -1735,24 +1735,29 @@ std::vector<std::pair<uint64_t, uint64_t>> ranges_clip(const std::vector<std::pa
 void refresh_pool_ranges_locked() {   // (cap_ranges_mu held)
     if (!capture_pool_max() && !cap_only_gpu()) return;
     const uint32_t g = host->maps_generation();
-    if (g == pool_cap_gen && captures_made - pool_cap_built < 64) return;   // (and every 64: the old ones out)
+    const uint64_t eager = eager_captures();
+    if (g == pool_cap_gen && (!eager || captures_made - pool_cap_built < 64)) return;   // (and every 64 when eager expires)
     pool_cap_gen = g, pool_cap_built = captures_made;
     static std::vector<std::array<uint64_t, 2>> list(8192);
     const int n = host->gpu_pools(reinterpret_cast<uint64_t(*)[2]>(list.data()), (int)list.size());
     std::vector<std::pair<uint64_t, uint64_t>> v, every;
     std::unordered_map<uint64_t, uint64_t, PoolStartHash> seen;
-    seen.reserve((size_t)std::max(n, 0));
+    if (eager) seen.reserve((size_t)std::max(n, 0));
     for (int i = 0; i < n; i++) {
         if (list[i][1] && list[i][0] < (1ull << 40))
             every.push_back({list[i][0] & ~4095ull, (list[i][0] + list[i][1] + 4095) & ~4095ull});
         if (!list[i][1] || list[i][1] > capture_pool_max() || list[i][0] >= (1ull << 40)) continue;
-        auto it = pool_first_seen.find(list[i][0]);
-        const uint64_t first = it != pool_first_seen.end() ? it->second : captures_made;
-        seen[list[i][0]] = first;
-        if (!eager_captures() || captures_made - first < eager_captures())
+        if (eager) {
+            auto it = pool_first_seen.find(list[i][0]);
+            const uint64_t first = it != pool_first_seen.end() ? it->second : captures_made;
+            seen[list[i][0]] = first;
+            if (captures_made - first < eager)
+                v.push_back({list[i][0] & ~4095ull, (list[i][0] + list[i][1] + 4095) & ~4095ull});
+        } else {
             v.push_back({list[i][0] & ~4095ull, (list[i][0] + list[i][1] + 4095) & ~4095ull});
+        }
     }
-    pool_first_seen.swap(seen);
+    if (eager) pool_first_seen.swap(seen);
     {   // (RX_VK_CAP_ONLY_GPU: the host's live pools, which hos_gpu_pools' mapping list can lose: see cap_pool_born)
         using LivePools = int (*)(uint64_t (*)[2], int);
         static const LivePools live = (LivePools)(void*)GetProcAddress(GetModuleHandleA(nullptr), "hos_gpu_live_pools");
@@ -1763,15 +1768,19 @@ void refresh_pool_ranges_locked() {   // (cap_ranges_mu held)
                 if (lp[i][1] > lp[i][0] && lp[i][0] < (1ull << 40)) every.push_back({lp[i][0] & ~4095ull, (lp[i][1] + 4095) & ~4095ull});
         }
     }
-    all_pool_ranges = ranges_merged(std::move(every));
-    cap_ranges_ver++;
+    auto new_all = ranges_merged(std::move(every));
     std::sort(v.begin(), v.end());
     std::vector<std::pair<uint64_t, uint64_t>> m;
+    m.reserve(v.size());
     for (const auto& r : v) {
         if (!m.empty() && r.first <= m.back().second) m.back().second = std::max(m.back().second, r.second);
         else m.push_back(r);
     }
-    pool_cap_ranges.swap(m);
+    if (new_all != all_pool_ranges || m != pool_cap_ranges) {
+        all_pool_ranges.swap(new_all);
+        pool_cap_ranges.swap(m);
+        cap_ranges_ver++;
+    }
 }
 bool capture_on() {
     static const bool on = [] {
@@ -2056,7 +2065,7 @@ void cap_excl_note(uint64_t gpu, uint64_t n, const char* who, const void* caller
     uint64_t rlo = 0, rhi = 0, rmade = 0;
     uint32_t rflags = 0;
     nvn_pool_record_at(g, &rlo, &rhi, &rflags, &rmade);
-    static const uintptr_t dll = (uintptr_t)GetModuleHandleA("hookshot_vk.dll");
+    static const uintptr_t dll = (uintptr_t)GetModuleHandleA("xeonshot_vk.dll");
     logf("vk: RX_VK_CAP_ONLY_GPU: %s of %#llx +%#llx (guest %#llx, from v+%#llx) reaches memory the capture leaves out (#%lld): "
          "left-out range %#llx..%#llx; live pool there %#llx..%#llx%s; the back end's pool record %#llx..%#llx flags %#x made %.3f s ago",
          who, (unsigned long long)gpu, (unsigned long long)n, (unsigned long long)g,
@@ -2433,9 +2442,79 @@ WbPages wb_direct;
 PageMarks<kPages, kChunkPages> wb_ever;
 // (RX_VK_LOG_RB_WRITERS, diagnostics: set once it is on) each range noted, to rb_page_note (below, with the writers it keeps)
 void (*wb_writers_hook)(uint64_t lo, uint64_t hi, uint64_t value, uint64_t part) = nullptr;
+// (longshot) The bytes a write-back covers on a page it covers only in part, for a CPU read's wait (memory_writeback_value).
+// OoT keeps its culling tables double-buffered, two slots back to back of 0x9b040, 0x44b040, 0x8b040 and 0x1b580 bytes,
+// none a whole number of pages: the slots' seam is one page. The GPU's write of this frame's slot noted that page with the
+// current part, and the CPU's read of the other slot, last frame's and long written, waited for it: in the Market at 4K,
+// ~10,700 reads of each table (5,400 of 0x1b580) each waited, not one byte changed by the wait, 1-8 ms where the GPU ran
+// behind, the game's job threads stopped meanwhile.
+// Only a read's first and last page can name a note that wrote none of its bytes: every page between lies wholly inside
+// it. So a page that its last note covered only in part keeps that note's bytes (wb_ext: lo | hi << 32; 0, the whole page)
+// and what the page held before it (wb_rest_v / wb_rest_p, the rest), beside wb_pages and wb_parts as they are. What holds
+// for every page: the bytes [lo, hi) were last written by the note in wb_pages / wb_parts, every other byte by a note no
+// later than the rest, and the rest is a state the page's wb_pages / wb_parts once held. A new note over the whole page
+// clears its extent; one whose bytes take in all the last note's keeps the rest (the bytes it leaves were outside that
+// note already); any other one makes the page's present state the rest. Nothing compares which note is newer, so notes in
+// one part or with one value are no case of their own. A read that covers its first or last page only in part takes the
+// last note if it touches its bytes and the rest if it touches others; every other page as before.
+// RX_VK_WB_SPANS=0: the page rule only.
+bool wb_spans_on() {
+    static const bool on = env_on_or("RX_VK_WB_SPANS", 1);
+    return on;
+}
+WbPages wb_ext;                  // (lo | hi << 32 of the page's last note when it covered the page in part; 0: the whole page)
+WbPages wb_rest_v, wb_rest_p;    // (the page's value and part before that note: its other bytes' newest at most)
+/// A note over [lo, hi) of page p only, before the page takes its value
+void wb_edge_note(uint64_t p, uint32_t lo, uint32_t hi) {
+    const uint64_t old = wb_ext.get(p);
+    if (!old || lo > (uint32_t)old || (uint32_t)(old >> 32) > hi) {   // (not all the last note's bytes written again)
+        const uint64_t rv = wb_pages.get(p);
+        wb_rest_v.set(p, rv), wb_rest_p.set(p, rv ? wb_parts.get(p) : 0);
+    }
+    wb_ext.set(p, lo | (uint64_t)hi << 32);
+}
+/// Pages [fl, fh) written whole: their extents cleared (in the chunks that exist)
+void wb_full_pages(uint64_t fl, uint64_t fh) {
+    if (wb_ext.empty()) return;
+    for (uint64_t p = fl; p < fh && p < kPages;) {
+        auto& c = wb_ext.chunks[p / kChunkPages];
+        const uint64_t end = std::min<uint64_t>(fh, (p / kChunkPages + 1) * kChunkPages);
+        if (c) std::fill(c.get() + p % kChunkPages, c.get() + p % kChunkPages + (end - p), 0ull);
+        p = end;
+    }
+}
+/// A read of bytes [ra, rb) of page p, by its extent: false, the page's last note covered it whole (by the page, as before)
+template <class F> bool wb_edge_take(uint64_t p, uint32_t ra, uint32_t rb, F&& take, bool* ever) {
+    const uint64_t x = wb_ext.get(p);
+    if (!x) return false;
+    const uint32_t lo = (uint32_t)x, hi = (uint32_t)(x >> 32);
+    const uint64_t pv = wb_pages.get(p);
+    if (pv && ever) *ever = true;
+    const uint64_t pp = pv ? wb_parts.get(p) : 0;
+    if (ra < hi && lo < rb) take(pv, pp);   // (the read touches the last note's bytes)
+    if (ra < lo || hi < rb) {               // (and others: the rest)
+        // (a rest written in place by the submission that then wrote the page back by part waits for that part, as the
+        // page rule would: never longer than before)
+        const uint64_t rv = wb_rest_v.get(p), rp = wb_rest_p.get(p);
+        take(rv, !rp && rv == pv ? pp : rp);
+    }
+    return true;
+}
 void wb_pages_note(uint64_t guest_lo, uint64_t guest_hi, uint64_t value, uint64_t part) {
     if (!value || guest_hi <= guest_lo) return;
     std::lock_guard lk(wb_pages_mu);
+    if (wb_spans_on()) {   // (before the pages' values: what a page held is its rest)
+        constexpr uint64_t kBytes = 1ull << kPageShift;
+        const uint64_t first = guest_lo >> kPageShift, last = (guest_hi - 1) >> kPageShift;
+        const uint32_t a = (uint32_t)(guest_lo & (kBytes - 1)), b = (uint32_t)(((guest_hi - 1) & (kBytes - 1)) + 1);
+        wb_full_pages(first + (a != 0), last + 1 - (b != kBytes));
+        if (first == last) {
+            if ((a || b != kBytes) && first < kPages) wb_edge_note(first, a, b);
+        } else {
+            if (a && first < kPages) wb_edge_note(first, a, (uint32_t)kBytes);
+            if (b != kBytes && last < kPages) wb_edge_note(last, 0, b);
+        }
+    }
     wb_ever.mark(guest_lo >> kPageShift, (guest_hi - 1) >> kPageShift);
     for (uint64_t p = guest_lo >> kPageShift; p <= (guest_hi - 1) >> kPageShift; p++) {
         wb_pages.set(p, value);
@@ -2462,22 +2541,38 @@ uint64_t memory_writeback_value(uint64_t guest, uint64_t size, bool* ever, uint6
     std::lock_guard lk(wb_pages_mu);
     if (wb_pages.empty()) return 0;
     const uint64_t first = guest >> kPageShift, last = (guest + size - 1) >> kPageShift;
-    v = wb_pages.max_in(first, last, ever);
-    if (v && (part || whole)) {
-        uint64_t newest = 0, in_place = 0;
-        for (uint64_t p = first; p <= last && p < kPages;) {
-            if (!wb_pages.chunks[p / kChunkPages]) {   // (a chunk never made: none of its pages, as max_in)
-                p = (p / kChunkPages + 1) * kChunkPages;
-                continue;
-            }
-            const uint64_t pv = wb_pages.get(p), pp = pv ? wb_parts.get(p) : 0;
-            if (pp) newest = std::max(newest, pp);
-            else if (pv) in_place = std::max(in_place, pv);
-            p++;
-        }
-        if (part) *part = newest;
-        if (whole) *whole = in_place;
+    uint64_t newest = 0, in_place = 0;
+    const auto take = [&](uint64_t pv, uint64_t pp) {
+        v = std::max(v, pv);
+        if (pp) newest = std::max(newest, pp);
+        else if (pv) in_place = std::max(in_place, pv);
+    };
+    uint64_t lo = first, hi = last;   // (the pages taken by the page, inclusive)
+    if (wb_spans_on() && !wb_ext.empty()) {   // (the first and last page, where the read covers them in part: by extent)
+        constexpr uint64_t kBytes = 1ull << kPageShift;
+        const uint32_t a = (uint32_t)(guest & (kBytes - 1)), b = (uint32_t)(((guest + size - 1) & (kBytes - 1)) + 1);
+        if ((a || (first == last && b != kBytes)) && first < kPages &&
+            wb_edge_take(first, a, first == last ? b : (uint32_t)kBytes, take, ever))
+            lo++;
+        if (first != last && b != kBytes && last < kPages && wb_edge_take(last, 0, b, take, ever)) hi--;
     }
+    if (lo <= hi) {
+        const uint64_t pv = wb_pages.max_in(lo, hi, ever);
+        v = std::max(v, pv);
+        if (pv && (part || whole)) {
+            for (uint64_t p = lo; p <= hi && p < kPages;) {
+                if (!wb_pages.chunks[p / kChunkPages]) {   // (a chunk never made: none of its pages, as max_in)
+                    p = (p / kChunkPages + 1) * kChunkPages;
+                    continue;
+                }
+                const uint64_t pv2 = wb_pages.get(p), pp = pv2 ? wb_parts.get(p) : 0;
+                take(pv2, pp);
+                p++;
+            }
+        }
+    }
+    if (part) *part = newest;
+    if (whole) *whole = in_place;
     return v;
 }
 

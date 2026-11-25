@@ -19,8 +19,8 @@ static class PatchBuilds
     /// The game's exe as Play starts it (MainWindow.GameExe): bin\hookshot.exe beside the launcher, or the folder's own
     public static string GameExe(string game)
     {
-        var bin = Path.Combine(game, "bin", "hookshot.exe");
-        var top = Path.Combine(game, "hookshot.exe");
+        var bin = Path.Combine(game, "bin", "Xeonshot.exe");
+        var top = Path.Combine(game, "Xeonshot.exe");
         if (!File.Exists(bin)) return top;
         // (a development build puts the game in the folder itself: a bin\hookshot.exe left by an earlier packaged build is
         // older than it, and the folder's hookshot.exe is then the game, not the small launcher)
@@ -31,7 +31,7 @@ static class PatchBuilds
 
     static string Version(string game)
     {
-        try { return File.ReadAllText(Path.Combine(game, "hookshot_version.txt")).Trim(); } catch (Exception) { return ""; }
+        try { return File.ReadAllText(Path.Combine(game, "xeonshot_version.txt")).Trim(); } catch (Exception) { return ""; }
     }
 
     /// A mix's name: the patch files (mod, file, FNV-1a of its bytes) sorted, hashed; "none" without any

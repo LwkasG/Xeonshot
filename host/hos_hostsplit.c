@@ -132,7 +132,7 @@ static void paint_modules(void) {
     static HMODULE mods[2048];
     DWORD got = 0;
     if (!enum_mods || !base_name || !enum_mods(GetCurrentProcess(), mods, sizeof mods, &got)) return;
-    const HMODULE exe = GetModuleHandleA(NULL), vk = GetModuleHandleA("hookshot_vk.dll");
+    const HMODULE exe = GetModuleHandleA(NULL), vk = GetModuleHandleA("xeonshot_vk.dll");
     for (DWORD i = 0; i < got / sizeof(HMODULE) && i < 2048; i++) {
         char name[64] = "?";
         base_name(GetCurrentProcess(), mods[i], name, sizeof name);

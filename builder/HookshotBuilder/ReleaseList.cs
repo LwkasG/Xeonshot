@@ -12,7 +12,7 @@ static class ReleaseList
     const string Api = "https://git.notrexed.dev/api/v1/repos/Hookshot/Hookshot/releases";
     public const int PageSize = 50;   // (Forgejo's most a page)
     const int MostPages = 40;         // (2,000 releases: a stop for a server that never gives a short page)
-    public const string SetupAsset = "HookshotBuilder.exe", SetupList = "hookshot-setup.txt";
+    public const string SetupAsset = "XeonshotBuilder.exe", SetupList = "xeonshot-setup.txt";
     // (the first release whose setup installs the release it is told to, --tag: builder/setup/setup.c, v2.0.6. An older one's
     // setup installs the newest instead, so it is listed and not chosen)
     public const string FirstInstallable = "v2.0.6";
@@ -67,7 +67,7 @@ static class ReleaseList
     public static async Task<List<Entry>?> Fetch(CancellationToken token = default)
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("HookshotBuilder");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("XeonshotBuilder");
         var pages = new List<string>();
         try
         {

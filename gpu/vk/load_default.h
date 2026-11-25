@@ -25,7 +25,7 @@ inline Choice choose(const char* env, bool native_mesh, bool marker, bool compre
     if (compressed) return {false, "the program cache is compressed (RX_VK_PROGRAM_CACHE_ZSTD), whose records are only read whole"};
     if (env && !std::strcmp(env, "create")) return {true, "RX_VK_LOAD=create"};
     if (env && !std::strcmp(env, "start")) return {false, "RX_VK_LOAD=start"};
-    if (marker) return {false, "in an earlier session first uses waited too long for loads (hookshot_load_start.txt)"};
+    if (marker) return {false, "in an earlier session first uses waited too long for loads (xeonshot_load_start.txt)"};
     return {true, native_mesh ? "the default where the GPU has mesh shaders"
                               : "the default, on the compute fallback too (RX_VK_LOAD=start: every listed program before the title)"};
 }

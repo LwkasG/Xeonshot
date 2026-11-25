@@ -20,8 +20,8 @@ static class Program
     {
         var fixture = Path.GetFullPath(args[0]);
         var volume = Path.Combine(fixture, "authored volume é, one");
-        var root = Path.Combine(volume, "HookshotBuilder");
-        var app = Path.Combine(root, "versions", "v-authored", "HookshotBuilder");
+        var root = Path.Combine(volume, "XeonshotBuilder");
+        var app = Path.Combine(root, "versions", "v-authored", "XeonshotBuilder");
         var standard = Path.Combine(fixture, "standard");
         Directory.CreateDirectory(app);
         File.WriteAllText(Path.Combine(root, BuilderHome.Marker), BuilderHome.MarkerText + "\n", new UTF8Encoding(false));
@@ -55,11 +55,11 @@ static class Program
 
         var moved = Path.Combine(fixture, "authored volume é, moved");
         Directory.Move(volume, moved);
-        var newRoot = Path.Combine(moved, "HookshotBuilder");
-        var next = BuilderHome.Resolve(null, Path.Combine(newRoot, "versions", "v-authored", "HookshotBuilder"), standard);
+        var newRoot = Path.Combine(moved, "XeonshotBuilder");
+        var next = BuilderHome.Resolve(null, Path.Combine(newRoot, "versions", "v-authored", "XeonshotBuilder"), standard);
         Check(next.Root == newRoot && next.Portable, "Fresh direct start after relocation chose another home.");
         File.WriteAllText(Path.Combine(newRoot, BuilderHome.Marker), "not a portable marker");
-        Refuses(() => BuilderHome.Resolve(null, Path.Combine(newRoot, "versions", "v-authored", "HookshotBuilder"), standard), "Invalid marker silently chose AppData.");
+        Refuses(() => BuilderHome.Resolve(null, Path.Combine(newRoot, "versions", "v-authored", "XeonshotBuilder"), standard), "Invalid marker silently chose AppData.");
         File.WriteAllBytes(Path.Combine(newRoot, BuilderHome.Marker), new byte[] { 0xff });
         Refuses(() => BuilderHome.Resolve(newRoot, app, standard), "Malformed marker accepted.");
         File.WriteAllText(Path.Combine(newRoot, BuilderHome.Marker), BuilderHome.MarkerText + new string('x', 10000));

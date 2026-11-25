@@ -1,7 +1,7 @@
-"""readme.md's option table has a line for every row of the Insert menu's Graphics, Audio, Gameplay, Controls and NFC tabs.
+"""docs/in-game-menu.md's option table has a line for every row of the Insert menu's Graphics, Audio, Gameplay, Controls and NFC tabs.
 
 Four rows had none: Ultrawide menus, Mesh shaders, Discord status (which is on by default) and the Controls page's
-Button prompts. The rows are read from gpu/vk/vk_menu.cpp's table and the lines from the readme's
+Button prompts. The rows are read from gpu/vk/vk_menu.cpp's table and the lines from docs/in-game-menu.md's
 "| Tab | Option | Choices | Default |" table; nothing runs. Restart and Quit are actions with no choice to list; the
 Controls page's two rows have lines of their own among the Controls tab's; the Motion page's rows are on the Motion
 line, the Graphics tab's section titles have none, and the Debug tab's lines at the table's end are left out.
@@ -14,7 +14,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 MENU = (ROOT / "gpu" / "vk" / "vk_menu.cpp").read_text(encoding="utf-8")
-README = (ROOT / "readme.md").read_text(encoding="utf-8")
+README = (ROOT / "docs" / "in-game-menu.md").read_text(encoding="utf-8")
 ACTIONS = {"Restart", "Quit"}
 
 

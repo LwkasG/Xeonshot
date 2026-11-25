@@ -67,7 +67,7 @@ EMULATORS = [
                                           "windows": ["{localappdata}/Programs/*/game", "C:/Games/Ocarina"]},
             ["ocarina"], ["pc-port", "port"]),
 ]
-HOOKSHOT = Program("hookshot", "Hookshot", {"linux": ["{data}/hookshot"], "windows": []}, ["hookshot"], [])
+HOOKSHOT = Program("xeonshot", "Xeonshot", {"linux": ["{data}/xeonshot"], "windows": []}, ["xeonshot"], [])
 FOLDER = Program("folder", "the folder", {"linux": [], "windows": []}, [], [])
 
 # Where the save folders sit under a data folder. "<id>" is one folder per user profile (its name is the id shown).
@@ -76,8 +76,8 @@ LAYOUTS = (
     ("nand", "user", "save", "account", "<id>", TITLE, "0"),   # Eden's newer layout: used first when it exists
     ("nand", "user", "save", NO_ACCOUNT, "<id>", TITLE),        # Eden and its forks (Lichii, Eglantine, ...)
     ("profile", "save", "<id>"),                                 # the other PC port's game folder
-    ("user", "save", "<id>"),                                    # Hookshot's game folder on Windows
-    ("save", "<id>"),                                            # Hookshot's data folder
+    ("user", "save", "<id>"),                                    # Xeonshot's game folder on Windows
+    ("save", "<id>"),                                            # Xeonshot's data folder
 )
 
 
@@ -92,7 +92,7 @@ def data_home():
 def default_backup_dir():
     if WINDOWS:
         base = os.environ.get("LOCALAPPDATA") or os.path.join(os.path.expanduser("~"), "AppData", "Local")
-        return os.path.join(base, "Hookshot", "oot-save-backups")
+        return os.path.join(base, "Xeonshot", "oot-save-backups")
     return os.path.join(data_home(), "oot-save-backups")
 
 
@@ -183,8 +183,8 @@ def locate(program, override, flag):
         if found:
             return d, found
     if program is HOOKSHOT and not tried:
-        raise Fail("Hookshot's saves are in the user folder of your game folder on Windows: pass the game folder with "
-                   "--hookshot (for example --hookshot C:\\Games\\Hookshot)")
+        raise Fail("Xeonshot's saves are in the user folder of your game folder on Windows: pass the game folder with "
+                   "--xeonshot (for example --xeonshot C:\\Games\\Xeonshot)")
     what = "save of " + program.display if program.display.startswith("another ") else program.display + " save"
     raise Fail("no %s found (looked in %s): start the game in %s once and save, or pass %s <folder>"
                % (what, ", ".join(tried) or "no default folder", program.display, flag))
@@ -291,9 +291,9 @@ def show(title, folder, found):
 
 def list_all(args):
     try:
-        show("Hookshot", *locate(HOOKSHOT, args.hookshot, "--hookshot"))
+        show("Xeonshot", *locate(HOOKSHOT, args.hookshot, "--xeonshot"))
     except Fail as e:
-        print("Hookshot: %s" % e)
+        print("Xeonshot: %s" % e)
     # (by the folder import and export use, the first of a program's with saves, as locate: the programs whose saves are there)
     groups = collections.OrderedDict()
     for program in EMULATORS:
@@ -1100,7 +1100,7 @@ def list_json(args):
     folder are one entry, named by the first of them, as import takes it)"""
     out = {"sources": [], "running": running_games()}
     try:
-        folder, found = locate(HOOKSHOT, args.hookshot, "--hookshot")
+        folder, found = locate(HOOKSHOT, args.hookshot, "--xeonshot")
         out["hookshot"] = {"folder": folder, "saves": [{"profile": k, "path": v, "slots": save_info(v)}
                                                        for k, v in sorted(found.items())]}
     except Fail as e:
@@ -1120,9 +1120,9 @@ def list_json(args):
 
 
 def hookshot_target(args):
-    """Hookshot's save folders for an import; when it has none yet, its save folder made (where the game makes it)"""
+    """Xeonshot's save folders for an import; when it has none yet, its save folder made (where the game makes it)"""
     try:
-        return locate(HOOKSHOT, args.hookshot, "--hookshot")[1]
+        return locate(HOOKSHOT, args.hookshot, "--xeonshot")[1]
     except Fail:
         root = args.hookshot or (None if WINDOWS else folders(HOOKSHOT)[0])
         if not root:
@@ -1133,7 +1133,7 @@ def hookshot_target(args):
         save = os.path.join(root, *(["user"] if user else []), "save", USER_ID)
         if not args.dry_run:
             os.makedirs(save, exist_ok=True)
-        print("Hookshot has no save yet: made %s" % save, file=sys.stderr if args.json else sys.stdout)
+        print("Xeonshot has no save yet: made %s" % save, file=sys.stderr if args.json else sys.stdout)
         return {USER_ID: save}
 
 
@@ -1146,9 +1146,9 @@ def run(args):
         raise Fail("%s what? Name the emulator (%s) or the folder (%s <folder>)"
                    % (args.command, ", ".join(p.name for p in EMULATORS), "--from" if args.command == "import" else "--to"))
     flag = "--from" if args.command == "import" else "--to"
-    hs = hookshot_target(args) if args.command == "import" else locate(HOOKSHOT, args.hookshot, "--hookshot")[1]
+    hs = hookshot_target(args) if args.command == "import" else locate(HOOKSHOT, args.hookshot, "--xeonshot")[1]
     _, em = locate(other, args.folder, flag)
-    hs_id, hs_path = pick(hs, "Hookshot", "--hookshot <the user id folder>")
+    hs_id, hs_path = pick(hs, "Xeonshot", "--xeonshot <the user id folder>")
     em_id, em_path = pick(em, other.display, "--profile <id>", args.profile)
     src, dst = (em_path, hs_path) if args.command == "import" else (hs_path, em_path)
     if os.path.realpath(src) == os.path.realpath(dst):
@@ -1189,7 +1189,8 @@ def main(argv=None):
     p.add_argument("--from", dest="from_dir", metavar="DIR", help="import from this folder (a save, or one to search)")
     p.add_argument("--to", dest="to_dir", metavar="DIR", help="export to this folder (a save, or one to search)")
     p.add_argument("--lichii", metavar="DIR", help=argparse.SUPPRESS)   # (the old name of --from/--to)
-    p.add_argument("--hookshot", metavar="DIR", help="Hookshot's data folder (Windows: the game folder)")
+    p.add_argument("--xeonshot", "--hookshot", dest="hookshot", metavar="DIR",
+                   help="Xeonshot's data folder (Windows: the game folder)")
     p.add_argument("--profile", metavar="ID", help="the emulator's profile, when several have saves")
     p.add_argument("--backup-dir", metavar="DIR", help="where the backup of the overwritten side goes")
     p.add_argument("--keep-settings", action="store_true", help="leave the target's option.sav (the game's settings) alone")

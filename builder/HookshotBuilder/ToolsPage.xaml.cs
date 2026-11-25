@@ -77,7 +77,7 @@ partial class ToolsPage : UserControl
 
     static bool GameRunning(string folder)
     {
-        foreach (var p in Process.GetProcessesByName("hookshot"))
+        foreach (var p in Process.GetProcessesByName("Xeonshot"))
         {
             try
             {
@@ -92,7 +92,7 @@ partial class ToolsPage : UserControl
     // ================================================================ the head and the foot
     void BackClick(object sender, RoutedEventArgs e)
     {
-        if (Unsaved() && MessageBox.Show(Window.GetWindow(this), "Leave without saving your changes?", "Hookshot",
+        if (Unsaved() && MessageBox.Show(Window.GetWindow(this), "Leave without saving your changes?", "Xeonshot",
                                          MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
             return;
         Close();
@@ -303,7 +303,7 @@ partial class ToolsPage : UserControl
     {
         if (ModsView.Visibility == Visibility.Visible) { ReloadMods(auto: false); return; }
         if (client == null || !saveReady) return;
-        if (edited > 0 && MessageBox.Show(Window.GetWindow(this), "Read the saves again and drop the changes not saved yet?", "Hookshot",
+        if (edited > 0 && MessageBox.Show(Window.GetWindow(this), "Read the saves again and drop the changes not saved yet?", "Xeonshot",
                                           MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
             return;
         var keep = SlotPick.SelectedItem is ComboBoxItem { Tag: ValueTuple<string, string> t } ? t : default;
@@ -407,7 +407,7 @@ partial class ToolsPage : UserControl
     {
         if (tools == null) { Wait("The build tools are not on this PC, and the save editor needs their Python."); return; }
         Wait("Starting the save editor…");
-        var user = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Hookshot");
+        var user = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Xeonshot");
         client = SaveEditorClient.Start(tools, game, Directory.Exists(user) ? user : null, out var error);
         if (client == null) { Wait(error ?? "The save editor could not start."); return; }
         client.Progress = text => Dispatcher.BeginInvoke(() => Wait(text + "\n(once for this game: the names of the save's entries, from your game files)"));
@@ -453,7 +453,7 @@ partial class ToolsPage : UserControl
     async void SlotPicked(object sender, SelectionChangedEventArgs e)
     {
         if (filling || !saveReady || client == null) return;
-        if (edited > 0 && MessageBox.Show(Window.GetWindow(this), "Open another slot without saving the changes to this one?", "Hookshot",
+        if (edited > 0 && MessageBox.Show(Window.GetWindow(this), "Open another slot without saving the changes to this one?", "Xeonshot",
                                           MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
         {
             filling = true;
@@ -711,7 +711,7 @@ partial class ToolsPage : UserControl
     {
         if (client == null) return;
         if (MessageBox.Show(Window.GetWindow(this), "Give every item this slot is missing? Quest items (medallions, stones) can change what the story does next.",
-                            "Hookshot", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+                            "Xeonshot", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
             return;
         try { FillItems(await client.Ask(SaveEditorClient.Req("give_all"))); }
         catch (Exception ex) { SetStatus(ex.Message, true); }

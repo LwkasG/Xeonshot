@@ -250,7 +250,7 @@ static int trap_nsites;
 static SRWLOCK trap_sites_lock = SRWLOCK_INIT;
 
 static void trap_module_ranges(void) {
-    HMODULE mods[2] = {GetModuleHandleA(NULL), GetModuleHandleA("hookshot_vk.dll")};
+    HMODULE mods[2] = {GetModuleHandleA(NULL), GetModuleHandleA("xeonshot_vk.dll")};
     for (int m = 0; m < 2; m++) {
         if (!mods[m]) continue;
         const IMAGE_DOS_HEADER *dos = (const IMAGE_DOS_HEADER *)mods[m];

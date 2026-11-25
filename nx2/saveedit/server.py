@@ -93,7 +93,7 @@ def is_account_dir(d):
 
 
 def save_bases(game, user):
-    """The folders Hookshot keeps save accounts in: the launcher's user folder (%APPDATA%\\Hookshot, the game started
+    """The folders Xeonshot keeps save accounts in: the launcher's user folder (%APPDATA%\\Xeonshot, the game started
     with --user), then the game folder's own user\\save (the game started by itself)"""
     out = []
     if user:

@@ -203,7 +203,7 @@ sealed class Runner
             {
                 if (lastError != null && lastError.Contains("Microsoft Store", StringComparison.OrdinalIgnoreCase))
                     return (false, "Python 3 was not found: the 'python' command on this PC is the Microsoft Store shortcut, which only opens " +
-                                   "the Store. Install Python 3 from python.org (not the Store version), or use the full Hookshot Builder package.");
+                                   "the Store. Install Python 3 from python.org (not the Store version), or use the full Xeonshot Builder package.");
                 return (false, lastError ?? "The game tools stopped without saying why (exit code " + p.ExitCode + ").");
             }
             return result;
@@ -211,7 +211,7 @@ sealed class Runner
         catch (Exception)
         {
             if (tools.OwnPythonMissing) return (false, Tools.OwnPythonMissingText);
-            return (false, "Python 3 was not found. Install it from python.org (not the Microsoft Store build), or use the full Hookshot Builder package.");
+            return (false, "Python 3 was not found. Install it from python.org (not the Microsoft Store build), or use the full Xeonshot Builder package.");
         }
     }
 }

@@ -78,8 +78,8 @@ public partial class MainWindow : Window
         Loaded += (_, _) => Start();
         var tools = Tools.Find();
         ToolsNote.Text = tools != null
-            ? "Nothing else to install: Hookshot's own build tools are here, downloaded and checked by its setup."
-            : "Hookshot's build tools are missing from its folder. Press Build and Hookshot offers to download them again.";
+            ? "Nothing else to install: Xeonshot's own build tools are here, downloaded and checked by its setup."
+            : "Xeonshot's build tools are missing from its folder. Press Build and Xeonshot offers to download them again.";
         SetStep(0);
         Refresh();
     }
@@ -109,7 +109,7 @@ public partial class MainWindow : Window
         }
         if (LaunchArg() is { } launchFolder)   // (Hookshot Launcher.exe in the game folder)
         {
-            SplashText.Text = "Starting Hookshot…";
+            SplashText.Text = "Starting Xeonshot…";
             await Task.Delay(700);
             ShowMain();
             ShowLauncher(launchFolder);
@@ -172,9 +172,9 @@ public partial class MainWindow : Window
     {
         try
         {
-            if (!Directory.Exists(System.IO.Path.Combine(folder, ".hookshot_exefs")) || !Directory.Exists(System.IO.Path.Combine(folder, "romfs")))
+            if (!Directory.Exists(System.IO.Path.Combine(folder, ".xeonshot_exefs")) || !Directory.Exists(System.IO.Path.Combine(folder, "romfs")))
                 return null;
-            foreach (var line in File.ReadAllLines(System.IO.Path.Combine(folder, "hookshot_version.txt")))
+            foreach (var line in File.ReadAllLines(System.IO.Path.Combine(folder, "xeonshot_version.txt")))
                 if (line.StartsWith("version=")) return line[8..].Trim() is { Length: > 0 } v ? v : null;
         }
         catch (Exception) { }
@@ -207,7 +207,7 @@ public partial class MainWindow : Window
                 break;
             case Mode.UpdateGame:
                 FilesTitle.Text = "Update available";
-                FilesSub.Text = (pinned != null ? $"You chose Hookshot {pinned} in the Version menu." : $"Hookshot {updateTarget} is available.") +
+                FilesSub.Text = (pinned != null ? $"You chose Xeonshot {pinned} in the Version menu." : $"Xeonshot {updateTarget} is available.") +
                                 $" Your game is {game}: Update builds it again from the game files kept in its folder, compiling only what changed.";
                 BuildButton.Content = "Update";
                 break;
@@ -222,13 +222,13 @@ public partial class MainWindow : Window
             case Mode.UpdateBuilder:
                 FilesTitle.Text = "Build your game";
                 FilesSub.Text = pinned != null
-                    ? $"You chose Hookshot {pinned} in the Version menu (this builder is {builder}): install it first, then build."
-                    : $"Hookshot Builder {updateTarget} is available (this one is {builder}): update it first, then build.";
+                    ? $"You chose Xeonshot {pinned} in the Version menu (this builder is {builder}): install it first, then build."
+                    : $"Xeonshot Builder {updateTarget} is available (this one is {builder}): update it first, then build.";
                 BuildButton.Content = "Update builder";
                 break;
             default:
                 FilesTitle.Text = "Build your game";
-                FilesSub.Text = "Pick your game files and where the game goes. Hookshot does the rest, once.";
+                FilesSub.Text = "Pick your game files and where the game goes. Xeonshot does the rest, once.";
                 BuildButton.Content = "Build the game";
                 break;
         }
@@ -236,7 +236,7 @@ public partial class MainWindow : Window
         AboutText.Visibility = mode is Mode.Build ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    // ---- the launcher: Hookshot Launcher.exe in a game folder starts this with --launch <folder> (builder/setup/setup.c) ----
+    // ---- the launcher: Xeonshot Launcher.exe in a game folder starts this with --launch <folder> (builder/setup/setup.c) ----
     string launchFolder = "";
 
     static string? LaunchArg()
@@ -252,7 +252,7 @@ public partial class MainWindow : Window
         OutPath.Text = folder;
         StepPill.Visibility = Visibility.Collapsed;
         var game = GameVersion(folder) ?? ReadVersion(folder);
-        LaunchVersion.Text = (game != null ? $"Hookshot {game}" : "Hookshot") + " · " + folder;
+        LaunchVersion.Text = (game != null ? $"Xeonshot {game}" : "Xeonshot") + " · " + folder;
         LaunchPlay.IsEnabled = File.Exists(GameExe(folder));
         ShowPage(LaunchPage);
         latestTag = await NewestTag();
@@ -261,12 +261,12 @@ public partial class MainWindow : Window
         else if (game != null && game != updateTarget && GameVersion(folder) != null)
         {
             LaunchStatus.Text = $"Update available: {updateTarget}";
-            LaunchStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xB9, 0xC8, 0xFF));
+            LaunchStatus.Foreground = new SolidColorBrush(Color.FromRgb(0x7C, 0xE6, 0xFF));
             LaunchStatus.FontWeight = FontWeights.SemiBold;
             LaunchUpdate.Visibility = Visibility.Visible;
         }
         else if (game != null && game != updateTarget)
-            LaunchStatus.Text = $"{updateTarget} is out: build this folder again with the Hookshot Builder to get it";
+            LaunchStatus.Text = $"{updateTarget} is out: build this folder again with the Xeonshot Builder to get it";
         else LaunchStatus.Text = latestTag == null ? "Up to date with this builder (git.notrexed.dev did not answer)" : "Up to date";
     }
 
@@ -275,15 +275,15 @@ public partial class MainWindow : Window
     {
         try
         {
-            foreach (var line in File.ReadAllLines(System.IO.Path.Combine(folder, "hookshot_version.txt")))
+            foreach (var line in File.ReadAllLines(System.IO.Path.Combine(folder, "xeonshot_version.txt")))
                 if (line.StartsWith("version=")) return line[8..].Trim() is { Length: > 0 } v ? v : null;
         }
         catch (Exception) { }
         return null;
     }
 
-    /// The game in a folder: bin\hookshot.exe below its launcher (hookshot.exe), or hookshot.exe in a folder built before the launcher
-    static string GameExe(string folder) => PatchBuilds.GameExe(folder);   // (bin\hookshot.exe, or a newer development build's own)
+    /// The game in a folder: bin\Xeonshot.exe below its launcher (Xeonshot.exe), or Xeonshot.exe in a folder built before the launcher
+    static string GameExe(string folder) => PatchBuilds.GameExe(folder);   // (bin\Xeonshot.exe, or a newer development build's own)
 
     /// (the launcher already checked for updates: the game does not ask again)
     static void StartGame(string folder)
@@ -382,7 +382,7 @@ public partial class MainWindow : Window
     /// (going to an older version, from another track: asked first)
     bool OlderOk(string? have) =>
         !Switching || !Updater.Newer(have, updateTarget) ||
-        MessageBox.Show(this, $"{updateTarget} is older than {have}, the version you have now. Install {updateTarget}?", "Hookshot",
+        MessageBox.Show(this, $"{updateTarget} is older than {have}, the version you have now. Install {updateTarget}?", "Xeonshot",
                         MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
 
     void LaunchPlayClick(object sender, RoutedEventArgs e)
@@ -659,8 +659,8 @@ public partial class MainWindow : Window
             if (i == on)
             {
                 text.Foreground = Brushes.White;
-                pill.Background = new LinearGradientBrush(Color.FromRgb(0x4B, 0x70, 0xF0), Color.FromRgb(0x35, 0x57, 0xD6), 90);
-                pill.Effect = new DropShadowEffect { Color = Color.FromRgb(0x3D, 0x63, 0xE6), BlurRadius = 18, ShadowDepth = 6, Direction = 270, Opacity = 0.6 };
+                pill.Background = new LinearGradientBrush(Color.FromRgb(0x0D, 0x9A, 0xD6), Color.FromRgb(0x07, 0x6B, 0x9E), 90);
+                pill.Effect = new DropShadowEffect { Color = Color.FromRgb(0x18, 0xC8, 0xF8), BlurRadius = 18, ShadowDepth = 6, Direction = 270, Opacity = 0.6 };
             }
             StepItems.Children.Add(pill);
         }
@@ -860,7 +860,7 @@ public partial class MainWindow : Window
     {
         if (!File.Exists(System.IO.Path.Combine(x, "main")))
         {
-            MessageBox.Show(this, "That exefs folder has no file named main.", "Hookshot");
+            MessageBox.Show(this, "That exefs folder has no file named main.", "Xeonshot");
             return;
         }
         sourcePicked = true;
@@ -882,7 +882,7 @@ public partial class MainWindow : Window
 
     void BrowseWork(object sender, RoutedEventArgs e)
     {
-        if (PickFolder("Choose where Hookshot keeps its build files") is not { } picked) return;
+        if (PickFolder("Choose where Xeonshot keeps its build files") is not { } picked) return;
         ChangeWork(picked);
     }
 
@@ -893,7 +893,7 @@ public partial class MainWindow : Window
         try { Storage.MoveWork(picked); }
         catch (Exception x) when (x is IOException or UnauthorizedAccessException)
         {
-            MessageBox.Show(this, $"Hookshot cannot keep its build files there: {x.Message}", "Hookshot");
+            MessageBox.Show(this, $"Xeonshot cannot keep its build files there: {x.Message}", "Xeonshot");
         }
         Refresh();
     }
@@ -956,7 +956,7 @@ public partial class MainWindow : Window
                 try { await Updater.RunLatestSetup(this, Array.Empty<string>(), updateTarget, Switching); }
                 catch (Exception ex)
                 {
-                    MessageBox.Show(this, ex.Message + " You can also download HookshotBuilder.exe from the releases page.", "Hookshot");
+                    MessageBox.Show(this, ex.Message + " You can also download XeonshotBuilder.exe from the releases page.", "Xeonshot");
                     RefreshMode();
                 }
                 return;
@@ -965,7 +965,7 @@ public partial class MainWindow : Window
         var tools = Tools.Find();
         if (tools == null)
         {
-            ShowProblem("The build tools are not in Hookshot's folder.", tools: true);
+            ShowProblem("The build tools are not in Xeonshot's folder.", tools: true);
             return;
         }
         var args = new List<string>();
@@ -980,12 +980,12 @@ public partial class MainWindow : Window
     }
 
     const string DlssLicense =
-        "NVIDIA DLSS is NVIDIA's, not Hookshot's. With it ticked, the build downloads NVIDIA's DLSS SDK (release v310.9.16) from " +
+        "NVIDIA DLSS is NVIDIA's, not Xeonshot's. With it ticked, the build downloads NVIDIA's DLSS SDK (release v310.9.16) from " +
         "github.com/NVIDIA/DLSS, under NVIDIA's own license, the NVIDIA RTX SDKs license:\n\n" +
         "https://github.com/NVIDIA/DLSS/blob/9981c6350dc58c0ce21f024fd65e31e851c31689/LICENSE.txt\n\n" +
         "Its files stay on this PC (in the builder's ngx-sdk folder, and nvngx_dlss.dll and nvngx_dlssg.dll in the game " +
         "folder's ngx folder). " +
-        "Hookshot never includes or shares them: never share a game folder built with them.\n\n" +
+        "Xeonshot never includes or shares them: never share a game folder built with them.\n\n" +
         "Do you accept NVIDIA's license?";
 
     /// Whether NVIDIA's license was accepted on the DLSS tick, kept in the settings (BuilderSettings.DlssLicense): an update
@@ -1007,7 +1007,7 @@ public partial class MainWindow : Window
     }
 
     const string FsrLicense =
-        "AMD FSR 4 is AMD's, not Hookshot's. With it ticked, the build downloads AMD's FSR runtime for Vulkan (FidelityFX SDK " +
+        "AMD FSR 4 is AMD's, not Xeonshot's. With it ticked, the build downloads AMD's FSR runtime for Vulkan (FidelityFX SDK " +
         "v2.4.0: amd_fidelityfx_loader_vk.dll and amd_fidelityfx_upscaler_vk.dll, signed by AMD) from " +
         "github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK, each file checked against its SHA-256, under AMD's FSR SDK license:\n\n" +
         "https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/blob/7539ae8b6568ad29ed78a753404351daf3b5cca7/Kits/FidelityFX/docs/license.md\n\n" +
@@ -1079,7 +1079,7 @@ public partial class MainWindow : Window
     {
         // (a warning, not a stop: the player may have no other folder with the room. An update keeps its rows and its own flow)
         if (!keepRows && HardDriveWarning() is { } slow &&
-            MessageBox.Show(this, slow, "Hookshot", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK)
+            MessageBox.Show(this, slow, "Xeonshot", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK)
             return;
         int? workers, memoryGb;
         try
@@ -1089,7 +1089,7 @@ public partial class MainWindow : Window
         }
         catch (ArgumentException e)
         {
-            MessageBox.Show(this, e.Message, "Hookshot");
+            MessageBox.Show(this, e.Message, "Xeonshot");
             return;
         }
         if (!keepRows)
@@ -1406,9 +1406,9 @@ public partial class MainWindow : Window
         // (both places when the build files are in a folder the player chose: the total counts both)
         var where = Storage.WorkChosen ? $"{Storage.Base} and {Storage.Work}" : Storage.Base;
         StorageNote.Text = freeable >= 100L << 20
-            ? $"Hookshot Builder keeps {Storage.Gb(total)} on this PC ({where}). {Storage.Gb(freeable)} of it only makes the next " +
+            ? $"Xeonshot Builder keeps {Storage.Gb(total)} on this PC ({where}). {Storage.Gb(freeable)} of it only makes the next " +
               "update quicker and can be freed: your game keeps playing, and the next update then takes about as long as this build."
-            : $"Hookshot Builder keeps {Storage.Gb(total)} on this PC ({where}): the builder itself.";
+            : $"Xeonshot Builder keeps {Storage.Gb(total)} on this PC ({where}): the builder itself.";
         FreeButton.Visibility = freeable >= 100L << 20 ? Visibility.Visible : Visibility.Collapsed;
         FreeButton.IsEnabled = true;
         FreeButton.Content = "Free up space";
@@ -1489,7 +1489,7 @@ public partial class MainWindow : Window
                      {
                          (1, "Open Windows Security → Protection history, and restore the removed files."),
                          (2, $"Or add {base_} to its exclusions."),
-                         (3, "Then press Repair: Hookshot downloads the tools again from their official releases and checks each one."),
+                         (3, "Then press Repair: Xeonshot downloads the tools again from their official releases and checks each one."),
                      })
                 ProblemSteps.Children.Add(new TextBlock { Text = $"{n}.  {s}", Style = (Style)FindResource("Note"), FontSize = 14, Margin = new Thickness(0, 6, 0, 0) });
         }
@@ -1520,17 +1520,17 @@ public partial class MainWindow : Window
     void CopyForReport(object sender, RoutedEventArgs e)
     {
         var lines = log.ToString().Split('\n');
-        var text = $"Hookshot Builder {Tools.Find()?.Version ?? "(source)"} on Windows {Environment.OSVersion.Version}\n" +
+        var text = $"Xeonshot Builder {Tools.Find()?.Version ?? "(source)"} on Windows {Environment.OSVersion.Version}\n" +
                    $"{ProblemTitle.Text}: {lastFailure}\n\n" + string.Join("\n", lines.Skip(Math.Max(0, lines.Length - 200)));
         try { Clipboard.SetText(text); CopyReport.Content = "Copied"; } catch (Exception) { }
     }
 
     void Back(object sender, RoutedEventArgs e) => ToFiles();
 
-    /// The setup (HookshotBuilder-Setup.exe beside this app) checks every part against its checksum and downloads the missing ones
+    /// The setup (XeonshotBuilder-Setup.exe beside this app) checks every part against its checksum and downloads the missing ones
     void Repair(object sender, RoutedEventArgs e)
     {
-        var setup = System.IO.Path.Combine(AppContext.BaseDirectory, "HookshotBuilder-Setup.exe");
+        var setup = System.IO.Path.Combine(AppContext.BaseDirectory, "XeonshotBuilder-Setup.exe");
         if (File.Exists(setup))
         {
             Process.Start(new ProcessStartInfo(setup, "--repair") { UseShellExecute = false, WorkingDirectory = AppContext.BaseDirectory });
@@ -1600,7 +1600,7 @@ public partial class MainWindow : Window
             why = $"This game's version ({rec.Version}) does not apply the mods' code patches yet: update the game first, then Rebuild.";
         if (rec == null || why != null)
         {
-            MessageBox.Show(this, why ?? "This game cannot be rebuilt here.", "Hookshot", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, why ?? "This game cannot be rebuilt here.", "Xeonshot", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
         keepPatchBuild = folder;
@@ -1652,7 +1652,7 @@ public partial class MainWindow : Window
 
     void CloseWindow(object sender, RoutedEventArgs e)
     {
-        if (runner != null && MessageBox.Show(this, T(S.CloseQuestion), "Hookshot", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+        if (runner != null && MessageBox.Show(this, T(S.CloseQuestion), "Xeonshot", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
         runner?.Cancel();
         Close();
     }

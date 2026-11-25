@@ -50,11 +50,12 @@ def main():
     replay = (ROOT / "gpu" / "vk" / "vk_replay.cpp").read_text(encoding="utf-8")
     menu = (ROOT / "gpu" / "vk" / "vk_menu.cpp").read_text(encoding="utf-8")
     header = (ROOT / "gpu" / "vk" / "vk_menu.h").read_text(encoding="utf-8")
-    readme = (ROOT / "readme.md").read_text(encoding="utf-8")
+    readme = (ROOT / "docs" / "in-game-menu.md").read_text(encoding="utf-8")
 
     check(not re.search(r"HOS_OPT_\w+ = 11\b", api), "a HOS_OPT_ enum also takes option 11")
-    pads = block(hid, "static void pads_read(")
-    check("rx_option(11, 0)" in pads and "hos_filter_stick(thumb[0], thumb[1], zone, v)" in pads and
+    pads = block(hid, "static void xinput_poll(")
+    check("rx_option(11, 0)" in block(hid, "static void xinput_read(") and
+          "hos_filter_stick(thumb[0], thumb[1], zone, v)" in pads and
           "hos_filter_stick(thumb[2], thumb[3], zone, v + 2)" in pads,
           "XInput must filter both sticks with the menu's dead zone")
     poll = block(sdl, "static void pads_poll")

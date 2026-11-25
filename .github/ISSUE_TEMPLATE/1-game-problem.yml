@@ -9,12 +9,12 @@ body:
         - **Check the [newest release](https://git.notrexed.dev/Hookshot/Hookshot/releases/latest) first.** Every release includes all the fixes before it, and yours may already be fixed.
         - **Search the open issues.** If yours is there, add your details to it instead.
         - English, please.
-        - **Never attach game files**: no hookshot.exe, image.bin, the `.bin` caches, romfs or exefs files, keys or saves.
+        - **Never attach game files**: no Xeonshot.exe, image.bin, the `.bin` caches, romfs or exefs files, keys or saves.
   - type: input
     id: version
     attributes:
-      label: Hookshot version
-      description: The version you built (such as `v2.0.0`, shown by the launcher and on the Releases page), or the first line of `hookshot_log.txt` if it starts with `hookshot`.
+      label: Xeonshot version
+      description: The version you built (such as `v2.0.0`, shown by the launcher and on the Releases page), or the first line of `xeonshot_log.txt` if it starts with `xeonshot`.
       placeholder: v2.0.0
     validations:
       required: true
@@ -76,12 +76,12 @@ body:
     id: settings
     attributes:
       label: Changes from the defaults
-      description: Insert-menu options you changed, and the lines in `hookshot_env.txt` if you have one. Leave empty if none.
+      description: Insert-menu options you changed, and the lines in `xeonshot_env.txt` if you have one. Leave empty if none.
   - type: dropdown
     id: injectors
     attributes:
       label: Other software hooked into the game
-      description: ReShade, shader-cache tools (SCSKiller and the like), overlays or frame-generation injectors change what Hookshot does. Please test without them before reporting.
+      description: ReShade, shader-cache tools (SCSKiller and the like), overlays or frame-generation injectors change what Xeonshot does. Please test without them before reporting.
       options:
         - No, nothing hooked in
         - Yes (named under "Changes from the defaults")
@@ -90,8 +90,8 @@ body:
   - type: textarea
     id: log
     attributes:
-      label: hookshot_log.txt
-      description: Drag the file here. It is beside hookshot.exe and holds the last run; the four runs before are `hookshot_log.1.txt` (the one before) to `.4.txt`. If you started the game again after the problem, attach `hookshot_log.1.txt` too. It has no game files in it.
+      label: xeonshot_log.txt
+      description: Drag the file here. It is beside Xeonshot.exe and holds the last run; the four runs before are `xeonshot_log.1.txt` (the one before) to `.4.txt`. If you started the game again after the problem, attach `xeonshot_log.1.txt` too. It has no game files in it.
     validations:
       required: true
   - type: textarea

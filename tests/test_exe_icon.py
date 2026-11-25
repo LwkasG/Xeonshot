@@ -1,4 +1,4 @@
-"""The game's exe has Hookshot's icon (nx2/build.py exe_resources): builder/setup/hookshot.ico, as work/hookshot_brand.res,
+"""The game's exe has Hookshot's icon (nx2/build.py exe_resources): builder/setup/xeonshot.ico, as work/hookshot_brand.res,
 in every build, beside the name Windows shows for it when the builder read the game's from its .nup (work/hookshot_game.res,
 nx2/game_title.py: version strings, no icon). A release's exe, built where there is no .nup, had no icon: none in its window
 (host/display.c loads icon 1) or its taskbar. The .res is read back here: icon group 1 with every size of the .ico, each the
@@ -36,12 +36,12 @@ def entries(res):
 
 
 def main():
-    ico = (ROOT / "builder" / "setup" / "hookshot.ico").read_bytes()
+    ico = (ROOT / "builder" / "setup" / "xeonshot.ico").read_bytes()
     images = make_icon.images_of_ico(ico)
     if [s for s, _ in images] != list(make_icon.SIZES):
-        fail("builder/setup/hookshot.ico's sizes are %s, not %s" % ([s for s, _ in images], list(make_icon.SIZES)))
+        fail("builder/setup/xeonshot.ico's sizes are %s, not %s" % ([s for s, _ in images], list(make_icon.SIZES)))
     if make_icon.ico_of(images) != ico:
-        fail("make_icon.ico_of does not write hookshot.ico back as it is: images_of_ico read it wrong")
+        fail("make_icon.ico_of does not write xeonshot.ico back as it is: images_of_ico read it wrong")
     build = (ROOT / "nx2" / "build.py").read_text(encoding="utf-8")
     if "exe_resources() +" not in build:
         fail("nx2/build.py does not link exe_resources() into the exe")
@@ -61,7 +61,7 @@ def main():
         if len(groups) != 1 or groups[0][0] != 1:
             fail("the .res has icon groups %s, not group 1 (what host/display.c loads)" % [n for n, _ in groups])
         if [d for _, d in icons] != [png for _, png in images]:
-            fail("the .res's icons are not hookshot.ico's images")
+            fail("the .res's icons are not xeonshot.ico's images")
         if struct.unpack("<HHH", groups[0][1][:6])[2] != len(images):
             fail("the icon group does not name every image of the .ico")
         if build_mod.exe_resources(work) != got or Path(got[0]).read_bytes() != res:

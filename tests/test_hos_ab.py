@@ -339,6 +339,10 @@ WIRED = {
     "HOS_OOT_BARRIER_WAIT": "host/oot_barrier.c",
     # (read at each nn::os::YieldThread; nothing is kept between two yields)
     "HOS_OS_YIELD": "host/hos_thread.c",
+    # (the renderer's, through MkwVkHost.ab_value: read at each recording's start; each recording converts one way whole, the
+    # ring's y and z words are 1 for every value (filled once, slots at 48 bytes): tests/test_mesh_conv.py flips it between
+    # recordings)
+    "RX_VK_MESH_CONV": "gpu/vk/vk_draw.cpp",
 }
 
 
@@ -354,12 +358,12 @@ def wiring_checks():
     if not 0 <= present.index("hos_ab_present();") < present.index("vk->nvn_present(t, crop)"):
         fail("host/rx_backend.c: rx_nvn_present does not count the frame (hos_ab_present) before the renderer presents")
     table = re.sub(r"/\*.*?\*/", "", block(backend, "static const MkwVkHost vk_host = {"), flags=re.S)
-    if [v.strip() for v in table.split(",") if v.strip()][-2] != "hos_ab_frame":
-        fail("host/rx_backend.c: vk_host does not end with hos_ab_frame (MkwVkHost.ab_frame, version 34)")
+    if [v.strip() for v in table.split(",") if v.strip()][-3:-1] != ["hos_ab_frame", "host_ab_value"]:
+        fail("host/rx_backend.c: vk_host does not place host_ab_value immediately after hos_ab_frame")
     api = (ROOT / "gpu/vk/vk_api.h").read_text(encoding="utf-8")
-    if int(re.search(r"#define MKWVK_API_VERSION (\d+)", api).group(1)) < 35 or \
-            "int (*ab_frame)(int64_t from_ns, int64_t to_ns);\n} MkwVkHost;" not in api:
-        fail("gpu/vk/vk_api.h: MkwVkHost does not end with ab_frame at version 34 or later")
+    if int(re.search(r"#define MKWVK_API_VERSION (\d+)", api).group(1)) < 36 or \
+            "int (*ab_value)(const char *name, int normal);\n} MkwVkHost;" not in api:
+        fail("gpu/vk/vk_api.h: MkwVkHost does not expose ab_value at version 36 or later")
     replay = (ROOT / "gpu/vk/vk_replay.cpp").read_text(encoding="utf-8")
     if "host->version >= 35 && host->ab_frame ? host->ab_frame(l_at, at) : -1" not in replay:
         fail("gpu/vk/vk_replay.cpp: the frame trace does not ask the host for ab_side (only from a version 34 host)")
@@ -371,6 +375,12 @@ def wiring_checks():
     for path in sorted((ROOT / "host").rglob("*.c")):
         for m in re.finditer(r'hos_ab_value\("([A-Z0-9_]+)"', path.read_text(encoding="utf-8")):
             found.setdefault(m.group(1), []).append(path.relative_to(ROOT).as_posix())
+    for path in sorted((ROOT / "gpu/vk").glob("*.cpp")):   # ((longshot) the renderer's readers: through the host's table)
+        text = path.read_text(encoding="utf-8")
+        for m in re.finditer(r'\bab_value\("([A-Z0-9_]+)"', text):
+            found.setdefault(m.group(1), []).append(path.relative_to(ROOT).as_posix())
+            if "host->version >= 36 && host->ab_value" not in text:
+                fail("%s: ab_value is asked of a host older than version 36" % path.relative_to(ROOT).as_posix())
     if {k: v for k, v in found.items()} != {k: [v] for k, v in WIRED.items()}:
         fail("the switches wired to hos_ab_value are %r, not %r (a switch whose value sets something up once may not be)"
              % (found, WIRED))

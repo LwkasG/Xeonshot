@@ -117,7 +117,7 @@ static void fail(const wchar_t *fmt, ...) {
     vswprintf(msg, 1024, fmt, ap);
     va_end(ap);
     if (g_headless) say_error(msg), ExitProcess(1);
-    MessageBoxW(g_win, msg, L"Hookshot Builder setup", MB_OK | MB_ICONERROR);
+    MessageBoxW(g_win, msg, L"Xeonshot Builder setup", MB_OK | MB_ICONERROR);
     PostMessageW(g_win, WM_DONE, 1, 0);
     ExitThread(1);
 }
@@ -145,8 +145,8 @@ static int http_get_once(const char *url8, Sink sink, void *user, unsigned long 
     uc.lpszUrlPath = path, uc.dwUrlPathLength = 1024;
     g_http_error = 0, g_http_status = 0;   /* (this request's own: a status from the one before is not this one's) */
     if (!WinHttpCrackUrl(url, 0, 0, &uc)) return 0;
-    HINTERNET s = WinHttpOpen(L"HookshotBuilder-Setup/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, NULL, NULL, 0);
-    if (!s) s = WinHttpOpen(L"HookshotBuilder-Setup/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, NULL, NULL, 0);
+    HINTERNET s = WinHttpOpen(L"XeonshotBuilder-Setup/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, NULL, NULL, 0);
+    if (!s) s = WinHttpOpen(L"XeonshotBuilder-Setup/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, NULL, NULL, 0);
     if (!s) return g_http_error = GetLastError(), 0;
     /* (a stalled download fails after a minute without data, with the message, instead of waiting forever: a GitHub 504 hour) */
     WinHttpSetTimeouts(s, 30000, 30000, 30000, 60000);
@@ -390,10 +390,10 @@ static int init_home(int portable) {
     DWORD n = GetModuleFileNameW(NULL, self, MAX_PATH);
     if (!n || n >= MAX_PATH || GetEnvironmentVariableW(L"HOOKSHOT_SETUP_BASE", requested, MAX_PATH) >= MAX_PATH) return 0;
     if (SHGetFolderPathW(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, profile) == S_OK)
-        hb_home_join(standard, MAX_PATH, profile, L"HookshotBuilder");   /* an explicit/portable home needs no AppData */
+        hb_home_join(standard, MAX_PATH, profile, L"XeonshotBuilder");   /* an explicit/portable home needs no AppData */
     const wchar_t *name = wcsrchr(self, L'\\');
     name = name ? name + 1 : self;
-    const int game = !_wcsicmp(name, L"hookshot.exe");
+    const int game = !_wcsicmp(name, L"xeonshot.exe");
     if (portable) {
         if (*requested) {
             if (!hb_home_full(g_home.root, requested)) return 0;
@@ -403,7 +403,7 @@ static int init_home(int portable) {
             HbHome existing;
             if (!hb_home_discover(&existing, NULL, self, parent, game)) return 0;
             if (existing.portable) wcscpy(g_home.root, existing.root);
-            else if (!hb_home_join(g_home.root, MAX_PATH, parent, L"HookshotBuilder")) return 0;
+            else if (!hb_home_join(g_home.root, MAX_PATH, parent, L"XeonshotBuilder")) return 0;
         }
         if (hb_home_volume(g_home.root)) return 0;
         mkdirs(g_home.root);
@@ -459,9 +459,9 @@ static void write_small(const wchar_t *path, const char *text) {
 
 /* A part that unpacks into a folder of its own (the tools the builder ships: Python, emsdk, the CPM packages, third_party,
    wgpu-native, llvm-mingw): that folder, relative to a version's folder, in rel (0: the part has none, e.g. the builder's own code).
-   Named from its download (HookshotBuilder-<name>-<sha>.zip) or, for llvm-mingw, from its dest and rename. */
+   Named from its download (XeonshotBuilder-<name>-<sha>.zip) or, for llvm-mingw, from its dest and rename. */
 static int part_folder(const Part *p, wchar_t *rel, int n) {
-    if (strcmp(p->to, "-") && strcmp(p->dest, ".")) {   /* (llvm-mingw: dest HookshotBuilder/tools, renamed to llvm-mingw) */
+    if (strcmp(p->to, "-") && strcmp(p->dest, ".")) {   /* (llvm-mingw: dest XeonshotBuilder/tools, renamed to llvm-mingw) */
         swprintf(rel, n, L"%hs\\%hs", p->dest, p->to);
     } else {
         const char *b = strrchr(p->url, '/');
@@ -470,8 +470,8 @@ static int part_folder(const Part *p, wchar_t *rel, int n) {
         int found = 0;
         for (int i = 0; i < 5 && !found; i++) {
             char want[64];
-            snprintf(want, sizeof want, "HookshotBuilder-%s-", own[i]);
-            if (!strncmp(b, want, strlen(want))) swprintf(rel, n, L"HookshotBuilder\\tools\\%hs", own[i]), found = 1;
+            snprintf(want, sizeof want, "XeonshotBuilder-%s-", own[i]);
+            if (!strncmp(b, want, strlen(want))) swprintf(rel, n, L"XeonshotBuilder\\tools\\%hs", own[i]), found = 1;
         }
         if (!found) return 0;
     }
@@ -742,7 +742,7 @@ static int nightly_tag(const char *s) {
    Keep this startup contract in step with the publish format; this is not an integrity check of every assembly. */
 static int builder_ready(const wchar_t *exe) {
     static const wchar_t *const required[] = {
-        L"HookshotBuilder.dll", L"HookshotBuilder.deps.json", L"HookshotBuilder.runtimeconfig.json",
+        L"XeonshotBuilder.dll", L"XeonshotBuilder.deps.json", L"XeonshotBuilder.runtimeconfig.json",
         L"hostfxr.dll", L"hostpolicy.dll", L"coreclr.dll", L"System.Private.CoreLib.dll",
         L"WindowsBase.dll", L"PresentationCore.dll", L"PresentationFramework.dll",
         L"PresentationNative_cor3.dll", L"wpfgfx_cor3.dll"
@@ -774,8 +774,8 @@ static const char *manifest_url(void) {
     if (!tag[0] && HOOKSHOT_SETUP_RELEASE[0] && strlen(HOOKSHOT_SETUP_RELEASE) < sizeof tag) strcpy(tag, HOOKSHOT_SETUP_RELEASE);
     if (e && *e) snprintf(u, sizeof u, "%s", e);
     else if (tag[0])
-        snprintf(u, sizeof u, "https://git.notrexed.dev/Hookshot/Hookshot/releases/download/%s/hookshot-setup.txt", nightly_tag(tag) ? "nightly" : tag);
-    else snprintf(u, sizeof u, "%s", "https://git.notrexed.dev/Hookshot/Hookshot/releases/latest/download/hookshot-setup.txt");
+        snprintf(u, sizeof u, "https://git.notrexed.dev/Hookshot/Hookshot/releases/download/%s/xeonshot-setup.txt", nightly_tag(tag) ? "nightly" : tag);
+    else snprintf(u, sizeof u, "%s", "https://git.notrexed.dev/Hookshot/Hookshot/releases/latest/download/xeonshot-setup.txt");
     return u;
 }
 
@@ -796,7 +796,7 @@ static DWORD WINAPI work(LPVOID unused) {
     home_path(downloads, L"%ls\\downloads", base);
     mkdirs(downloads);
 
-    status(L"Looking for the latest Hookshot Builder...");
+    status(L"Looking for the latest Xeonshot Builder...");
     Mem man = {0};
     /* (tried again on a server error or no answer: GitHub's release downloads answered 504 for an hour, 2026-11-08, and every
        start failed at once) */
@@ -806,7 +806,7 @@ static DWORD WINAPI work(LPVOID unused) {
     enum { TRIES = 8 };
     /* (a list the player saved with a browser: the server is asked once, and the saved one is taken when it does not answer) */
     wchar_t saved_list[MAX_PATH];
-    int have_saved = browser_file("hookshot-setup.txt", saved_list);
+    int have_saved = browser_file("xeonshot-setup.txt", saved_list);
     if (have_saved) {   /* (one saved for this: from the last 7 days. An old one, left from an install by hand weeks ago, names
                            an old release and links that may be gone) */
         WIN32_FILE_ATTRIBUTE_DATA d;
@@ -824,7 +824,7 @@ static DWORD WINAPI work(LPVOID unused) {
             else status(L"The download server didn't answer (%ls, Windows error %lu). Trying again in %d s...", net_why(g_http_error),
                         g_http_error, waits[attempt - 1]);
             Sleep(waits[attempt - 1] * 1000);
-            status(L"Looking for the latest Hookshot Builder...");
+            status(L"Looking for the latest Xeonshot Builder...");
         }
         free(man.p);
         man = (Mem){0};
@@ -847,12 +847,12 @@ static DWORD WINAPI work(LPVOID unused) {
         if (ok) status(L"git.notrexed.dev did not answer: using %ls", saved_list);
     }
     if (!ok && !g_http_status)
-        fail(L"Could not reach git.notrexed.dev to get the Hookshot Builder: %ls (Windows error %lu).\n\nIf it keeps failing, "
+        fail(L"Could not reach git.notrexed.dev to get the Xeonshot Builder: %ls (Windows error %lu).\n\nIf it keeps failing, "
              L"download the files listed at " MANUAL_PAGE L" with your browser into your Downloads folder (or beside "
-             L"HookshotBuilder.exe), then start HookshotBuilder.exe again: it uses them.", net_why(g_http_error), g_http_error);
+             L"XeonshotBuilder.exe), then start XeonshotBuilder.exe again: it uses them.", net_why(g_http_error), g_http_error);
     if (!ok)
         fail(g_http_status == 404
-                 ? L"The latest Hookshot release has no setup files yet. Download HookshotBuilder.zip from the releases page for now: "
+                 ? L"The latest Xeonshot release has no setup files yet. Download XeonshotBuilder.zip from the releases page for now: "
                    L"https://git.notrexed.dev/Hookshot/Hookshot/releases/latest"
                  : L"The download server is failing right now (an error 500 or above, tried 8 times over 3 minutes). "
                    L"This is on the server's side: try again in a few minutes, or later today.");
@@ -967,15 +967,15 @@ static DWORD WINAPI work(LPVOID unused) {
                 if (!got && !g_http_status)
                     DeleteFileW(part), fail(L"Downloading part %d of %d failed: %ls (Windows error %lu).\n\nIf it keeps failing, download "
                                             L"the files listed at " MANUAL_PAGE L" with your browser into your Downloads folder, then "
-                                            L"start HookshotBuilder.exe again: it uses them. The parts already downloaded are kept.",
+                                            L"start XeonshotBuilder.exe again: it uses them. The parts already downloaded are kept.",
                                             i + 1, nparts, net_why(g_http_error), g_http_error);
                 if (!got) DeleteFileW(part), fail(retryable(g_http_status)
                     ? L"Downloading part %d of %d failed: the download server is failing right now (tried 8 times over 3 "
-                      L"minutes). This is on the server's side. The parts already downloaded are kept: run HookshotBuilder.exe again in a "
+                      L"minutes). This is on the server's side. The parts already downloaded are kept: run XeonshotBuilder.exe again in a "
                       L"few minutes and it carries on from here."
                     : L"Downloading part %d of %d failed. Check your connection and free space, then try again.\n\nIf it keeps "
                       L"failing, download the files listed at " MANUAL_PAGE L" with your browser into your Downloads folder, then start "
-                      L"HookshotBuilder.exe again: it uses them.", i + 1, nparts);
+                      L"XeonshotBuilder.exe again: it uses them.", i + 1, nparts);
                 if (strcmp(have, p->sha)) DeleteFileW(part), fail(L"Part %d of %d did not download correctly (its checksum differs). Try again.", i + 1, nparts);
                 /* (the checked file or nothing: an old <sha>.zip that could not be removed is never unpacked instead) */
                 if (!MoveFileExW(part, zip, MOVEFILE_REPLACE_EXISTING)) {
@@ -1050,7 +1050,7 @@ static DWORD WINAPI work(LPVOID unused) {
     prune(versions, downloads, tag, parts, nparts);
     rmtree(downloads);   /* (installed: its zips are not kept; an update moves unchanged folders over instead, reuse_part) */
 
-    status(L"Starting the Hookshot Builder...");
+    status(L"Starting the Xeonshot Builder...");
     wchar_t cmd[4096], dir[MAX_PATH];
     wcscpy(dir, exe);
     wchar_t *slash = wcsrchr(dir, L'\\');
@@ -1103,8 +1103,8 @@ static int launch_installed(const wchar_t *args) {
     if (!tag[0] || tag[0] == '.' || !list_name_ok(tag, 0)) return 0;
     wchar_t wtag[128];
     MultiByteToWideChar(CP_UTF8, 0, tag, -1, wtag, 128);
-    home_path(dir, L"%ls\\versions\\%ls\\HookshotBuilder", base, wtag);
-    home_path(exe, L"%ls\\HookshotBuilder.exe", dir);
+    home_path(dir, L"%ls\\versions\\%ls\\XeonshotBuilder", base, wtag);
+    home_path(exe, L"%ls\\XeonshotBuilder.exe", dir);
     if (!builder_ready(exe)) return 0;
     swprintf(cmd, 4096, L"\"%ls\" %ls", exe, args);
     STARTUPINFOW si = {sizeof si};
@@ -1114,7 +1114,7 @@ static int launch_installed(const wchar_t *args) {
     return 1;
 }
 
-/* (RecompLauncher's Play) --play <game folder>: bin\hookshot.exe there, started like the game folder's launcher starts it but without
+/* (RecompLauncher's Play) --play <game folder>: bin\Xeonshot.exe there, started like the game folder's launcher starts it but without
    its update question, and waited for, so the launcher knows when the session ends. */
 static int play_folder(const wchar_t *args) {
     wchar_t folder[MAX_PATH], cmd[MAX_PATH + 32];
@@ -1123,14 +1123,14 @@ static int play_folder(const wchar_t *args) {
     size_t k = 0;
     for (args += quoted; *args && !(quoted ? *args == L'"' : *args == L' ') && k + 1 < MAX_PATH; ) folder[k++] = *args++;
     folder[k] = 0;
-    swprintf(cmd, MAX_PATH + 32, L"\"%ls\\bin\\hookshot.exe\"", folder);
+    swprintf(cmd, MAX_PATH + 32, L"\"%ls\\bin\\Xeonshot.exe\"", folder);
     _wputenv_s(L"HOOKSHOT_NO_UPDATE_CHECK", L"1");
     STARTUPINFOW si = {sizeof si};
     PROCESS_INFORMATION pi;
     DWORD code = 1;
     if (!k || !CreateProcessW(NULL, cmd, NULL, NULL, FALSE, 0, NULL, folder, &si, &pi)) {
         g_headless = 1;
-        say_error(L"No built game to start. Build it first (the game folder needs bin\\hookshot.exe).");
+        say_error(L"No built game to start. Build it first (the game folder needs bin\\Xeonshot.exe).");
         return 1;
     }
     WaitForSingleObject(pi.hProcess, INFINITE), GetExitCodeProcess(pi.hProcess, &code);
@@ -1157,14 +1157,14 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, LPWSTR cmdline, int show) {
         GetModuleFileNameW(NULL, self, MAX_PATH);
         const wchar_t *name = wcsrchr(self, L'\\');
         name = name ? name + 1 : self;
-        if (!_wcsicmp(name, L"hookshot.exe") && !wcsstr(g_cmdline, L"--")) {   /* (the game folder's launcher) */
+        if (!_wcsicmp(name, L"xeonshot.exe") && !wcsstr(g_cmdline, L"--")) {   /* (the game folder's launcher) */
             wchar_t *slash = wcsrchr(self, L'\\');
             if (slash) *slash = 0;
             swprintf(g_cmdline, 2047, L"--launch \"%ls\"", self);
             if (launch_installed(g_cmdline)) return 0;
             /* (no builder installed on this PC: the game itself, at once; nothing is downloaded to show a Play button) */
             wchar_t game[MAX_PATH], cmd[MAX_PATH + 4];
-            home_path(game, L"%ls\\bin\\hookshot.exe", self);
+            home_path(game, L"%ls\\bin\\Xeonshot.exe", self);
             swprintf(cmd, MAX_PATH + 4, L"\"%ls\"", game);
             STARTUPINFOW si = {sizeof si};
             PROCESS_INFORMATION pi;
@@ -1172,7 +1172,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, LPWSTR cmdline, int show) {
                 CloseHandle(pi.hThread), CloseHandle(pi.hProcess);
                 return 0;
             }
-            MessageBoxW(NULL, L"The game (bin\\hookshot.exe) is missing from this folder. Build it again with the Hookshot Builder.", L"Hookshot",
+            MessageBoxW(NULL, L"The game (bin\\Xeonshot.exe) is missing from this folder. Build it again with the Xeonshot Builder.", L"Xeonshot",
                         MB_ICONERROR);
             return 1;
         }
@@ -1181,19 +1181,19 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, LPWSTR cmdline, int show) {
     if (!g_home_ok) {
         const wchar_t *why = L"The Builder home is unavailable or its portable marker is invalid. For a new portable install, put this setup in a writable folder and start it with --portable.";
         if (g_headless) say_error(why);
-        else MessageBoxW(NULL, why, L"Hookshot Builder setup", MB_OK | MB_ICONERROR);
+        else MessageBoxW(NULL, why, L"Xeonshot Builder setup", MB_OK | MB_ICONERROR);
         return 1;
     }
     INITCOMMONCONTROLSEX icc = {sizeof icc, ICC_PROGRESS_CLASS};
     InitCommonControlsEx(&icc);
     WNDCLASSW wc = {0};
-    wc.lpfnWndProc = wndproc, wc.hInstance = inst, wc.lpszClassName = L"HookshotSetup";
+    wc.lpfnWndProc = wndproc, wc.hInstance = inst, wc.lpszClassName = L"XeonshotSetup";
     wc.hIcon = LoadIconW(inst, MAKEINTRESOURCEW(1));
     wc.hCursor = LoadCursorW(NULL, (LPCWSTR)IDC_ARROW);
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     RegisterClassW(&wc);
     const int ww = 460, wh = 140;
-    g_win = CreateWindowW(L"HookshotSetup", L"Hookshot Builder setup", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
+    g_win = CreateWindowW(L"XeonshotSetup", L"Xeonshot Builder setup", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
                           (GetSystemMetrics(SM_CXSCREEN) - ww) / 2, (GetSystemMetrics(SM_CYSCREEN) - wh) / 2, ww, wh, NULL, NULL, inst, NULL);
     g_text = CreateWindowW(L"STATIC", L"Starting...", WS_CHILD | WS_VISIBLE, 16, 16, ww - 48, 22, g_win, NULL, inst, NULL);
     g_bar = CreateWindowW(PROGRESS_CLASSW, NULL, WS_CHILD | WS_VISIBLE | PBS_MARQUEE, 16, 48, ww - 48, 20, g_win, NULL, inst, NULL);

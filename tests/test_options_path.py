@@ -1,4 +1,4 @@
-"""The player's settings file, hookshot_options.ini, in the user folder the game is given (host/options_path.c), not beside the
+"""The player's settings file, xeonshot_options.ini, in the user folder the game is given (host/options_path.c), not beside the
 game: every build the launcher starts reads the same one, so an update into a new folder keeps the settings. Built as the game
 builds it (Windows with its own headers, Linux with the POSIX shim) and run from a made-up game folder. No game: authored
 placeholder files only.
@@ -30,7 +30,7 @@ import tempfile
 RUN_ALL_ARGS = ["--cc", "gcc"]
 ROOT = Path(__file__).resolve().parents[1]
 WINDOWS = sys.platform == "win32"
-EXE = "hookshot.exe" if WINDOWS else "hookshot"
+EXE = "Xeonshot.exe" if WINDOWS else "xeonshot"
 
 MAIN = r'''
 #include <stdarg.h>
@@ -144,75 +144,75 @@ def main():
             assert same(got, path), "%s: %s, not %s" % (what, got, path)
 
         g = game_folder("a")
-        beside = g / "hookshot_options.ini"
+        beside = g / "xeonshot_options.ini"
         want(run(g)[0], beside, "started with nothing")
         want(run(g, "image.bin")[0], beside, "an image named, no --user")
-        want(run(game_folder("b", beside_image=False))[0], tmp / "b" / "game" / "hookshot_options.ini", "no image.bin beside")
-        want(run(g, "--romfs", "--user", "--user", str(tmp / "u"))[0], tmp / "u" / "hookshot_options.ini",
+        want(run(game_folder("b", beside_image=False))[0], tmp / "b" / "game" / "xeonshot_options.ini", "no image.bin beside")
+        want(run(g, "--romfs", "--user", "--user", str(tmp / "u"))[0], tmp / "u" / "xeonshot_options.ini",
              "--romfs takes its value, even one named --user")
-        want(run(g, "--compile-shaders", "all", "--user", str(tmp / "u"))[0], tmp / "u" / "hookshot_options.ini", "--user")
-        want(run(g, "--user", "rel")[0], g / "rel" / "hookshot_options.ini", "--user relative, started with nothing")
-        want(run(g, "image.bin", "--user", "rel")[0], cwd / "rel" / "hookshot_options.ini", "--user relative with an image")
+        want(run(g, "--compile-shaders", "all", "--user", str(tmp / "u"))[0], tmp / "u" / "xeonshot_options.ini", "--user")
+        want(run(g, "--user", "rel")[0], g / "rel" / "xeonshot_options.ini", "--user relative, started with nothing")
+        want(run(g, "image.bin", "--user", "rel")[0], cwd / "rel" / "xeonshot_options.ini", "--user relative with an image")
         want(run(g, "--user", str(tmp / "u"), HOS_OPTIONS_FILE=str(tmp / "own.ini"))[0], tmp / "own.ini", "HOS_OPTIONS_FILE")
         want(run(g, HOS_OPTIONS_FILE="own.ini")[0], cwd / "own.ini", "HOS_OPTIONS_FILE relative")
 
         # the copy: a build's from before into the user folder, once; the log says where the file is
         g = game_folder("d")
-        (g / "hookshot_options.ini").write_text("dlss=1\nframe_generation=2\ncompile_shaders=1\n")
+        (g / "xeonshot_options.ini").write_text("dlss=1\nframe_generation=2\ncompile_shaders=1\n")
         user = tmp / "d" / "user-folder"
         got, out = run(g, "--user", str(user), carry=True)
-        want(got, user / "hookshot_options.ini", "after the copy")
-        assert (user / "hookshot_options.ini").read_text() == "dlss=1\nframe_generation=2\ncompile_shaders=1\n", out
+        want(got, user / "xeonshot_options.ini", "after the copy")
+        assert (user / "xeonshot_options.ini").read_text() == "dlss=1\nframe_generation=2\ncompile_shaders=1\n", out
         assert out.count("options: the settings file is ") == 1 and str(user) in out, out
         assert out.count("were copied to") == 1, out
-        (user / "hookshot_options.ini").write_text("dlss=4\n")   # (the player's since: never written over)
+        (user / "xeonshot_options.ini").write_text("dlss=4\n")   # (the player's since: never written over)
         got, out = run(g, "--user", str(user), carry=True)
-        assert (user / "hookshot_options.ini").read_text() == "dlss=4\n" and "copied" not in out, out
+        assert (user / "xeonshot_options.ini").read_text() == "dlss=4\n" and "copied" not in out, out
         got, out = run(g, carry=True)   # (no --user: the game folder's, as before, nothing copied)
-        want(got, g / "hookshot_options.ini", "no --user, after a copy")
-        assert "copied" not in out and str(g / "hookshot_options.ini") in out, out
+        want(got, g / "xeonshot_options.ini", "no --user, after a copy")
+        assert "copied" not in out and str(g / "xeonshot_options.ini") in out, out
 
         g = game_folder("e")
-        (g / "hookshot_options.ini").write_text("compile_shaders=1\n")   # (make_game.py's, a new folder: not the player's)
+        (g / "xeonshot_options.ini").write_text("compile_shaders=1\n")   # (make_game.py's, a new folder: not the player's)
         user = tmp / "e" / "user-folder"
         got, out = run(g, "--user", str(user), carry=True)
-        assert not (user / "hookshot_options.ini").exists() and "copied" not in out, out
+        assert not (user / "xeonshot_options.ini").exists() and "copied" not in out, out
 
         g = game_folder("f")
-        (g / "hookshot_options.ini").write_text("dlss=1\n")
+        (g / "xeonshot_options.ini").write_text("dlss=1\n")
         got, out = run(g, "--user", str(tmp / "f" / "u"), carry=True, HOS_OPTIONS_FILE=str(tmp / "f" / "own.ini"))
         assert not (tmp / "f" / "own.ini").exists() and not (tmp / "f" / "u").exists() and "copied" not in out, out
         got, out = run(g, "--user", str(g), carry=True)   # (the user folder is the game folder: the file is already there)
-        want(got, g / "hookshot_options.ini", "--user the game folder")
-        assert "copied" not in out and (g / "hookshot_options.ini").read_text() == "dlss=1\n", out
+        want(got, g / "xeonshot_options.ini", "--user the game folder")
+        assert "copied" not in out and (g / "xeonshot_options.ini").read_text() == "dlss=1\n", out
         blocked = tmp / "f" / "blocked"
         blocked.write_text("a file where the user folder would be")
         got, out = run(g, "--user", str(blocked), carry=True)
-        want(got, g / "hookshot_options.ini", "a user folder that cannot be written")
+        want(got, g / "xeonshot_options.ini", "a user folder that cannot be written")
         assert "could not be copied" in out, out
 
         def copy_is_whole_or_not_there():
             """the copy, killed at each step it takes: the user folder has no options file or the whole one, the next start copies"""
             g = game_folder("k")
             original = "".join("setting_%03d=%d\n" % (i, i * 7) for i in range(400)) + "dlss=1\n"
-            (g / "hookshot_options.ini").write_text(original)
+            (g / "xeonshot_options.ini").write_text(original)
             user = tmp / "k" / "user-folder"
             got, out = run(g, "--user", str(user), carry=True)
             steps = int(out.split("steps: ", 1)[1].split()[0])
             assert steps >= 1, "the copy took no step the helper can be killed at (host/hos_atomic_file.h): it copies in place"
-            assert (user / "hookshot_options.ini").read_text() == original, out
+            assert (user / "xeonshot_options.ini").read_text() == original, out
             outcomes = set()
             for k in range(1, steps + 1):
                 shutil.rmtree(user)
                 code, _ = run(g, "--user", str(user), carry=True, kill=k)
                 assert code == (137 if WINDOWS else -9), "kill step %d: exit %s, not killed" % (k, code)
-                ini = user / "hookshot_options.ini"
+                ini = user / "xeonshot_options.ini"
                 assert not ini.exists() or ini.read_text() == original, \
                     "kill step %d: the user folder's settings file is %d bytes, not none or the whole %d" % (k, ini.stat().st_size, len(original))
                 outcomes.add(ini.exists())
                 got, out = run(g, "--user", str(user), carry=True)
                 assert ini.read_text() == original, "after kill step %d the next start left %d bytes" % (k, ini.stat().st_size)
-                assert not (user / "hookshot_options.ini.hosnew").exists(), "after kill step %d the next copy left a stand-in" % k
+                assert not (user / "xeonshot_options.ini.hosnew").exists(), "after kill step %d the next copy left a stand-in" % k
             assert outcomes == {False, True}, "the kills saw only %s: a kill before the move and one after it were both expected" % outcomes
             return "%d kill steps, each left no file or the whole one" % steps
 
@@ -222,7 +222,7 @@ def main():
             user = tmp / "r" / "user-folder"
             user.mkdir(parents=True)
             own = tmp / "r" / "own.ini"   # (a settings file only HOS_OPTIONS_FILE names)
-            files = [(user / "hookshot_options.ini", "dlss=4\n"), (user / "mouse_sens.txt", "2\n"),
+            files = [(user / "xeonshot_options.ini", "dlss=4\n"), (user / "mouse_sens.txt", "2\n"),
                      (g / "language.txt", "language=de\n"), (own, "dlss=2\n")]
             for f, text in files:
                 f.write_text(text)
@@ -235,9 +235,9 @@ def main():
             run(g, "--user", str(user), recover=True, T_USER=str(user), HOS_OPTIONS_FILE=str(own))   # (the run's own file: its stand-in too)
             assert not Path(str(own) + ".hosnew").exists(), "HOS_OPTIONS_FILE's stand-in was left"
             assert own.read_text() == "dlss=2\n"
-            Path(str(g / "hookshot_options.ini") + ".hosnew").write_text("half a write")   # (no --user: the game folder's file is the chosen one)
+            Path(str(g / "xeonshot_options.ini") + ".hosnew").write_text("half a write")   # (no --user: the game folder's file is the chosen one)
             run(g, recover=True, T_USER=str(user))
-            assert not Path(str(g / "hookshot_options.ini") + ".hosnew").exists(), "the stand-in beside the game was left"
+            assert not Path(str(g / "xeonshot_options.ini") + ".hosnew").exists(), "the stand-in beside the game was left"
             return "the stand-ins of the user folder's settings, HOS_OPTIONS_FILE's, language.txt and mouse_sens.txt removed"
 
         def failed_copy_says_why():
@@ -245,7 +245,7 @@ def main():
             if WINDOWS or os.geteuid() == 0:
                 return "skipped (a read-only folder refuses nothing here)"
             g = game_folder("w")
-            (g / "hookshot_options.ini").write_text("dlss=1\n")
+            (g / "xeonshot_options.ini").write_text("dlss=1\n")
             user = tmp / "w" / "read-only"
             user.mkdir(parents=True)
             user.chmod(0o555)
@@ -253,9 +253,9 @@ def main():
                 got, out = run(g, "--user", str(user), carry=True)
             finally:
                 user.chmod(0o755)
-            want(got, g / "hookshot_options.ini", "a user folder that refuses a new file")
+            want(got, g / "xeonshot_options.ini", "a user folder that refuses a new file")
             assert "could not be copied" in out and "(error 5)" in out, out
-            assert not (user / "hookshot_options.ini").exists() and not (user / "hookshot_options.ini.hosnew").exists(), "a file was left"
+            assert not (user / "xeonshot_options.ini").exists() and not (user / "xeonshot_options.ini.hosnew").exists(), "a file was left"
             return "the log says error 5, no file or stand-in left"
 
         failed = []
@@ -268,7 +268,7 @@ def main():
             print("FAIL: " + line)
         if failed:
             raise SystemExit("test_options_path: %d checks failed" % len(failed))
-    print("PASS: hookshot_options.ini in the user folder (HOS_OPTIONS_FILE, --user; without it beside the game, as before), "
+    print("PASS: xeonshot_options.ini in the user folder (HOS_OPTIONS_FILE, --user; without it beside the game, as before), "
           "chosen once; a build's from before copied there once, whole or not at all at any kill step (not compile_shaders= alone, "
           "not over a file, not with HOS_OPTIONS_FILE), the log saying where it is; a killed write's .hosnew removed at the start")
 

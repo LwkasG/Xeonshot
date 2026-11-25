@@ -68,7 +68,7 @@ def check_source():
         raise SystemExit("vk_texture.cpp: the hold's pass judges a texture before it knows whether it is a dead render target")
     need("vk_texture.cpp: compact_step()", block(tex, "void compact_step(uint64_t completed)"),
          ["if (!compact_on()) return;", "vram_compact::run_from(min_free, compact.pressed)", "vram_compact::rest(compact.pressed)",
-          "t != present_source", "image_compact_ignore(i);", "destroy_gen++, destroy_gen_bump(nullptr);"])
+          "t != present_source", "image_compact_ignore(i);", "destroy_gen++, destroy_gen_bump(t);"])
     need("vk_vma.cpp: create_image()", block(vma, "bool create_image(const VkImageCreateInfo& ci"),
          ["textures && textures_pool() ? textures_pool()"])
     need("vk_vma.cpp: image_compact_begin()", block(vma, "bool image_compact_begin("), ["di.pool = texture_pool;"])

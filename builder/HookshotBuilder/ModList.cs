@@ -21,7 +21,7 @@ sealed class ModList
 
     public string GameFolder { get; }
     public string Root => System.IO.Path.Combine(GameFolder, "mods");
-    string StatePath => System.IO.Path.Combine(GameFolder, "hookshot_mods.txt");
+    string StatePath => System.IO.Path.Combine(GameFolder, "xeonshot_mods.txt");
     public List<Mod> Mods { get; } = new();
     readonly List<string> cheatLines = new();
     readonly Dictionary<string, HashSet<string>> files = new(StringComparer.OrdinalIgnoreCase);
@@ -172,7 +172,7 @@ sealed class ModList
     {
         var lines = new List<string>
         {
-            "# Hookshot's mods: their order and switches, as the Mods tab sets them (Insert menu). One line a mod, top of the",
+            "# Xeonshot's mods: their order and switches, as the Mods tab sets them (Insert menu). One line a mod, top of the",
             "# list first: \"on <folder>\" or \"off <folder>\". A mod lower in the list wins a file two mods have. Applies at the",
             "# next start.",
         };

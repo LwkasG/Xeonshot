@@ -50,6 +50,7 @@ def one_line(text, head):
 
 
 FIXTURE = r"""
+#include <atomic>
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
@@ -59,6 +60,7 @@ FIXTURE = r"""
 Options opts;
 bool debug_warning = false;
 int debug_warning_choice = 0;
+std::atomic<int> grass_distance_now{0};
 void sync_transition_autosave() {}
 bool menu_refresh = false;
 

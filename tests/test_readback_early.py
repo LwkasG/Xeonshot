@@ -559,8 +559,13 @@ def main():
     if inv.index("bool early_done = false;") > inv.index("const bool in_place_after = memory_in_place_part() > part;"):
         raise SystemExit("FAIL: invalidate: the early wait comes after the usual choice")
     rep = block(replay, "void replay(VkCommandBuffer& cmd, NvnState& s, const uint8_t* p, const uint8_t* end = nullptr) {")
-    if "if (split_after || memory_split_wanted()) early_split_pending = true;" not in rep or \
-            "if (early_split_pending && part_work >= early_gap) early_split(cmd);\n        }\n        p += h.size;" not in rep:
+    split_end = "if (early_split_pending && part_work >= early_gap) early_split(cmd);\n        }\n"
+    after = rep[rep.index(split_end) + len(split_end):] if split_end in rep else ""
+    # (between the part's end and the next op only RX_VK_MESH_CONV's rescan may come: it records into the part just begun)
+    gap = after[:after.index("        p += h.size;")] if "        p += h.size;" in after else None
+    rescan = "if (!dry && p == mesh_rescan_at) mesh_conv_at_barrier(cmd, p + h.size, end, true);"
+    if "if (split_after || memory_split_wanted()) early_split_pending = true;" not in rep or gap is None or \
+            any(not (l.strip().startswith("//") or l.strip() == rescan) for l in gap.splitlines() if l.strip()):
         raise SystemExit("FAIL: replay: a part does not end after an op that asked for it, at least the gap into it")
     mem_note = block(memory, "void note_direct_write(")
     if "early_in_place_write(p.lo + off, p.lo + std::min(off + size, p.hi - p.lo), mem_rec_value);" not in mem_note.split("if (size <=")[0]:

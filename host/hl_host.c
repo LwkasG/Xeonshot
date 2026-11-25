@@ -59,7 +59,7 @@ static void patches_read(void) {
         char *fwd = strrchr(path, '/');
         if (fwd > slash) slash = fwd;
         if (slash) {
-            snprintf(slash + 1, sizeof path - (size_t)(slash + 1 - path), "hookshot_code_patches.txt");
+            snprintf(slash + 1, sizeof path - (size_t)(slash + 1 - path), "xeonshot_code_patches.txt");
             FILE *f = fopen(path, "rb");
             if (f) {
                 char *text = (char *)calloc(1, (size_t)1 << 20);
@@ -67,7 +67,7 @@ static void patches_read(void) {
                 fclose(f);
                 if (text && n) {
                     const int entries = hl_patched_parse(text);
-                    hos_log("hl: exeFS mods patch the game's code (%d entries in hookshot_code_patches.txt)", entries);
+                    hos_log("hl: exeFS mods patch the game's code (%d entries in xeonshot_code_patches.txt)", entries);
                     for (int i = 0; i < ndeclared; i++) hl_patched_left(declared[i], "entry gate", patched_log);
                 }
                 free(text);

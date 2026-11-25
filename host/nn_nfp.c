@@ -76,11 +76,11 @@ const char *hos_nfc_dir(void) {
     const DWORD n = GetEnvironmentVariableW(L"LOCALAPPDATA", w, MAX_PATH);
     char base[400] = "";
     if (n && n < MAX_PATH) WideCharToMultiByte(CP_UTF8, 0, w, -1, base, sizeof base, NULL, NULL);
-    snprintf(dir, sizeof dir, "%s\\Hookshot\\nfc", base[0] ? base : ".");
+    snprintf(dir, sizeof dir, "%s\\Xeonshot\\nfc", base[0] ? base : ".");
 #else
     const char *xdg = getenv("XDG_DATA_HOME"), *home = getenv("HOME");
-    if (xdg && *xdg) snprintf(dir, sizeof dir, "%s/hookshot/nfc", xdg);
-    else snprintf(dir, sizeof dir, "%s/.local/share/hookshot/nfc", home && *home ? home : ".");
+    if (xdg && *xdg) snprintf(dir, sizeof dir, "%s/xeonshot/nfc", xdg);
+    else snprintf(dir, sizeof dir, "%s/.local/share/xeonshot/nfc", home && *home ? home : ".");
 #endif
     return dir;
 }

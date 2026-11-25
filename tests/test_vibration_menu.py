@@ -77,6 +77,7 @@ void monitor_chosen() {}
 bool framegen_by_dlss_offered() { return false; }
 int dlss_fg_most() { return 0; }
 int framegen_capped(int v, int) { return v; }
+std::atomic<int> grass_distance_now{0};
 void sync_transition_autosave() {}
 void gfx_limits() {}   // (hookshot: the detail rows' caps, set_row's: not what this checks)
 bool row_fixed(const int*) { return false; }

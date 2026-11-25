@@ -190,10 +190,15 @@ static void waiter(void *v) {
     a->how = oot_barrier_wait(&barrier, a->p, w, a->seen, a->n, a->full, a->timeout);
     a->t_end = hos_now_ns();
 }
+static int total_waiters(void) {
+    int n = 0;
+    for (int i = 0; i < OOT_BARRIER_SLOTS; i++) n += __atomic_load_n(&barrier.slot[i].waiters, __ATOMIC_SEQ_CST);
+    return n;
+}
 static void armed(int n) {   /* (the waiter counted, so the wake after a move finds it) */
     const int64_t end = hos_now_ns() + 2000000000LL;
-    while (__atomic_load_n(&barrier.waiters, __ATOMIC_SEQ_CST) != n && hos_now_ns() < end) nap_ms(1);
-    CHECK(__atomic_load_n(&barrier.waiters, __ATOMIC_SEQ_CST) == n);
+    while (total_waiters() != n && hos_now_ns() < end) nap_ms(1);
+    CHECK(total_waiters() == n);
 }
 
 /* a word moved since the pass looked, or every word full: back at once, the core kept */
@@ -222,7 +227,7 @@ static void timeouts(void) {
     CHECK(took >= OOT_BARRIER_TIMEOUT_NS - 20000 && took < 500000000);
     CHECK(aways == a0 + 1 && backs == b0 + 1 && barrier_how[OOT_BARRIER_TIMED_OUT] == t_out + 1);
     CHECK(hos_slept_ns[1] >= OOT_BARRIER_TIMEOUT_NS - 20000);   /* (the FPS counter's Breakdown counts it as a sleep) */
-    CHECK(barrier.waiters == 0);
+    CHECK(total_waiters() == 0);
     volatile uint32_t *const w[2] = {word(P1, OFF), word(P1, OFF)};
     const uint32_t seen[2] = {1, 1};
     t0 = hos_now_ns();
@@ -245,7 +250,7 @@ static void wake_on_move(int second) {
     join(h);
     CHECK(a.how == OOT_BARRIER_MOVED);
     CHECK(a.t_end - t0 < 1000000000LL);   /* (by the wake, long before the 2 s) */
-    CHECK(barrier.waiters == 0);
+    CHECK(total_waiters() == 0);
 }
 
 /* wakes with no move of the waiter's words (another job of its slot, its own job's other words) do not end the wait */
@@ -278,7 +283,7 @@ static void race(int where) {
     Tramp t = {waiter, &a};
     const Thread h = go(&t);
     while (!__atomic_load_n(&race_in, __ATOMIC_SEQ_CST)) spin_us(20);
-    CHECK(barrier.waiters == (where == 1 ? 0 : 1));
+    CHECK(total_waiters() == (where == 1 ? 0 : 1));
     __atomic_fetch_or(word(P1, OFF), 2, __ATOMIC_SEQ_CST);
     hos_oot_barrier_wake(P1);
     __atomic_store_n(&race_go, 1, __ATOMIC_SEQ_CST);
@@ -321,7 +326,7 @@ static void stress(void) {
     for (int i = 0; i <= STRESS_WAITERS; i++) join(h[i]);
     __atomic_store_n(&race_mode, 0, __ATOMIC_SEQ_CST);
     CHECK(stress_timeouts == 0);
-    CHECK(barrier.waiters == 0);
+    CHECK(total_waiters() == 0);
 }
 
 /* off: the game's sleep runs (0), no core given up, a wake moves nothing */
@@ -332,11 +337,11 @@ static void off(void) {
     const long a0 = aways;
     CHECK(hos_oot_barrier_wait(P1, OFF, 1, OFF, 1, 0xf) == 0);
     CHECK(aways == a0);
-    barrier.waiters = 1;
+    oot_barrier_slot(&barrier, P1)->waiters = 1;
     const uint32_t g = oot_barrier_slot(&barrier, P1)->gen;
     hos_oot_barrier_wake(P1);
     CHECK(oot_barrier_slot(&barrier, P1)->gen == g);
-    barrier.waiters = 0;
+    oot_barrier_slot(&barrier, P1)->waiters = 0;
 }
 
 /* (a wait without its timeout spins for ever: the run then fails here) */
@@ -387,8 +392,8 @@ BROKEN = [
                  "        OOT_BARRIER_WAIT_ON(&s->gen, g, (uint32_t)((left + 999999) / 1000000));\n"
                  "        if (oot_barrier_moved(w, seen, n, full)) { how = OOT_BARRIER_MOVED; break; }\n")],
      "on", "the waiter looks at the words before arming and after each wait, not between the arming and its first wait"),
-    ("header", [("    __atomic_add_fetch(&b->waiters, 1, __ATOMIC_SEQ_CST);\n", ""),
-                ("    __atomic_sub_fetch(&b->waiters, 1, __ATOMIC_SEQ_CST);\n", "")],
+    ("header", [("    __atomic_add_fetch(&s->waiters, 1, __ATOMIC_SEQ_CST);\n", ""),
+                ("    __atomic_sub_fetch(&s->waiters, 1, __ATOMIC_SEQ_CST);\n", "")],
      "on", "the waiter is not counted, so the waker skips the wake"),
     ("header", [("    OOT_BARRIER_WAKE_ALL(&s->gen);\n", "    (void)s;\n")], "on", "the wake wakes nobody"),
     ("header", [("    __atomic_add_fetch(&s->gen, 1, __ATOMIC_SEQ_CST);\n", "")], "on",

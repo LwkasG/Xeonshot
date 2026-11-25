@@ -48,9 +48,9 @@ def main():
     check("ui::text_mid_right(c, c.f.body, fit, right," in banner and "right = c.w - c.safe" in banner,
           "the banner's version is not at its right")
     check('getenv("HOOKSHOT_BUILD_NAME")' in banner, "the banner does not show a development run's HOOKSHOT_BUILD_NAME")
-    title = menu[menu.index("the banner's left: the Hookshot logo"):menu.index("which build, at the banner")]
-    check("ui::logo(&aspect)" in title and '"Hookshot"' in title and "px = 24 * s" in title,
-          "the banner's left is not the Hookshot logo and name")
+    title = menu[menu.index("the banner's left: the Xeonshot logo"):menu.index("which build, at the banner")]
+    check("ui::logo(&aspect)" in title and '"Xeonshot"' in title and "px = 24 * s" in title,
+          "the banner's left is not the Xeonshot logo and name")
     check("constexpr float kVersionMinPt = 10;" in menu, "the version's smallest size is not 10 points")
 
     src = "#include <cmath>\n#include <cstdio>\n#include <cstring>\n" + block(ui, "inline float unit(") + "\n" + \

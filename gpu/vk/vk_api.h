@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-#define MKWVK_API_VERSION 35
+#define MKWVK_API_VERSION 36
 enum { HOS_MONITOR_CURRENT = 1, HOS_MONITOR_PRIMARY = 2 };
 typedef struct MkwVkMonitor {
     char id[512];             /* opaque persistent preference; never a runtime handle or list index */
@@ -330,6 +330,8 @@ typedef struct MkwVkHost {
        its warm-up), 0 the switch's normal value, 1 the A/B's, 2 or 3 those sides in a transition (a flip inside the frame,
        or less than 0.3 s before its end), which scripts/ab_summary.py leaves out */
     int (*ab_frame)(int64_t from_ns, int64_t to_ns);
+    /* (version 36) a renderer switch at the recording's start, including its HOS_AB value */
+    int (*ab_value)(const char *name, int normal);
 } MkwVkHost;
 /* (version 26) a cheat's kind: a heading (no opcodes), a data cheat (switched), a master cheat (always on), not supported (note) */
 enum { MKWVK_CHEAT_HEADING, MKWVK_CHEAT_DATA, MKWVK_CHEAT_MASTER, MKWVK_CHEAT_UNSUPPORTED };

@@ -60,9 +60,9 @@ def check_manifest():
 
 def check_build_links_it():
     src = (ROOT / "nx2" / "build.py").read_text(encoding="utf-8")
-    start = src.index('exe = os.path.join(out, "hookshot.exe")')
+    start = src.index('exe = os.path.join(out, "Xeonshot.exe")')
     link = src[start:src.index("capture_output=True", start)]
-    assert "win_manifest.write(" in link, "nx2/build.py links hookshot.exe without nx2/win_manifest.py's resource"
+    assert "win_manifest.write(" in link, "nx2/build.py links Xeonshot.exe without nx2/win_manifest.py's resource"
 
 
 def check_start_up():

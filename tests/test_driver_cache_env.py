@@ -52,7 +52,7 @@ def check_sources():
         if "driver_env_note()" not in block(draw, fn):
             problems.append(fn.split("(")[0] + " does not record the environment it built in (driver_env_note)")
     docs = (ROOT / "docs" / "development.md").read_text(encoding="utf-8")
-    if "vk: driver shader cache:" not in docs or "hookshot_driver_env.txt" not in docs:
+    if "vk: driver shader cache:" not in docs or "xeonshot_driver_env.txt" not in docs:
         problems.append("docs/development.md does not explain the driver shader cache lines")
     return problems
 

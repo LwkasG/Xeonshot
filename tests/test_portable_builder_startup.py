@@ -23,15 +23,15 @@ def main():
         root = Path(folder)
         project = root / "project"
         shutil.copytree(ROOT / "builder/HookshotBuilder", project, ignore=shutil.ignore_patterns("bin", "obj"))
-        home = root / "Original ü, volume/HookshotBuilder"
-        app = home / "versions/v-authored/HookshotBuilder"
+        home = root / "Original ü, volume/XeonshotBuilder"
+        app = home / "versions/v-authored/XeonshotBuilder"
         published = root / "published"
         # Exercise the shipped self-contained package, not a Debug app that depends on an installed .NET runtime.
         subprocess.run([args.dotnet, "publish", str(project / "HookshotBuilder.csproj"), "--configuration", "Release",
                         "-p:NuGetAudit=false", "--output", str(published), "--disable-build-servers", "-v", "quiet"], check=True)
         shutil.copytree(published, app)
-        marker = home / ".hookshot-portable"
-        marker.write_text("Hookshot Builder portable home v1\n", encoding="utf-8")
+        marker = home / ".xeonshot-portable"
+        marker.write_text("Xeonshot Builder portable home v1\n", encoding="utf-8")
         script = app / "tools/nx2/make_game.py"
         script.parent.mkdir(parents=True)
         script.write_text('import os,json\nprint(json.dumps({"home":os.environ.get("HOOKSHOT_SETUP_BASE"),"portable":os.environ.get("HOOKSHOT_BUILDER_PORTABLE")}))\n', encoding="utf-8")
@@ -41,15 +41,15 @@ def main():
         runtime_root = root / "no-installed-runtime"
         runtime_root.mkdir()
         env.update(DOTNET_ROOT=str(runtime_root), DOTNET_ROOT_X64=str(runtime_root), DOTNET_MULTILEVEL_LOOKUP="0")
-        runtime = json.loads((app / "HookshotBuilder.runtimeconfig.json").read_text(encoding="utf-8"))["runtimeOptions"]
+        runtime = json.loads((app / "XeonshotBuilder.runtimeconfig.json").read_text(encoding="utf-8"))["runtimeOptions"]
         assert "includedFrameworks" in runtime and "framework" not in runtime and "frameworks" not in runtime
-        assert (app / "coreclr.dll").is_file() and not (app / "PresentationFramework.dll").exists()   # (no WPF: no window)
+        assert (app / "coreclr.dll").is_file() and (app / "PresentationFramework.dll").is_file()
         # The authored tools fixture uses the trusted interpreter running this check, not another PATH entry.
         env["PATH"] = str(Path(os.sys.executable).parent) + os.pathsep + env.get("PATH", "")
         scenarios = 0
         def run(overrides, valid, expected_home=None):
             nonlocal scenarios
-            result = subprocess.run([str(app / "HookshotBuilder.exe"), "--cli", "--authored-probe"],
+            result = subprocess.run([str(app / "XeonshotBuilder.exe"), "--cli", "--authored-probe"],
                                     env=dict(env, **overrides), cwd=root, capture_output=True, text=True,
                                     encoding="utf-8", errors="replace", timeout=30,
                                     creationflags=subprocess.CREATE_NO_WINDOW)
@@ -78,8 +78,8 @@ def main():
         moved = root / "Relocated ü, volume"
         home.parent.rename(moved)
         app = moved / app.relative_to(home.parent)
-        home = moved / "HookshotBuilder"
-        marker = home / ".hookshot-portable"
+        home = moved / "XeonshotBuilder"
+        marker = home / ".xeonshot-portable"
         run({}, True)
         run({"HOOKSHOT_SETUP_BASE": "relative", "HOOKSHOT_BUILDER_PORTABLE": "1"}, False)
         marker.write_text("broken")
