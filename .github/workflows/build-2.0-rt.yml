@@ -1,0 +1,344 @@
+name: Xeonshot 2.0-rt (Rust Builder)
+
+on:
+  push:
+    branches:
+      - 2.0-rt
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-2.0-rt-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  linux:
+    name: "2.0-rt (Linux x64)"
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends zstd xz-utils build-essential curl git
+
+      - name: Version tag
+        run: echo "TAG=2.0-rt-${GITHUB_SHA::8}" >> "$GITHUB_ENV"
+
+      - name: Restore downloads cache
+        id: cache-downloads
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ runner.temp }}/rust/*.tar.xz
+            ${{ runner.temp }}/rust/crates
+            ${{ runner.temp }}/tools-cache
+            ${{ runner.temp }}/link-tools/.cache
+          key: rt-downloads-linux-${{ hashFiles('Cargo.lock', 'third_party/renhdrum/Cargo.lock', 'scripts/renhdrum.py', 'tools.lock') }}
+          restore-keys: rt-downloads-linux-
+
+      - name: Linker and sysroot (tools.lock, linux-x64)
+        run: python -I scripts/longshot_builder.py link-tools "$RUNNER_TEMP/link-tools"
+
+      - name: Restore Rust target cache
+        id: cache-rust-target
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/rust-work/target
+          key: rt-rust-target-linux-dist-${{ hashFiles('scripts/renhdrum.py', 'Cargo.toml') }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: rt-rust-target-linux-dist-${{ hashFiles('scripts/renhdrum.py', 'Cargo.toml') }}-
+
+      - name: Build longshot-builder (Linux)
+        run: >-
+          python -I scripts/longshot_builder.py build --target linux --profile dist
+          --cache "$RUNNER_TEMP/rust" --out "$RUNNER_TEMP/host/longshot-builder" --jobs "$(nproc)"
+          --linker "$RUNNER_TEMP/link-tools/llvm/bin/clang" --sysroot "$RUNNER_TEMP/link-tools/sysroot"
+
+      - name: Save Rust target cache
+        if: steps.cache-rust-target.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/rust-work/target
+          key: rt-rust-target-linux-dist-${{ hashFiles('scripts/renhdrum.py', 'Cargo.toml') }}-${{ hashFiles('Cargo.lock') }}
+
+      - name: Install tools bundle (linux-x64)
+        run: |
+          "$RUNNER_TEMP/host/longshot-builder" dev tools install "$PWD" --system linux-x64 --cache "$RUNNER_TEMP/tools-cache"
+          echo "BUNDLE=$PWD" >> "$GITHUB_ENV"
+
+      - name: Compile third-party objects
+        run: >-
+          LONGSHOT_THIRD_PARTY_OBJECTS=0 "$RUNNER_TEMP/host/longshot-builder" compile
+          --work "$RUNNER_TEMP/third-party-work" --root "$PWD" --store "$RUNNER_TEMP/third-party-work/store"
+          --jobs "$(nproc)" --third-party-objects "$RUNNER_TEMP/third_party_objects"
+
+      - name: Build game Rust staticlib (liblongshot_rs.a)
+        run: |
+          python -I scripts/longshot_builder.py game-rust --target linux --cache "$RUNNER_TEMP/rust" \
+            --out "$RUNNER_TEMP/longshot-rs/linux-x64"
+          "$RUNNER_TEMP/host/longshot-builder" dev rust-key --root "$PWD" > "$RUNNER_TEMP/longshot-rs/linux-x64/sources.key"
+
+      - name: Build renhdrum.so
+        run: >-
+          python -I scripts/renhdrum.py build --target linux --linker gcc
+          --cache "$RUNNER_TEMP/rust" --out "$RUNNER_TEMP/renhdrum/renhdrum.so"
+
+      - name: Save downloads cache
+        if: steps.cache-downloads.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ runner.temp }}/rust/*.tar.xz
+            ${{ runner.temp }}/rust/crates
+            ${{ runner.temp }}/tools-cache
+            ${{ runner.temp }}/link-tools/.cache
+          key: rt-downloads-linux-${{ hashFiles('Cargo.lock', 'third_party/renhdrum/Cargo.lock', 'scripts/renhdrum.py', 'tools.lock') }}
+
+      - name: Package Xeonshot-2.0-rt-Linux-x64
+        run: |
+          mkdir -p dist
+          "$RUNNER_TEMP/host/longshot-builder" dev release sources --out "$RUNNER_TEMP/sources.pack" --version "$TAG" \
+            --third-party-objects "$RUNNER_TEMP/third_party_objects" \
+            --add "longshot-rs/prebuilt/linux-x64/liblongshot_rs.a=$RUNNER_TEMP/longshot-rs/linux-x64/liblongshot_rs.a" \
+            --add "longshot-rs/prebuilt/linux-x64/sources.key=$RUNNER_TEMP/longshot-rs/linux-x64/sources.key" \
+            --add "third_party/renhdrum/renhdrum.so=$RUNNER_TEMP/renhdrum/renhdrum.so" --tools "$BUNDLE/tools"
+          "$RUNNER_TEMP/host/longshot-builder" dev release attach "$RUNNER_TEMP/host/longshot-builder" \
+            "$RUNNER_TEMP/sources.pack" --out "dist/Xeonshot-2.0-rt-Linux-x64"
+          python -I scripts/longshot_builder.py check "dist/Xeonshot-2.0-rt-Linux-x64"
+          ls -lh dist
+
+      - name: Dry-run Linux package
+        run: >-
+          "$RUNNER_TEMP/host/longshot-builder" dev release dry-run "dist/Xeonshot-2.0-rt-Linux-x64"
+          --clean --cache "$RUNNER_TEMP/player-cache" --work "$RUNNER_TEMP/dry"
+
+      - name: Upload Linux tool artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xeonshot-builder-linux-tool
+          path: ${{ runner.temp }}/host/longshot-builder
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 1
+
+      - name: Upload Linux release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xeonshot-2.0-rt-linux
+          path: dist/Xeonshot-2.0-rt-Linux-x64
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  windows:
+    name: "2.0-rt (Windows x64)"
+    needs: linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends zstd xz-utils curl
+
+      - name: Version tag
+        run: echo "TAG=2.0-rt-${GITHUB_SHA::8}" >> "$GITHUB_ENV"
+
+      - name: Download Linux builder tool
+        uses: actions/download-artifact@v4
+        with:
+          name: xeonshot-builder-linux-tool
+          path: ${{ runner.temp }}/host
+
+      - name: Make Linux builder runnable
+        run: |
+          chmod +x "$RUNNER_TEMP/host/longshot-builder"
+          "$RUNNER_TEMP/host/longshot-builder" --version
+
+      - name: Restore downloads cache
+        id: cache-downloads
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ runner.temp }}/rust/*.tar.xz
+            ${{ runner.temp }}/rust/crates
+            ${{ runner.temp }}/tools-cache
+            ${{ runner.temp }}/llvm/.cache
+          key: rt-downloads-windows-${{ hashFiles('Cargo.lock', 'third_party/renhdrum/Cargo.lock', 'scripts/renhdrum.py', 'builder/tools/pins.sh', 'tools.lock') }}
+          restore-keys: rt-downloads-windows-
+
+      - name: Unpack llvm-mingw
+        run: echo "LLVM_MINGW=$(python -I scripts/longshot_builder.py llvm-mingw "$RUNNER_TEMP/llvm" --host linux)" >> "$GITHUB_ENV"
+
+      - name: Install tools bundle (windows-x64)
+        run: |
+          "$RUNNER_TEMP/host/longshot-builder" dev tools install "$PWD" --system windows-x64 --cache "$RUNNER_TEMP/tools-cache"
+          echo "BUNDLE=$PWD" >> "$GITHUB_ENV"
+
+      - name: Compile third-party objects (Windows)
+        run: >-
+          RX_TARGET=windows LONGSHOT_MINGW="$LLVM_MINGW" LONGSHOT_THIRD_PARTY_OBJECTS=0
+          "$RUNNER_TEMP/host/longshot-builder" compile --work "$RUNNER_TEMP/third-party-work"
+          --store "$RUNNER_TEMP/third-party-work/store" --root "$PWD" --jobs "$(nproc)"
+          --third-party-objects "$RUNNER_TEMP/third_party_objects"
+
+      - name: Build game Rust staticlib (liblongshot_rs.a)
+        run: |
+          python -I scripts/longshot_builder.py game-rust --target windows --cache "$RUNNER_TEMP/rust" \
+            --out "$RUNNER_TEMP/longshot-rs/windows-x64"
+          "$RUNNER_TEMP/host/longshot-builder" dev rust-key --root "$PWD" > "$RUNNER_TEMP/longshot-rs/windows-x64/sources.key"
+
+      - name: Build renhdrum.dll
+        run: >-
+          python -I scripts/renhdrum.py build --target windows --llvm-mingw "$LLVM_MINGW"
+          --cache "$RUNNER_TEMP/rust" --out "$RUNNER_TEMP/renhdrum/renhdrum.dll"
+
+      - name: Restore Rust target cache
+        id: cache-rust-target
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/rust-work/target
+          key: rt-rust-target-windows-dist-${{ hashFiles('scripts/renhdrum.py', 'Cargo.toml') }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: rt-rust-target-windows-dist-${{ hashFiles('scripts/renhdrum.py', 'Cargo.toml') }}-
+
+      - name: Build longshot-builder.exe (Windows)
+        run: >-
+          python -I scripts/longshot_builder.py build --target windows --profile dist
+          --llvm-mingw "$LLVM_MINGW" --cache "$RUNNER_TEMP/rust" --out "$RUNNER_TEMP/longshot-builder.exe"
+
+      - name: Save Rust target cache
+        if: steps.cache-rust-target.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/rust-work/target
+          key: rt-rust-target-windows-dist-${{ hashFiles('scripts/renhdrum.py', 'Cargo.toml') }}-${{ hashFiles('Cargo.lock') }}
+
+      - name: Save downloads cache
+        if: steps.cache-downloads.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ runner.temp }}/rust/*.tar.xz
+            ${{ runner.temp }}/rust/crates
+            ${{ runner.temp }}/tools-cache
+            ${{ runner.temp }}/llvm/.cache
+          key: rt-downloads-windows-${{ hashFiles('Cargo.lock', 'third_party/renhdrum/Cargo.lock', 'scripts/renhdrum.py', 'builder/tools/pins.sh', 'tools.lock') }}
+
+      - name: Package Xeonshot-2.0-rt-Windows-x64.exe
+        run: |
+          mkdir -p dist
+          "$RUNNER_TEMP/host/longshot-builder" dev release sources --out "$RUNNER_TEMP/sources.pack" --version "$TAG" \
+            --third-party-objects "$RUNNER_TEMP/third_party_objects" \
+            --add "longshot-rs/prebuilt/windows-x64/liblongshot_rs.a=$RUNNER_TEMP/longshot-rs/windows-x64/liblongshot_rs.a" \
+            --add "longshot-rs/prebuilt/windows-x64/sources.key=$RUNNER_TEMP/longshot-rs/windows-x64/sources.key" \
+            --add "third_party/renhdrum/renhdrum.dll=$RUNNER_TEMP/renhdrum/renhdrum.dll" --tools "$BUNDLE/tools"
+          "$RUNNER_TEMP/host/longshot-builder" dev release attach "$RUNNER_TEMP/longshot-builder.exe" \
+            "$RUNNER_TEMP/sources.pack" --out "dist/Xeonshot-2.0-rt-Windows-x64.exe"
+          python -I scripts/longshot_builder.py check "dist/Xeonshot-2.0-rt-Windows-x64.exe"
+          ls -lh dist
+
+      - name: Dry-run Windows package
+        run: |
+          "$RUNNER_TEMP/host/longshot-builder" dev release unpack "$RUNNER_TEMP/sources.pack" "$RUNNER_TEMP/carried"
+          RX_TARGET=windows LONGSHOT_MINGW="$LLVM_MINGW" \
+            "$RUNNER_TEMP/host/longshot-builder" dev release dry-run "$RUNNER_TEMP/host/longshot-builder" \
+            --root "$RUNNER_TEMP/carried" --work "$RUNNER_TEMP/dry"
+
+      - name: Upload Windows release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xeonshot-2.0-rt-windows
+          path: dist/Xeonshot-2.0-rt-Windows-x64.exe
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  publish:
+    name: "2.0-rt (Publish Release)"
+    needs: [linux, windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: xeonshot-2.0-rt-windows
+          path: dist
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: xeonshot-2.0-rt-linux
+          path: dist
+
+      - name: Generate SHA256SUMS
+        run: |
+          cd dist
+          sha256sum Xeonshot-2.0-rt-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish v2.0-rt-nightly pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REL_TAG: v2.0-rt-nightly
+        run: |
+          NOTES="$RUNNER_TEMP/release-notes.md"
+          sed 's/^          //' > "$NOTES" <<EOF
+          Build experimental da branch \`2.0-rt\` (novo recompilador/builder em Rust + RomFS direto do \`.nup\` + otimizações do Xeonshot e redução de RAM no Windows).
+
+          ### Downloads por Sistema Operacional
+
+          | Sistema | Arquivo | Como usar |
+          |---|---|---|
+          | **Windows (64-bit)** | **\`Xeonshot-2.0-rt-Windows-x64.exe\`** | Baixe e execute o \`.exe\` diretamente — executável único auto-contido com builder Rust, compilador e otimizações de RAM. |
+          | **Linux / Steam Deck (x86_64)** | **\`Xeonshot-2.0-rt-Linux-x64\`** | Baixe, dê \`chmod +x Xeonshot-2.0-rt-Linux-x64\` e execute. |
+
+          ### Destaques desta build (\`${GITHUB_SHA::8}\`)
+          - **Lifter & Builder Rust (LLVM IR + RomFS direto do \`.nup\`):** builds mais rápidos, pasta de jogo reduzida (~1,6–4,1 GB em disco) e menor tempo de CPU por frame.
+          - **Redução de RAM no Windows:** \`RX_VK_DROP_MODULES\` no Windows, monitoramento de pressão de RAM (\`RX_VK_AVAIL_RESERVE_MB\`) e \`HOS_COLD_TRIM\` para mover páginas frias para a Standby List respeitando \`HOS_LARGE_HEAP_MB\`.
+          - **Recursos Xeonshot portados:** \`HOS_LARGE_HEAP_MB\`, spin configurável em \`OotBarrier\` (\`HOS_OOT_BARRIER_SPIN_US\`), splash animado a 60 fps e curiosidades de loading.
+
+          SHA-256 dos binários em \`SHA256SUMS.txt\`.
+          EOF
+
+          if gh release view "$REL_TAG" >/dev/null 2>&1; then
+            gh release edit "$REL_TAG" --prerelease --title "Xeonshot 2.0-rt Nightly (Windows .exe & Linux)" --notes-file "$NOTES"
+            gh release upload "$REL_TAG" dist/* --clobber
+          else
+            gh release create "$REL_TAG" dist/* --prerelease --title "Xeonshot 2.0-rt Nightly (Windows .exe & Linux)" --notes-file "$NOTES" --target "$GITHUB_SHA"
+          fi
