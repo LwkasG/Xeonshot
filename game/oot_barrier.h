@@ -46,10 +46,10 @@ enum { OOT_BARRIER_AT_ONCE, OOT_BARRIER_MOVED, OOT_BARRIER_TIMED_OUT };
 
 typedef struct OotBarrierSlot {
     _Alignas(64) volatile uint32_t gen;   /* (its own cache line: the jobs' threads move it at their ORs) */
+    volatile int32_t waiters;             /* (threads armed in a wait on this slot, sharing its cache line) */
 } OotBarrierSlot;
 typedef struct OotBarrier {
     OotBarrierSlot slot[OOT_BARRIER_SLOTS];
-    _Alignas(64) volatile int32_t waiters;   /* (threads armed in a wait, every slot: the wakers' one load when none waits) */
 } OotBarrier;
 
 /* the slot of a job block (P, a guest address: blocks are at least 64 bytes apart) */
@@ -77,7 +77,7 @@ static inline int oot_barrier_wait(OotBarrier *b, uint64_t key, volatile uint32_
     const int64_t end = OOT_BARRIER_NOW_NS() + timeout_ns;
     int how = OOT_BARRIER_TIMED_OUT;
     OOT_BARRIER_ARMING();
-    __atomic_add_fetch(&b->waiters, 1, __ATOMIC_SEQ_CST);
+    __atomic_add_fetch(&s->waiters, 1, __ATOMIC_SEQ_CST);
     for (;;) {
         const uint32_t g = __atomic_load_n(&s->gen, __ATOMIC_SEQ_CST);
         if (oot_barrier_moved(w, seen, n, full)) {   /* (the look after arming: a change before it is never missed) */
@@ -89,15 +89,15 @@ static inline int oot_barrier_wait(OotBarrier *b, uint64_t key, volatile uint32_
         OOT_BARRIER_LOOKED();
         OOT_BARRIER_WAIT_ON(&s->gen, g, (uint32_t)((left + 999999) / 1000000));
     }
-    __atomic_sub_fetch(&b->waiters, 1, __ATOMIC_SEQ_CST);
+    __atomic_sub_fetch(&s->waiters, 1, __ATOMIC_SEQ_CST);
     return how;
 }
 
 /* After an OR into a polled word of job block key: wakes the slot's waiters (1), or nothing when no thread waits (0) */
 static inline int oot_barrier_wake(OotBarrier *b, uint64_t key) {
     __atomic_thread_fence(__ATOMIC_SEQ_CST);   /* (the OR before it, whatever order the lift gave it) */
-    if (!__atomic_load_n(&b->waiters, __ATOMIC_SEQ_CST)) return 0;
     OotBarrierSlot *s = oot_barrier_slot(b, key);
+    if (!__atomic_load_n(&s->waiters, __ATOMIC_SEQ_CST)) return 0;
     __atomic_add_fetch(&s->gen, 1, __ATOMIC_SEQ_CST);
     OOT_BARRIER_WAKE_ALL(&s->gen);
     return 1;

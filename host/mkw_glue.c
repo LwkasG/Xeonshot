@@ -163,6 +163,16 @@ int hos_commit(uint64_t addr, uint64_t size) {
         return 0;
     }
     const uint64_t lo = addr & ~0xFFFFULL, hi = (addr + size + 0xFFFF) & ~0xFFFFULL;
+    extern uint64_t hos_large_heap_lo, hos_large_heap_hi;
+    if (hos_large_heap_hi > hos_large_heap_lo) {
+        if (lo >= hos_large_heap_lo && hi <= hos_large_heap_hi) return 1;
+        if (lo < hos_large_heap_hi && hi > hos_large_heap_lo) {
+            int ok = 1;
+            if (lo < hos_large_heap_lo) ok &= hos_commit(lo, hos_large_heap_lo - lo);
+            if (hi > hos_large_heap_hi) ok &= hos_commit(hos_large_heap_hi, hi - hos_large_heap_hi);
+            return ok;
+        }
+    }
     if (!VirtualAlloc(GP(lo), (SIZE_T)(hi - lo), MEM_COMMIT, PAGE_READWRITE)) {
         const DWORD err = GetLastError();
         if (err == ERROR_COMMITMENT_LIMIT && commit_wait(GP(lo), (SIZE_T)(hi - lo))) return 1;

@@ -26,6 +26,7 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
 uint64_t hos_heap_size, hos_heap_used, hos_total_memory, hos_program_size;
+uint64_t hos_large_heap_lo, hos_large_heap_hi;   /* (Windows HOS_LARGE_HEAP_MB: [HOS_HEAP_BASE, +bytes) in 2 MB pages) */
 static uint64_t sys_next = HOS_SYSTEM_BASE;
 static uint64_t mapped_bytes, mapped_peak, mapped_logged;
 /* The output preview uses a host-owned region charged for the life of this run. */
@@ -269,6 +270,11 @@ static void discard_pages(uint64_t addr, uint64_t size) {
 #if defined(_WIN32) && !defined(__EMSCRIPTEN__)
     extern int hos_large_pages;   /* (hos_main.c: large pages cannot be discarded) */
     if (hos_large_pages) return;
+    if (hos_large_heap_hi > hos_large_heap_lo && lo < hos_large_heap_hi && hi > hos_large_heap_lo) {
+        if (lo < hos_large_heap_lo) discard_pages(lo, hos_large_heap_lo - lo);
+        if (hi > hos_large_heap_hi) discard_pages(hos_large_heap_hi, hi - hos_large_heap_hi);
+        return;
+    }
     typedef DWORD(WINAPI * DiscardFn)(PVOID, SIZE_T);
     static DiscardFn discard;
     static int looked;
@@ -605,6 +611,13 @@ HLE(_ZN2nn2os15FreeMemoryPagesEmm) {
         extern int rx_guest_imported(uint64_t lo, uint64_t hi);
         if (hi > lo && rx_guest_imported(lo, hi)) hos_guest_fill(lo, 0, hi - lo);
 #if defined(_WIN32)
+        else if (hi > lo && hos_large_heap_hi > hos_large_heap_lo && lo < hos_large_heap_hi && hi > hos_large_heap_lo) {
+            if (lo < hos_large_heap_lo) VirtualFree(GP(lo), (SIZE_T)(hos_large_heap_lo - lo), MEM_DECOMMIT);
+            const uint64_t mid_lo = lo > hos_large_heap_lo ? lo : hos_large_heap_lo;
+            const uint64_t mid_hi = hi < hos_large_heap_hi ? hi : hos_large_heap_hi;
+            if (mid_hi > mid_lo) hos_guest_fill(mid_lo, 0, (size_t)(mid_hi - mid_lo));
+            if (hi > hos_large_heap_hi) VirtualFree(GP(hos_large_heap_hi), (SIZE_T)(hi - hos_large_heap_hi), MEM_DECOMMIT);
+        }
         else if (hi > lo) VirtualFree(GP(lo), (SIZE_T)(hi - lo), MEM_DECOMMIT);
 #else
         else if (hi > lo) {   /* (linux: kept mapped, the pages read as zero; MADV_REMOVE on the memfd window) */

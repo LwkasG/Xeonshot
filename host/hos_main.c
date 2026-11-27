@@ -34,6 +34,7 @@ void hos_tracy_start(void) {
 #include "prepare_args.h"   /* (the supervised --prepare-shaders run's arguments) */
 #include "hos_wide_size.h"   /* (the widescreen picture's size, shared with the Insert menu) */
 #include "ws_floor.h"        /* (the game's memory kept in RAM: HOS_WS_FLOOR_MB) */
+#include "hos_cold_trim.h"   /* (xeonshot: trims cold heap/region pages to standby on Windows: HOS_COLD_TRIM) */
 #include "../gpu/vk/vk_api.h"
 #include <math.h>
 #include <stdio.h>
@@ -130,11 +131,12 @@ extern const char *hos_romfs_dir, *hos_user_dir;
    once (4 GB, locked), and Windows needs the account to hold "Lock pages in memory" (SeLockMemoryPrivilege, Local
    Security Policy > User Rights Assignment; log off and on after): without it this logs why and uses normal pages. */
 int hos_large_pages;   /* (hos_mem.c: freed pages are not discarded then) */
+extern uint64_t hos_large_heap_lo, hos_large_heap_hi;   /* (host/hos_mem.c: Windows HOS_LARGE_HEAP_MB) */
 #if defined(_WIN32) && !defined(A64_MEM_ZERO)
 #pragma comment(lib, "advapi32.lib")   /* (the token privilege calls) */
-static void *reserve_large(SIZE_T size) {
+static int enable_lock_memory_privilege(const char *who) {
     HANDLE token;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token)) return NULL;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token)) return 0;
     TOKEN_PRIVILEGES tp = {0};
     tp.PrivilegeCount = 1;
     tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
@@ -143,16 +145,51 @@ static void *reserve_large(SIZE_T size) {
     const DWORD err = GetLastError();
     CloseHandle(token);
     if (!adjusted || err == ERROR_NOT_ALL_ASSIGNED) {
-        hos_log("mem: HOS_LARGE_PAGES: this account does not hold SeLockMemoryPrivilege (\"Lock pages in memory\"): "
-                "normal pages");
-        return NULL;
+        hos_log("mem: %s: this account does not hold SeLockMemoryPrivilege (\"Lock pages in memory\"): "
+                "normal pages", who);
+        return 0;
     }
+    return 1;
+}
+static void *reserve_large(SIZE_T size) {
+    if (!enable_lock_memory_privilege("HOS_LARGE_PAGES")) return NULL;
     const SIZE_T large = GetLargePageMinimum();
     if (!large || size % large) return NULL;
     void *p = VirtualAlloc((void *)A64_HOST_BASE, size, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
     if (!p) hos_log("mem: HOS_LARGE_PAGES: %llu MB of large pages not available (error %lu): normal pages",
                     (unsigned long long)(size >> 20), GetLastError());
     return p;
+}
+static int reserve_large_heap(uint64_t mb) {
+    if (!enable_lock_memory_privilege("HOS_LARGE_HEAP_MB")) return 0;
+    const SIZE_T large = GetLargePageMinimum();
+    if (!large) return 0;
+    const uint64_t bytes = ((mb << 20) + large - 1) & ~((uint64_t)large - 1);
+    if (!bytes || GUEST_SPACE <= HOS_HEAP_BASE || bytes > GUEST_SPACE - HOS_HEAP_BASE) return 0;
+    const uint64_t tail = GUEST_SPACE - HOS_HEAP_BASE - bytes;
+    void *p0 = VirtualAlloc((void *)A64_HOST_BASE, HOS_HEAP_BASE, MEM_RESERVE, PAGE_NOACCESS);
+    void *p1 = p0 == (void *)A64_HOST_BASE
+                   ? VirtualAlloc((void *)(A64_HOST_BASE + HOS_HEAP_BASE), (SIZE_T)bytes,
+                                  MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE)
+                   : NULL;
+    void *p2 = (p1 == (void *)(A64_HOST_BASE + HOS_HEAP_BASE) && tail)
+                   ? VirtualAlloc((void *)(A64_HOST_BASE + HOS_HEAP_BASE + bytes), (SIZE_T)tail, MEM_RESERVE, PAGE_NOACCESS)
+                   : NULL;
+    if (p0 != (void *)A64_HOST_BASE || p1 != (void *)(A64_HOST_BASE + HOS_HEAP_BASE) ||
+        (tail && p2 != (void *)(A64_HOST_BASE + HOS_HEAP_BASE + bytes))) {
+        const DWORD err = GetLastError();
+        if (p0) VirtualFree(p0, 0, MEM_RELEASE);
+        if (p1) VirtualFree(p1, 0, MEM_RELEASE);
+        if (p2) VirtualFree(p2, 0, MEM_RELEASE);
+        hos_log("mem: HOS_LARGE_HEAP_MB: %llu MB of large pages not available (error %lu): normal pages",
+                (unsigned long long)(bytes >> 20), err);
+        return 0;
+    }
+    hos_large_heap_lo = HOS_HEAP_BASE;
+    hos_large_heap_hi = HOS_HEAP_BASE + bytes;
+    hos_log("mem: HOS_LARGE_HEAP_MB: %llu MB of the guest heap at %#llx in %llu KB large pages",
+            (unsigned long long)(bytes >> 20), (unsigned long long)HOS_HEAP_BASE, (unsigned long long)(large >> 10));
+    return 1;
 }
 #endif
 
@@ -172,6 +209,15 @@ static int reserve_guest(void) {
         hos_large_pages = 1;
         hos_log("mem: the guest window is in large pages (%llu MB)", (unsigned long long)(GUEST_SPACE >> 20));
         return 1;
+    }
+    {
+        const char *lh = getenv("HOS_LARGE_HEAP_MB");
+        const long long lh_mb = lh ? atoll(lh) : 0;
+        if (lh_mb > 0 && reserve_large_heap((uint64_t)lh_mb)) {
+            void hos_commit_init(void);
+            hos_commit_init();
+            return 1;
+        }
     }
     /* mkw-recomp: 512 GB reserved, committed as the runtime hands memory out (hos_commit) or on first touch */
     void hos_commit_init(void);
@@ -1308,6 +1354,7 @@ static int game_main(int argc, char **argv) {
     timeBeginPeriod(1);   /* 1 ms timer resolution: the 60 Hz vsync and the game's frame pacing sleep in short steps */
     no_power_throttling();
     ws_floor();   /* (the game's memory kept in RAM under memory pressure: host/ws_floor.h) */
+    hos_cold_trim_init();
 #endif
     void hos_display_start(void);
     hos_display_start();  /* the game's window; HOS_HEADLESS=1 for none */

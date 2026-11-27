@@ -104,7 +104,7 @@ PCS = [
          facts=(0x10DE, 0x2860, "NVIDIA_PROPRIETARY", 0, "DISCRETE_GPU", "581.57", "NVIDIA GeForce RTX 4070 Laptop GPU", 1, 0,
                 8188, 7400, 16200, 16, 16, 8, 1, 1, 1, 1, 1, 1, 1, 32, 32, 0),
          on="bc_small_runs acquire_ahead inline_deku_web_loads nv_checkpoints allowance_at_count_rule mirrors split_ub_flush native_float_add "
-            "astc_bc_all room_in_blocks_rule squeeze_damped rtx threaded_auto_render threaded_auto_recorder",
+            "astc_bc_all room_in_blocks_rule squeeze_damped rtx threaded_auto_render threaded_auto_recorder drop_modules_small_ram",
          num=(0, 0, 0, 1, 85, 4, 4776, 2047, 616, 462, 925, -1, 256, 12, 32, 16, 97, 3, 6, 4, 8, 6, 4)),
     # (a 4 GB card. The rules that ask the vendor take NVK for NVIDIA's compiler: no invariant positions, no fetch bounds,
     # the Deku web's loads inlined; the study doubts each. And it doubts the mirrors' 1365 MB here,
@@ -216,7 +216,7 @@ PCS = [
                 8100, 7402, 16100, 4, 4, 2, 0, 1, 1, 0, 0, 1, 1, 32, 32, 0xFF),
          on="acquire_ahead fetch_bounds networks_left_out gather_offset position_invariant intel_compile_gate compute_builds_serial pcache_fetch_lock "
             "split_before_draw allowance_at_count_rule ub_snapshot small_vram_textures astc_bc_all squeeze_damped "
-            "auto_render_third native_zstd_keep_core",
+            "auto_render_third drop_modules_small_ram native_zstd_keep_core",
          num=(64, 0, 0, 2, 0, 16, 2560, 2025, 616, 462, 512, -1, 256, 0, 32, 16, 90, 1, 2, 2, 2, 2, 2)),
     # (Lunar Lake's Arc 140V, the facts its log gives. No margin on the colour passes' EQUAL: with the game's EQUAL the
     # ground has no holes in Kokiri Forest, and the margin's LESS_OR_EQUAL drew the ivy's, leaves' and grass's whole quads)
@@ -243,7 +243,7 @@ PCS = [
                 1, 0, 10074, 9305, 16311, 12, 12, 6, 1, 1, 1, 0, 0, 1, 1, 32, 32, 0xFF),
          on="acquire_ahead fetch_bounds networks_left_out gather_offset position_invariant compute_builds_serial pcache_fetch_lock split_before_draw "
             "allowance_at_count_rule mirrors ub_snapshot split_ub_flush native_float_add occ_copy intel_side_by_side_auto "
-            "room_in_blocks_rule threaded_auto_render threaded_auto_recorder",
+            "room_in_blocks_rule threaded_auto_render threaded_auto_recorder drop_modules_small_ram",
          num=(0, 0, 0, 2, 0, 4, 5876, 2048, 768, 512, 1163, -1, 256, 24, 64, 32, 97, 3, 4, 4, 6, 6, 3)),
     # (an Arc A card: the gate, and the loop for float adds, which the study doubts on Intel's Windows driver)
     dict(name="Arc A750, Intel's Windows driver 101.9175",
@@ -251,7 +251,7 @@ PCS = [
                 1, 0, 8128, 7700, 16200, 12, 12, 6, 1, 1, 1, 0, 0, 1, 1, 32, 32, 0xFF),
          on="acquire_ahead fetch_bounds networks_left_out gather_offset position_invariant intel_compile_gate compute_builds_serial pcache_fetch_lock "
             "split_before_draw allowance_at_count_rule mirrors ub_snapshot split_ub_flush occ_copy astc_bc_all "
-            "room_in_blocks_rule squeeze_damped threaded_auto_render threaded_auto_recorder",
+            "room_in_blocks_rule squeeze_damped threaded_auto_render threaded_auto_recorder drop_modules_small_ram",
          num=(64, 0, 0, 2, 0, 4, 4741, 2032, 641, 481, 962, -1, 256, 12, 32, 16, 97, 3, 4, 4, 6, 6, 3)),
     # (corrected: compute_builds_serial is off, as issue 496 is the compiler of Intel's Windows driver; by the vendor it
     # was on here. No equal-depth margin either: the game's EQUAL holds on Mesa's compiler (Iris Xe, Mesa 26.2.7:
@@ -281,7 +281,7 @@ PCS = [
                 6144, 5700, 16200, 16, 16, 8, 1, 1, 1, 1, 1, 1, 1, 32, 32, 0),
          on="bc_small_runs acquire_ahead inline_deku_web_loads nv_checkpoints allowance_at_count_rule mirrors split_ub_flush native_float_add "
             "astc_bc_all room_in_blocks_rule squeeze_damped dlss_cnn rtx "
-            "threaded_auto_render threaded_auto_recorder",
+            "threaded_auto_render threaded_auto_recorder drop_modules_small_ram",
          num=(0, 0, 0, 1, 85, 4, 3584, 1700, 475, 356, 712, 32, 128, 12, 32, 16, 97, 2, 6, 4, 8, 6, 4)),
     dict(name="RTX 4090 (24 GB), NVIDIA's Windows driver",
          facts=(0x10DE, 0x2684, "NVIDIA_PROPRIETARY", 0, "DISCRETE_GPU", "581.57", "NVIDIA GeForce RTX 4090", 1, 0,
@@ -295,7 +295,7 @@ PCS = [
                 8176, 7378, 16300, 12, 12, 6, 0, 1, 0, 0, 0, 1, 1, 64, 64, 0x20),
          on="bc_small_runs acquire_ahead fetch_bounds networks_left_out nan_bits mesh_fallback_strict_fmul bc_copy_per_layer gather_offset frag_shuffle_fallback position_invariant mesh_no_optimizer "
             "amd_cloth_no_optimizer fault_gate_serial allowance_at_count_rule mirrors split_ub_flush warp64 fsr4_tune "
-            "astc_bc_all room_in_blocks_rule squeeze_damped threaded_auto_render threaded_auto_recorder",
+            "astc_bc_all room_in_blocks_rule squeeze_damped threaded_auto_render threaded_auto_recorder drop_modules_small_ram",
          num=(0, 0, 0, 2, 0, 4, 4769, 2044, 614, 461, 922, -1, 256, 12, 32, 16, 97, 1, 4, 4, 6, 6, 3)),
     # (ASTC on the GPU in bounded chunks: 4,096 MB cap for 32 GB RAM; RX_VK_ASTC_CPU=1 raises it to 7,162 MB. The process may
     # use 8 of the PC's 24 threads: the workers go by the 24, Threaded rendering's Auto by the 4 cores of those 8 (both

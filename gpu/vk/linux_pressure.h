@@ -9,6 +9,15 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 namespace linux_pressure {
 
@@ -84,6 +93,29 @@ inline bool read_meminfo(uint64_t* avail_bytes, uint64_t* swap_free_bytes, const
     std::fclose(f);
     buf[n] = '\0';
     return parse_meminfo(buf, avail_bytes, swap_free_bytes, total_bytes, has_swap);
+}
+
+/// Reads Windows physical RAM and pagefile headroom into the same representation as read_meminfo:
+/// avail_bytes = ullAvailPhys, avail_bytes + swap_free_bytes = ullAvailPageFile.
+inline bool read_win_meminfo(uint64_t* avail_bytes, uint64_t* swap_free_bytes, uint64_t* total_bytes = nullptr,
+                             bool* has_swap = nullptr) {
+#ifdef _WIN32
+    if (!avail_bytes || !swap_free_bytes) return false;
+    MEMORYSTATUSEX ms{};
+    ms.dwLength = sizeof ms;
+    if (!GlobalMemoryStatusEx(&ms)) return false;
+    *avail_bytes = ms.ullAvailPhys;
+    *swap_free_bytes = ms.ullAvailPageFile > ms.ullAvailPhys ? ms.ullAvailPageFile - ms.ullAvailPhys : 0;
+    if (total_bytes) *total_bytes = ms.ullTotalPhys;
+    if (has_swap) *has_swap = ms.ullTotalPageFile > ms.ullTotalPhys;
+    return true;
+#else
+    (void)avail_bytes;
+    (void)swap_free_bytes;
+    (void)total_bytes;
+    (void)has_swap;
+    return false;
+#endif
 }
 
 /// How many bytes short of the reserves the system is: the larger of the physical-RAM shortfall (below avail_reserve_bytes) and,

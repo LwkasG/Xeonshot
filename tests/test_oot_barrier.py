@@ -375,8 +375,8 @@ BROKEN = [
                  "        OOT_BARRIER_WAIT_ON(&s->gen, g, (uint32_t)((left + 999999) / 1000000));\n"
                  "        if (oot_barrier_moved(w, seen, n, full)) { how = OOT_BARRIER_MOVED; break; }\n")],
      "on", "the waiter looks at the words before arming and after each wait, not between the arming and its first wait"),
-    ("header", [("    __atomic_add_fetch(&b->waiters, 1, __ATOMIC_SEQ_CST);\n", ""),
-                ("    __atomic_sub_fetch(&b->waiters, 1, __ATOMIC_SEQ_CST);\n", "")],
+    ("header", [("    __atomic_add_fetch(&s->waiters, 1, __ATOMIC_SEQ_CST);\n", ""),
+                ("    __atomic_sub_fetch(&s->waiters, 1, __ATOMIC_SEQ_CST);\n", "")],
      "on", "the waiter is not counted, so the waker skips the wake"),
     ("header", [("    OOT_BARRIER_WAKE_ALL(&s->gen);\n", "    (void)s;\n")], "on", "the wake wakes nobody"),
     ("header", [("    __atomic_add_fetch(&s->gen, 1, __ATOMIC_SEQ_CST);\n", "")], "on",

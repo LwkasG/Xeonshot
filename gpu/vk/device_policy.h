@@ -545,7 +545,7 @@ struct DevicePolicy {
     // off, ...), and without buffer-pool mirrors keeps only the recorder thread at 6 or more cores (without_mirrors), which
     // these flags do not say. Site (vk_menu.cpp), step 7
     bool threaded_auto_render = false, threaded_auto_recorder = false;
-    // Linux with 20 GB of RAM or less: the shader modules are let go after the precompile (1.5-1.8 GB); a memory shortfall
+    // With 20 GB of RAM or less: the shader modules are let go after the precompile (1.5-1.8 GB); a memory shortfall
     // then does the same on any PC, at the site. RX_VK_DROP_MODULES, RX_VK_KEEP_MODULES. Site (vk_draw.cpp), step 2
     bool drop_modules_small_ram = false;
     // An unset HOS_NATIVE_ZSTD keeps the zstd decode's virtual core on an Intel integrated GPU (#1632's load freezes) and gives
@@ -667,7 +667,7 @@ inline DevicePolicy device_policy(const DeviceFacts& f) {
         const threaded::Choice cpu = threaded::auto_picks(f.cores_usable);
         p.threaded_auto_render = cpu.render_thread, p.threaded_auto_recorder = cpu.recorder_thread;
     }
-    p.drop_modules_small_ram = !f.windows && f.ram > 0 && f.ram <= 20 * kGB;
+    p.drop_modules_small_ram = f.ram > 0 && f.ram <= 20 * kGB;
     p.native_zstd_keep_core = f.intel() && f.integrated();
     return p;
 }

@@ -13016,20 +13016,24 @@ void pipeline_cache_play() {
         programs_index(std::move(refs), plan.none ? std::unordered_set<uint64_t>{} : plan.keys);
     }
     programs_play_begin();   // (the census: what is made from here on is made in play)
-#ifdef __linux__
-    // (longshot) On Linux with <= 20 GB of RAM (the Steam Deck's 16 GB shared memory and 16 GB PCs) or when memory pressure is
-    // already active (or RX_VK_DROP_MODULES=1), the VkShaderModules of ready programs whose pipelines were built in precompile_run
-    // (~37,000 modules, ~1.5-1.8 GB of uncompressed SPIR-V in the driver's heap) have done their work once precompile_run finishes.
+#if defined(__linux__) || defined(_WIN32)
+    // (longshot/xeonshot) With <= 20 GB of RAM or when memory pressure is already active (or RX_VK_DROP_MODULES=1),
+    // the VkShaderModules of ready programs whose pipelines were built in precompile_run (~37,000 modules, ~1.5-1.8 GB
+    // of uncompressed SPIR-V) have done their work once precompile_run finishes.
     // Any graphics program whose noted pipelines were built remakes its module from longshot_programs.bin
     // (program_cache_complete_graphics) if play ever builds a new state variant; programs without a built graphics pipeline (not
     // noted by program_cache_note_built) keep their vertex and fragment modules so in-play pipeline builds do not read the disk.
-    // 32-64 GB Linux desktops keep their modules by default so new pipeline variants in play never touch the disk.
+    // Desktops over 20 GB keep their modules by default so new pipeline variants in play never touch the disk.
     // RX_VK_KEEP_MODULES=1 (or RX_VK_DROP_MODULES=0) keeps all
     if (!env_on("LONGSHOT_PREPARE_ONLY") && !prepare_left_workers()) {
         uint64_t avail_bytes = 0, swap_free_bytes = 0, total_bytes = 0;
         bool has_swap = true;
         uint64_t over = 0;
+#ifdef __linux__
         if (linux_pressure::read_meminfo(&avail_bytes, &swap_free_bytes, nullptr, &total_bytes, &has_swap)) {
+#else
+        if (linux_pressure::read_win_meminfo(&avail_bytes, &swap_free_bytes, &total_bytes, &has_swap)) {
+#endif
             over = linux_pressure::shortfall(avail_bytes, swap_free_bytes,
                                              linux_pressure::avail_reserve(getenv("RX_VK_AVAIL_RESERVE_MB")),
                                              linux_pressure::commit_reserve(getenv("RX_VK_COMMIT_RESERVE_MB")),

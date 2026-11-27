@@ -6158,7 +6158,11 @@ void texture_frame(uint64_t completed) {
         } else {
             const bool sampled_now = !have_meminfo || frame_no % 30 == 0;
             if (sampled_now)
+#ifdef _WIN32
+                have_meminfo = linux_pressure::read_win_meminfo(&cached_avail, &cached_swap, nullptr, &cached_has_swap);
+#else
                 have_meminfo = linux_pressure::read_meminfo(&cached_avail, &cached_swap, nullptr, nullptr, &cached_has_swap);
+#endif
             if (have_meminfo) {
                 const bool was_active = hold.active;
                 const uint64_t over = linux_pressure::shortfall(cached_avail, cached_swap, avail_res, commit_res, cached_has_swap);
@@ -6184,20 +6188,44 @@ void texture_frame(uint64_t completed) {
                     static uint64_t said_at;
                     if (!said_at || frame_no - said_at >= 600) {
                         said_at = frame_no;
+#ifdef _WIN32
+                        const char* mem_os = "Windows";
+#else
+                        const char* mem_os = "Linux";
+                        (void)mem_os;
+#endif
                         if (igpu)
+#ifndef _WIN32
                             logf("vk: memory pressure on Linux: %llu MB available, %llu MB swap free (reserves %llu / %llu MB); the "
                                  "textures' budget %s %llu MB of their %llu MB (RX_VK_AVAIL_RESERVE_MB, RX_VK_COMMIT_RESERVE_MB)",
                                  (unsigned long long)(cached_avail >> 20), (unsigned long long)(cached_swap >> 20),
                                  (unsigned long long)(avail_res >> 20), (unsigned long long)(commit_res >> 20),
                                  budget < total_bytes ? "down to" : "held at",
                                  (unsigned long long)(budget >> 20), (unsigned long long)(total_bytes >> 20));
+#else
+                            logf("vk: memory pressure on %s: %llu MB available, %llu MB pagefile free (reserves %llu / %llu MB); the "
+                                 "textures' budget %s %llu MB of their %llu MB (RX_VK_AVAIL_RESERVE_MB, RX_VK_COMMIT_RESERVE_MB)",
+                                 mem_os, (unsigned long long)(cached_avail >> 20), (unsigned long long)(cached_swap >> 20),
+                                 (unsigned long long)(avail_res >> 20), (unsigned long long)(commit_res >> 20),
+                                 budget < total_bytes ? "down to" : "held at",
+                                 (unsigned long long)(budget >> 20), (unsigned long long)(total_bytes >> 20));
+#endif
                         else
+#ifndef _WIN32
                             logf("vk: memory pressure on Linux: %llu MB available, %llu MB swap free (reserves %llu / %llu MB); the "
                                  "textures' budget is not cut on a discrete GPU (%llu MB, %llu MB in use) (RX_VK_AVAIL_RESERVE_MB, "
                                  "RX_VK_COMMIT_RESERVE_MB)",
                                  (unsigned long long)(cached_avail >> 20), (unsigned long long)(cached_swap >> 20),
                                  (unsigned long long)(avail_res >> 20), (unsigned long long)(commit_res >> 20),
                                  (unsigned long long)(budget >> 20), (unsigned long long)(total_bytes >> 20));
+#else
+                            logf("vk: memory pressure on %s: %llu MB available, %llu MB pagefile free (reserves %llu / %llu MB); the "
+                                 "textures' budget is not cut on a discrete GPU (%llu MB, %llu MB in use) (RX_VK_AVAIL_RESERVE_MB, "
+                                 "RX_VK_COMMIT_RESERVE_MB)",
+                                 mem_os, (unsigned long long)(cached_avail >> 20), (unsigned long long)(cached_swap >> 20),
+                                 (unsigned long long)(avail_res >> 20), (unsigned long long)(commit_res >> 20),
+                                 (unsigned long long)(budget >> 20), (unsigned long long)(total_bytes >> 20));
+#endif
                     }
                 }
             }
