@@ -1,141 +1,102 @@
 <h1 align="center">
   <br>
   <a>
-  <img src="assets/longshot.png" alt="Longshot" width="200">
-</a>
-
+    <img src="assets/xeonshot.png" alt="Xeonshot" width="220">
+  </a>
   <br>
-  <b>Longshot</b>
+  <b>Xeonshot — 2.0-rt</b>
   <br>
 </h1>
 
-<h4 align="center">A supported console game running natively on Windows & Linux, without emulation.
+<h4 align="center">
+  Recompilação nativa para Windows otimizada para plataformas "Xeon Bomba" — branch 2.0-rt sobre a base do Longshot (Rust builder &amp; RomFS direto do .nup).<br>
+  Native Windows recompilation optimized for "Xeon Bomba" platforms — 2.0-rt branch built atop Longshot (Rust builder &amp; RomFS directly from .nup).
 </h4>
 
 <p align="center">
-  <a href="https://longshot.magicbean.dev/"><b>Website</b></a> |
-  <a href="https://longshot.magicbean.dev/download"><b>Download</b></a> |
-  <a href="https://discord.gg/magicbean"><b>Discord</b></a> |
-  <a href="#features">Features</a> |
-  <a href="#install-and-play">Install and play</a> |
-  <a href="#help">Help</a> |
-  <a href="#contributing">Contributing</a> |
-  <a href="#license">License + Credits</a>
+  <a href="#português-brasil"><b>Português (Brasil)</b></a> ·
+  <a href="#english"><b>English</b></a> ·
+  <a href="https://github.com/LwkasG/Xeonshot/releases/tag/v2.0-rt-nightly"><b>Download (v2.0-rt-nightly)</b></a> ·
+  <a href="#license"><b>License + Credits</b></a>
 </p>
 
-<p align="center">This website is our Git hosting, similar to GitHub.</p>
-
-Longshot is a static recompilation tool. It translates a supported console game's code to LLVM IR and compiles it into
-a native Windows or Linux program, with the graphics rebuilt on Vulkan and the console's system software reimplemented.
-All of this happens **on your PC, from your own copy of the game**.
-
-Longshot is a continuation of [Hookshot](https://github.com/NotRexed/Hookshot). The top maintainers have moved to this
-project.
-
-**[Join us on Discord](https://discord.gg/magicbean)!**
-
 > [!IMPORTANT]
-> This repository **does not contain the game, keys or an executable**, and it does not explain how to get them. You
-> need your own copy. Everything the build creates (`longshot.exe`, the generated code, the shader caches and your
-> saves) comes from your game and stays on your PC. Never share those files.
+> Este repositório **não contém o jogo, chaves ou um executável pronto**. Você precisa da sua própria cópia do jogo. Tudo o que o builder gera (`longshot.exe`, código recompilado, caches de shader e saves) vem da sua cópia e permanece exclusivamente no seu PC. Nunca compartilhe esses arquivos.
+>
+> This repository **does not contain the game, keys or an executable**. You need your own copy of the game; everything the build creates stays on your PC.
 
-## Install and play
+## Instalar e jogar / Install and play
 
-### [🪟 &nbsp;Download for Windows](https://longshot.magicbean.dev/download/launcher/windows)
+### [🪟 &nbsp;Download for Windows](https://github.com/LwkasG/Xeonshot/releases/download/v2.0-rt-nightly/Xeonshot-2.0-rt-Windows-x64.exe)
 
-### [🐧 &nbsp;Download for Linux (AppImage)](https://longshot.magicbean.dev/download/launcher/linux)
+### [🐧 &nbsp;Download for Linux](https://github.com/LwkasG/Xeonshot/releases/download/v2.0-rt-nightly/Xeonshot-2.0-rt-Linux-x64)
 
-Windows without installing: [portable zip](https://longshot.magicbean.dev/download/launcher/windows-portable) · Not
-sure? [longshot.magicbean.dev/download](https://longshot.magicbean.dev/download) picks for your computer.
+Links diretos para o download da build mais recente (`v2.0-rt-nightly`) · [Ver todos os arquivos e SHA-256](https://github.com/LwkasG/Xeonshot/releases/tag/v2.0-rt-nightly) · [Versão estável 1.x (branch `main`)](https://github.com/LwkasG/Xeonshot/tree/main).
 
-Longshot doesn't come ready to play: the **Longshot Launcher** builds it on your PC, from your own copy of the game, and
-keeps it up to date. Download the launcher, not the builder: the files on
-[Longshot's releases](https://git.magicbean.dev/MagicBeanDev/Longshot/releases) are what the launcher installs for you.
+---
 
-**You need** your own copy of the game (program `0400486024DEC000`, update v131072, build `e0f3ccfa`), 64-bit Windows
-10/11 or Linux, a Vulkan 1.3 graphics card with 4 GB of video memory (mesh shaders and 12 GB recommended), 16 GB of RAM
-and about 5 GB free for the build ([requirements](docs/user/requirements.md)). The game reads its files from your copy of the game where it is, so keep it there.
-The [system requirements](docs/user/requirements.md) have the details.
+# Português (Brasil)
 
-The player guide, also at [longshot.magicbean.dev](https://longshot.magicbean.dev/):
+**Xeonshot** é um fork focado em **estabilidade, compatibilidade, menor consumo de RAM e redução de stuttering no Windows** em kits X99 com processadores **Intel Xeon E5 v3/v4 (Haswell-EP / Broadwell-EP)** (muitos núcleos, clock single-core moderado e memória multi-canal), sem abrir mão da fidelidade visual e de Frame Generation.
 
-| Page | What it covers |
-|---|---|
-| [Getting started](docs/user/getting-started.md) | Download the launcher, build, play |
-| [System requirements](docs/user/requirements.md) | The game version, the PC, drivers and memory |
-| [Playing on the Steam Deck](docs/user/steam-deck-playbook.md) | The build, the settings and the switches that help on the Deck |
-| [Settings](docs/user/graphics-and-controls.md) | The in-game menu: every row, and the controls |
-| [Advanced setup](docs/user/advanced.md) | Build options, DLSS, FSR 4 and XeSS, `longshot_env.txt`, the command line |
-| [Updates and saves](docs/user/updates-and-saves.md) | Updates, channels, where the files go, what Longshot connects to |
-| [Moving your saves](docs/user/saves.md) | Saves from and to emulators, Hookshot and other builds |
-| [Mods](docs/user/using-mods.md) | Installing, ordering and checking mods |
+A branch experimental **`2.0-rt`** combina a base técnica mais recente do **[Longshot](https://git.magicbean.dev/MagicBeanDev/Longshot)** (continuação do **[Hookshot](https://github.com/NotRexed/Hookshot)**) com o novo builder/recompilador em **Rust** (leitura do RomFS direto do `.nup`, pasta de jogo muito menor e pipeline Vulkan atualizado) e os recursos/otimizações específicos do **Xeonshot**:
 
-## Features
+### O que a branch `2.0-rt` traz do Xeonshot
+- **Large Pages de 2 MB no heap (`HOS_LARGE_HEAP_MB`):** alocação direcionada em páginas de 2 MB no Windows para reduzir pressão de TLB em CPUs Xeon E5 v3/v4.
+- **`OotBarrier` otimizado (`HOS_OOT_BARRIER_SPIN_US`):** pré-spin configurável antes de ceder ao sistema operacional para reduzir contenção de barramento/locks em CPUs multi-socket/dual-ring.
+- **Redução agressiva de Working Set no Windows:** suporte a `RX_VK_DROP_MODULES`, reserva inteligente sob pressão de memória (`RX_VK_AVAIL_RESERVE_MB`) e `HOS_COLD_TRIM`.
+- **Menos travadinhas no caminho quente de shaders (`gpu/vk/vk_shader.cpp`):** evita executar `LowerToMaxwell` quando o programa já está no cache pré-compilado (`stage_heads_of`) e aplica cache thread-local (`prog_fast` + `picks`) para **Mesh Shaders**.
+- **Identidade visual e splash animado a 60 FPS:** splash de carregamento animado do Xeonshot (`assets/xeonshot_splash_loop.png`) e curiosidades durante a preparação.
 
-- **Native on Windows and Linux**, including the Steam Deck: no emulator, built on your PC by the Longshot Launcher,
-  which keeps the game and itself up to date (stable and nightly channels).
-- **Modern graphics:** Vulkan, any resolution, ultrawide and 4:3 with the HUD kept in place, frame rates above 60, and
-  upscaling and frame generation with NVIDIA DLSS, AMD FSR 3.1 and FSR 4, and Intel XeSS.
-- **Controllers, keyboard and mouse:** any controller SDL supports, rumble and DualSense haptics, motion, a mouse
-  camera, and figure tags read from files or a Switch 2 Pro Controller.
-- **Mods:** file mods, ExeFS patches and cheats, ordered and switched on a Mods tab in the in-game menu.
-- **An in-game menu** for graphics, audio, gameplay and controls ([settings](docs/user/graphics-and-controls.md)), and
-  crash and bug reports you can send in one press.
+---
 
-## Current goals
+# English
 
-- **Performance:** a steady high frame rate in the heaviest areas, on every supported GPU.
-- **Stability:** no crashes or freezes, on AMD, Intel and NVIDIA, Windows and Linux.
-- **Mods and multiplayer.**
+**Xeonshot** is a fork focused on **Windows stability, lower RAM footprint, and reduced frame-time stuttering** on **Intel Xeon E5 v3/v4 (Haswell-EP / Broadwell-EP)** platforms.
 
-What is being worked on now: the [open issues](https://git.magicbean.dev/MagicBeanDev/Longshot/issues).
+The experimental **`2.0-rt`** branch is built on top of upstream **[Longshot](https://git.magicbean.dev/MagicBeanDev/Longshot)** (continuation of **[Hookshot](https://github.com/NotRexed/Hookshot)**) — bringing its **Rust builder/recompiler** and direct `.nup` RomFS loading — combined with Xeonshot's Windows/Xeon optimizations:
 
-## Help
+- **Targeted 2 MB Large Pages (`HOS_LARGE_HEAP_MB`)** and configurable **`OotBarrier` spin (`HOS_OOT_BARRIER_SPIN_US`)**.
+- **Windows Working Set reductions:** `RX_VK_DROP_MODULES`, `RX_VK_AVAIL_RESERVE_MB`, and `HOS_COLD_TRIM`.
+- **Shader lookup fast-path (`gpu/vk/vk_shader.cpp`):** skips `LowerToMaxwell` on shader cache hits (`stage_heads_of`) and caches `ProgramKind::Mesh` picks thread-locally.
+- **Xeonshot animated 60 FPS splash & loading trivia.**
 
-- [Common problems](docs/user/common-issues.md): what you see, and what to do about it.
-- [Report a bug](docs/user/reporting-and-contributing.md): what to include. **Gameplay → Bug report** in the in-game
-  menu gathers it in one press.
-- [Report slow performance](docs/user/performance-report.md): have the game measure itself.
-- [Discord](https://discord.gg/magicbean): ask the team and other players.
+Nightly builds are published to the [`v2.0-rt-nightly` pre-release](https://github.com/LwkasG/Xeonshot/releases/tag/v2.0-rt-nightly). For the standalone 1.x Xeonshot release, see the [`main`](https://github.com/LwkasG/Xeonshot/tree/main) branch.
 
-## Contributing
+---
 
-Testing on other graphics cards, playing further into the game than anyone has, and
-[sending your pipeline list](docs/user/reporting-and-contributing.md#send-your-pipeline-list) all help.
-[CONTRIBUTING.md](CONTRIBUTING.md) is the way in for code and docs: it points to the [developer docs](docs/dev/README.md),
-which cover building from source, the [setup](docs/dev/setup.md), the [daily loop](docs/dev/developing.md) and
-[how Longshot works](docs/dev/reference/architecture.md).
+## Upstream Documentation & Contributing
+
+Technical developer documentation inherited from Longshot lives in [`docs/dev/README.md`](docs/dev/README.md), [`docs/user/`](docs/user/getting-started.md), [`CONTRIBUTING.md`](CONTRIBUTING.md), and [`AGENTS.md`](AGENTS.md).
 
 ## License
 
-Longshot is free software under the [GNU General Public License, version 3 or later](LICENSE) (GPL-3.0-or-later).
-It is a modified version of Hookshot, which NotRexed released under the same license; the changes made since the fork
-are Longshot's.
+Xeonshot is free software under the [GNU General Public License, version 3 or later](LICENSE) (GPL-3.0-or-later).
+It is a modified derivative of [Longshot](https://git.magicbean.dev/MagicBeanDev/Longshot) and [Hookshot](https://github.com/NotRexed/Hookshot), both released under the same license; all upstream code and copyrights belong to their respective authors.
 
     Hookshot: Copyright (C) 2026 NotRexed and the Hookshot contributors
     Longshot: Copyright (C) 2026 the Longshot contributors
+    Xeonshot: Copyright (C) 2026 LwkasG and the Xeonshot contributors
 
 It includes code from Eden and suyu, which are under the GPL too. Third-party parts under other licenses that
 work with the GPL (Sirit, the Vulkan Memory Allocator, SDL, Opus, Dear ImGui, zstd, the Libertinus fonts and zbic) keep
 their own notices in their folders; TOTKPort's notice for the parts after a64-kit (host/, builder/rt) is
 host/NOTICE.TOTKPort.md.
 
-Longshot is an unofficial fan project, not affiliated with or endorsed by Nintendo. The Legend of Zelda and Ocarina of
+Xeonshot / Longshot is an unofficial fan project, not affiliated with or endorsed by Nintendo. The Legend of Zelda and Ocarina of
 Time are trademarks of Nintendo.
 
 ## Credits
 
-Longshot is a fork of NotRexed's [Hookshot](https://github.com/NotRexed/Hookshot), and exists thanks to the work of many
-people:
+This project would not exist without **Longshot** and **Hookshot**, and the work of many contributors upstream:
 
+- **Longshot contributors** ([git.magicbean.dev/MagicBeanDev/Longshot](https://git.magicbean.dev/MagicBeanDev/Longshot)): the Rust builder (`longshot-builder`), `.nup` RomFS support, Vulkan renderer improvements, and active upstream development.
 - **NotRexed**: [Hookshot](https://github.com/NotRexed/Hookshot), which Longshot is a fork of, BlueShell (Mario Kart World),
   Skybound (Tears of the Kingdom) and the a64-kit tools (host/ and the lifter's runtime are after them).
 - **[Eden](https://git.eden-emu.dev/eden-emu/eden)** and **Eglantine**: the shader recompiler and Switch 2 shader work.
 - **suyu**: the graphics decoders and the AArch64 translator.
 - **[seedds/nxnative](https://github.com/seedds/nxnative)**: reference for how task and mesh shaders work.
-- **[EvilBoyce / evilmfkr](https://github.com/evilmfkr/Hookshot)** (EvilOOT): the GPU culling that brings back Kokiri's foliage
-  (trees, ferns, grass, falling leaves, fireflies), the ambient light probes, the pond's water, the game's own fog, the freeze
-  after Load (Horizon's mutex handoff) and the exposure flicker fix.
+- **[EvilBoyce / evilmfkr](https://github.com/evilmfkr/Hookshot)** (EvilOOT): GPU culling for Kokiri foliage, ambient light probes, pond water, fog, Horizon mutex handoff, and exposure flicker fix.
 - **[zortos293/Lichii](https://github.com/zortos293/Lichii)**: reference for Ampere shader lowering, and its compare-exchange retry fix.
 - **[mstorsjo/llvm-mingw](https://github.com/mstorsjo/llvm-mingw)**: the bundled Windows compiler (no Visual Studio needed).
 - **NVIDIA DLSS**: builds made with NVIDIA's DLSS SDK (optional, downloaded by each build, never bundled) use NVIDIA DLSS
@@ -145,12 +106,7 @@ people:
   through AMD's MIT-licensed FSR API headers. Both are AMD's technology. AMD, Radeon and FidelityFX are trademarks of Advanced Micro
   Devices, Inc.
 - **[kinnay/zbic](https://github.com/kinnay/zbic)**, **Opus** and **SDL**: decompression, audio and controllers.
-- **[sostenesfreitas/ocarina-recomp](https://github.com/sostenesfreitas/ocarina-recomp)**: this README's layout, and its notes
-  confirmed the mesh stage's control section.
-- **[MythosOfs/Orchid](https://github.com/MythosOfs/Orchid)**: the fog and exposure workaround the game used before
-  its fog and lighting were fixed.
+- **[sostenesfreitas/ocarina-recomp](https://github.com/sostenesfreitas/ocarina-recomp)**: notes on the mesh stage control section.
+- **[MythosOfs/Orchid](https://github.com/MythosOfs/Orchid)**: earlier fog and exposure workarounds.
 - **Mesa (NAK)**: the reference for Ampere's instruction encoding.
-- Everyone who sent fixes: SkippySteve (Linux and the AppImage, and many more), monsterlag, klimovich008, hckrman101 (NVIDIA
-  DLSS, DLAA and Reflex, the exposure flicker and fog fixes, build speed, CI), madebyjordan (AMD FSR 4.1), N3oTraX (FSR 4 on
-  Linux), shayderrr, gab9281, Wpaif, nicholasgower, ZurielAtr, Joey-Magnus, Zorkats,
-  d3zessete, chrispository, vzeol, leonidasmark, Segmentree, ShyVortex, hiKareeem and i900gaming, among others.
+- All upstream Hookshot/Longshot contributors, including: SkippySteve, monsterlag, klimovich008, hckrman101, madebyjordan, N3oTraX, shayderrr, gab9281, Wpaif, nicholasgower, ZurielAtr, Joey-Magnus, Zorkats, d3zessete, chrispository, vzeol, leonidasmark, Segmentree, ShyVortex, hiKareeem, and i900gaming, among others.
