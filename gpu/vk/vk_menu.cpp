@@ -44,6 +44,7 @@
 #include "vk_progress.h"   // (StartupView, version_text: the start-up screen)
 #include "vk_imgui.h"   // (the renderer's side of the overlay: begin, fonts, logo, record)
 #include "vk_ui.h"
+#include "vk_splash_anim.h"
 #include "vk_menu_keys.h"   // (which gamepad buttons confirm and go back: those A and B are bound to)         // (how it looks: Dear ImGui, vk_imgui.h)
 #include "vk_dlss.h"
 #include "vk_framegen.h"   // (Frame generation by: who makes the frames now, framegen_maker)
@@ -1758,6 +1759,8 @@ std::mutex startup_mu;   // (the start-up screen's view, set from its own thread
 StartupView startup;
 std::atomic<bool> startup_on{false};
 std::atomic<float> startup_fade{0};   // (the start-up screen's fade to black at its end, 0 to 1: startup_fade_to)
+std::chrono::steady_clock::time_point startup_t0{};
+std::atomic<bool> startup_t0_set{false};
 std::atomic<int64_t> game_frames{0}, shown_frames{0};
 char fps_text[48] = "";
 char fps_sub[96] = "";   // (UTF-8: a translation's line can be three bytes a character)
@@ -4031,20 +4034,35 @@ void draw_startup(ui::Ctx& c) {
         v = startup;
     }
     const float s = c.s, w = c.w, h = c.h, cx = w * 0.5f, k = s * 0.86f;   // (k: the scale of what is under the logo)
-    c.d->AddRectFilled(ImVec2(0, 0), ImVec2(w, h), ui::kStartBg);
-    const float lh = 112 * s, top = h * 0.5f - 176 * s;
-    for (int i = 40; i >= 1; i--) c.d->AddCircleFilled(ImVec2(cx, top + lh * 0.5f + 70 * s), h * 0.021f * i, ui::kStartGlow, 128);
+    const float t = startup_t0_set.load(std::memory_order_relaxed)
+                        ? std::chrono::duration<float>(std::chrono::steady_clock::now() - startup_t0).count()
+                        : 0.0f;
+    const float lh = 148 * s, after_logo = 16 * s, progress_offset = (120 + 64) * k;
+    const char* lang = i18n::lang_code();
+    const bool is_pt = lang && std::strncmp(lang, "pt", 2) == 0;
+    const float trivia_offset = v.hint.empty() ? 78 * k : 122 * k;
+    const float trivia_line_y = 22 * k, trivia_px = 16.5f * k;
+    float top = h * 0.5f - 212 * s;
+    if (v.trivia) {
+        const float bottom = lh + after_logo + progress_offset + trivia_offset + trivia_line_y + trivia_px;
+        top = std::min(top, std::max(c.safe, h - c.safe - bottom));
+    }
+    splash::draw_background(c, t, cx, top + lh * 0.5f, lh);
     float aspect = 1;
     ImTextureData* logo = ui::logo(&aspect);
-    if (logo) c.d->AddImage(logo->GetTexRef(), ImVec2(cx - lh * aspect * 0.5f, top), ImVec2(cx + lh * aspect * 0.5f, top + lh));
-    float y = top + lh + 16 * s;
-    ui::spaced(c, c.f.heading, 42 * k, ImVec2(cx, y), ui::kWordmark, "LONGSHOT", 6 * k);
-    ui::text_centre(c, c.f.body, 14.5f * k, ImVec2(cx, y + 64 * k), ui::kDim, v.version.c_str());
+    splash::draw_emblem(c, t, cx, top + lh * 0.5f, lh, logo, aspect);
+    float y = top + lh + after_logo;
+    const float wm_a = splash::wordmark_alpha(t);
+    if (wm_a > 0.01f) ui::spaced(c, c.f.heading, 42 * k, ImVec2(cx, y), ui::alpha(ui::kGoldHi, wm_a), "XEONSHOT", 6 * k);
+    const float fl_p = splash::flourish_progress(t);
+    if (fl_p > 0.01f) ui::flourish(c, cx - 190 * k * fl_p, cx + 190 * k * fl_p, y + 66 * k, ui::alpha(ui::kAccent, fl_p));
+    const float ver_a = splash::version_alpha(t);
+    if (ver_a > 0.01f) ui::text_centre(c, c.f.body, 14.5f * k, ImVec2(cx, y + 78 * k), ui::alpha(ui::kDim, ver_a), v.version.c_str());
     {   // (under it, as under the menu's version: a development run's name for what it tests, LONGSHOT_BUILD_NAME, so a
         // screenshot or a stream of the first start says which change it is)
         static const std::string run_name = getenv("LONGSHOT_BUILD_NAME") ? getenv("LONGSHOT_BUILD_NAME") : "";
-        if (!run_name.empty())
-            ui::text_centre(c, c.f.body, 13 * k, ImVec2(cx, y + 82 * k), ui::alpha(ui::kDim, 0.8f), run_name.c_str());
+        if (!run_name.empty() && ver_a > 0.01f)
+            ui::text_centre(c, c.f.body, 13 * k, ImVec2(cx, y + 96 * k), ui::alpha(ui::kDim, 0.8f * ver_a), run_name.c_str());
     }
     if (!v.title.empty()) {
         y += 120 * k;
@@ -4054,7 +4072,7 @@ void draw_startup(ui::Ctx& c) {
             ui::text_centre(c, c.f.body, 15 * k, ImVec2(cx, y), ui::kAccent, step.c_str());
         }
         ui::text_centre(c, c.f.heading, 24 * k, ImVec2(cx, y + 20 * k), ui::kInk, v.title.c_str());
-        const float x0 = cx - 270 * k, x1 = cx + 270 * k, by = y + 64 * k;
+        const float x0 = cx - 270 * k, x1 = cx + 270 * k, by = top + lh + after_logo + progress_offset;
         float under = by;
         if (v.fraction >= 0) {   // (the bar as a value cell: a dark cell, gold inside, the percentage on it)
             const float bh = 26 * k, in = 4 * k, fx = x0 + in + (x1 - x0 - 2 * in) * (float)std::min(v.fraction, 1.0);
@@ -4079,7 +4097,24 @@ void draw_startup(ui::Ctx& c) {
                  ui::kSoft, v.left.c_str());
         if (!v.right.empty())
             ui::text(c, c.f.body, px, ImVec2(x1 - ui::size_of(c.f.body, px, v.right.c_str()).x, under + 12 * k), ui::kSoft, v.right.c_str());
-        if (!v.hint.empty()) ui::text_centre(c, c.f.body, 15.5f * k, ImVec2(cx, by + 92 * k), ui::kDim, v.hint.c_str());
+        if (!v.hint.empty()) {
+            const char* hint_txt =
+                is_pt ? "Após atualizar, esta etapa roda uma vez. Fechar a janela mantém o progresso." : v.hint.c_str();
+            ui::text_centre(c, c.f.body, 15.5f * k, ImVec2(cx, by + 92 * k), ui::kDim, hint_txt);
+        }
+        if (v.trivia) {
+            const char* trivia_hdr = is_pt ? "Curiosidade" : "Trivia";
+            const char* trivia_txt = is_pt ? v.trivia->pt : v.trivia->en;
+            const float ty = by + trivia_offset;
+            const float room = std::min(680 * k, w - 2 * c.safe);
+            const float text_px = ui::fit_px(trivia_px, 12.0f * k, 0.5f * k, room, [&](float size) {
+                return ui::size_of(c.f.body, size, trivia_txt).x;
+            });
+            if (text_px > 0 && ty + trivia_line_y + text_px <= h - c.safe + 0.5f) {
+                ui::text_centre(c, c.f.strong, 13.5f * k, ImVec2(cx, ty), ui::kGoldHi, trivia_hdr);
+                ui::text_centre(c, c.f.body, text_px, ImVec2(cx, ty + trivia_line_y), ui::kInk, trivia_txt);
+            }
+        }
     }
     if (const float f = startup_fade.load(std::memory_order_relaxed); f > 0)   // (the end: to black, the game's first frame next)
         c.d->AddRectFilled(ImVec2(0, 0), ImVec2(w, h), ui::rgba(0, 0, 0, (int)(std::min(f, 1.0f) * 255 + 0.5f)));
@@ -4217,6 +4252,7 @@ void startup_screen(const StartupView* view) {
     if (!view) {
         startup_on.store(false, std::memory_order_release);
         startup_fade.store(0, std::memory_order_relaxed);
+        startup_t0_set.store(false, std::memory_order_relaxed);
         return;
     }
     StartupView v = *view;
@@ -4225,6 +4261,7 @@ void startup_screen(const StartupView* view) {
         std::lock_guard lk(startup_mu);
         startup = v;
     }
+    if (!startup_t0_set.exchange(true, std::memory_order_relaxed)) startup_t0 = std::chrono::steady_clock::now();
     startup_on.store(true, std::memory_order_release);
     probe_upscalers_soon();
 }

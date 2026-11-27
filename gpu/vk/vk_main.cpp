@@ -1617,10 +1617,19 @@ void prepare_with_screen() {
     // (the screen is drawn and presented on a thread of its own: a present can wait for as long as the window cannot be seen (FIFO
     // on Wayland, a locked screen), and that must hold neither the window's messages nor the game's start)
     using clock = std::chrono::steady_clock;
+    constexpr double kIntroMinSecs = 3.2;
     const auto t0 = clock::now();
+#ifdef _WIN32
+    const uint64_t pid = static_cast<uint64_t>(GetCurrentProcessId());
+#else
+    const uint64_t pid = static_cast<uint64_t>(getpid());
+#endif
+    const uint64_t seed = static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count()) ^
+                          static_cast<uint64_t>(t0.time_since_epoch().count()) ^ (pid << 16);
+    const size_t trivia_offset = static_cast<size_t>((seed ^ (seed >> 33)) * 0xff51afd7ed558ccdULL);
     static std::atomic<bool> paint_stop{false};
     HANDLE painted = CreateEventA(nullptr, TRUE, FALSE, nullptr);
-    std::thread painter([t0, painted] {
+    std::thread painter([t0, painted, trivia_offset] {
         ProgressClock eta;   // (over the whole bar: its units, PrepareBar)
         PrepareBar bar;
         double next_log = 10;
@@ -1648,7 +1657,7 @@ void prepare_with_screen() {
             }
             if (stage == 0 && total) prepared = true;
             StartupState st;
-            st.stage = stage, st.done = done, st.total = total, st.left = left, st.secs = secs;
+            st.stage = stage, st.done = done, st.total = total, st.trivia_offset = trivia_offset, st.left = left, st.secs = secs;
             st.prepared = prepared, st.finished = finished, st.stopping = prepare_stopped();
             st.saving = prepare_saving();
             st.whole = whole;
@@ -1661,8 +1670,8 @@ void prepare_with_screen() {
                 last_w = w, last_h = h;
             }
             if (w && h) present_image(nullptr, dev.swap_extent.width, dev.swap_extent.height, nullptr);
-            if (finished || paint_stop.load()) break;
-            Sleep(33);
+            if ((finished && (secs >= kIntroMinSecs || prepare_stopped())) || paint_stop.load()) break;
+            Sleep(16);
         }
         // (the end: a fade to black over 0.4 s, so the game's first frame comes out of black, not cut in over the screen; none
         // after a screen of under 1.5 s, a blink, or when the window is not shown (paint_stop: its presents wait))
@@ -1690,7 +1699,9 @@ void prepare_with_screen() {
             DispatchMessageA(&m);
         }
 #endif
-        if (WaitForSingleObject(prep_ended, 33) == WAIT_OBJECT_0) break;
+        const bool ended = WaitForSingleObject(prep_ended, 16) == WAIT_OBJECT_0;
+        const double secs = std::chrono::duration<double>(clock::now() - t0).count();
+        if (ended && (secs >= kIntroMinSecs || prepare_stopped() || paint_stop.load())) break;
     }
     worker.join();
     // (the painter ends by itself once the work is finished, after its fade; it is told to stop only when it has not by then)
