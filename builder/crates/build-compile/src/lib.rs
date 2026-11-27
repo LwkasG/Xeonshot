@@ -917,9 +917,9 @@ fn exe_resources(o: &Options, l: &Layout) -> Result<Vec<PathBuf>> {
 }
 
 /// The game's file name: `longshot` on Linux, whose name NVIDIA's driver files its shader cache by (another name
-/// starts every player's cache from nothing), `longshot.exe` on Windows.
+/// starts every player's cache from nothing), `xeonshot.exe` on Windows.
 pub(crate) fn game_exe_name(linux: bool) -> &'static str {
-    if linux { "longshot" } else { "longshot.exe" }
+    if linux { "longshot" } else { "xeonshot.exe" }
 }
 
 /// A file copied beside the game when it is not there with the same size.

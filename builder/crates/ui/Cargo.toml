@@ -7,6 +7,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+build-core.workspace = true
 crash.workspace = true
 # (only the winit back end and the software renderer: no Qt, no FemtoVG or Skia, no GPU; X11 and Wayland are loaded at
 # run time by winit, not linked)

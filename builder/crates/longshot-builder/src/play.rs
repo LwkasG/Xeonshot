@@ -40,7 +40,7 @@ pub const FAILED: i32 = 121;
 /// The update's log, in the game folder's `logs/` beside the game's own.
 pub const LOG: &str = "logs/longshot_update.log";
 /// The messages' title.
-const TITLE: &str = "Longshot";
+const TITLE: &str = "Xeonshot";
 
 /// The builder's commands: under a play name, a first word that is none of these starts the game with it. Every
 /// command main.rs takes is here (main.rs's `every_command_it_takes_is_one_play_leaves_alone` checks it).
@@ -88,7 +88,8 @@ pub fn wanted(exe: &Path, args: &[String]) -> Option<Vec<String>> {
         _ => {}
     }
     let name = exe.file_name()?.to_string_lossy();
-    let named = NAMES.iter().any(|n| n.eq_ignore_ascii_case(&name));
+    let named = NAMES.iter().any(|n| n.eq_ignore_ascii_case(&name))
+        || name.to_ascii_lowercase().starts_with("xeonshot");
     (named && !args.first().is_some_and(|a| COMMANDS.contains(&a.as_str()))).then(|| args.to_vec())
 }
 
@@ -545,9 +546,25 @@ pub fn run_with(
     env: &[(std::ffi::OsString, std::ffi::OsString)],
 ) -> i32 {
     let t = std::time::Instant::now();
+    let auto_gui = cfg!(windows)
+        && args.is_empty()
+        && exe
+            .file_name()
+            .is_some_and(|n| n.to_string_lossy().to_ascii_lowercase().starts_with("xeonshot"));
     let mut args = args.to_vec();
     match crate::output::take(&mut args) {
-        Ok(asked) => crate::output::set(asked),
+        Ok(asked) => {
+            let chosen = if asked.is_none()
+                && auto_gui
+                && build_driver::env("HOS_HEADLESS").as_deref() != Some("1")
+                && build_driver::env("CI").is_none()
+            {
+                Some(crate::output::Output::User)
+            } else {
+                asked
+            };
+            crate::output::set(chosen);
+        }
         Err(why) => {
             eprintln!("longshot: {why}");
             return 2;

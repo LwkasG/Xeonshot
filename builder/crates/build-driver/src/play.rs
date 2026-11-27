@@ -449,10 +449,21 @@ impl Stale {
     }
 }
 
-/// The game's program in game folder `folder`: `longshot` (`longshot.exe` on Windows), or in its `bin/`.
+/// The game's program in game folder `folder`: `longshot` on Linux, `xeonshot.exe` (or legacy `longshot.exe`) on Windows, or in its `bin/`.
 pub fn game_program(folder: &Path) -> PathBuf {
-    let name = if cfg!(windows) { "longshot.exe" } else { "longshot" };
-    let (top, bin) = (folder.join(name), folder.join("bin").join(name));
+    if cfg!(windows) {
+        for name in ["xeonshot.exe", "longshot.exe"] {
+            let (top, bin) = (folder.join(name), folder.join("bin").join(name));
+            if top.is_file() {
+                return top;
+            }
+            if bin.is_file() {
+                return bin;
+            }
+        }
+        return folder.join("xeonshot.exe");
+    }
+    let (top, bin) = (folder.join("longshot"), folder.join("bin").join("longshot"));
     if !top.is_file() && bin.is_file() { bin } else { top }
 }
 
@@ -637,6 +648,14 @@ pub fn play(
                     return Played::UpdateFailed(text);
                 }
             }
+        }
+        let opts = folder.join(OPTIONS_FILE);
+        let prof_settings = settings(&profile);
+        if opts.is_file()
+            && !prof_settings.exists()
+            && let Ok(bytes) = std::fs::read(&opts)
+        {
+            let _ = build_core::fsx::write_atomic(&prof_settings, &bytes);
         }
         let program = game_program(&folder);
         let Started { status, restart } = match host.start(&program, &game_args, &profile) {

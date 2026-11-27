@@ -21,7 +21,7 @@
 </p>
 
 > [!IMPORTANT]
-> Este repositório **não contém o jogo, chaves ou um executável pronto**. Você precisa da sua própria cópia do jogo. Tudo o que o builder gera (`longshot.exe`, código recompilado, caches de shader e saves) vem da sua cópia e permanece exclusivamente no seu PC. Nunca compartilhe esses arquivos.
+> Este repositório **não contém o jogo, chaves ou um executável pronto**. Você precisa da sua própria cópia do jogo. Tudo o que o builder gera (`xeonshot.exe`, código recompilado, caches de shader e saves) vem da sua cópia e permanece exclusivamente no seu PC. Nunca compartilhe esses arquivos.
 >
 > This repository **does not contain the game, keys or an executable**. You need your own copy of the game; everything the build creates stays on your PC.
 

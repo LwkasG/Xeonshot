@@ -110,8 +110,75 @@ fn language(o: &BuildOptions, out: &Path) -> Result<&'static str> {
     }
     match &o.language {
         Some(l) => crate::options::language_code(l),
-        None => Ok(kept.or_else(|| crate::options::system_language(env)).unwrap_or("en-US")),
+        None => Ok(kept
+            .or_else(|| crate::options::system_language(env))
+            .or_else(|| build_core::system_locale().and_then(|l| crate::options::closest_language(&l)))
+            .unwrap_or("en-US")),
     }
+}
+
+/// Factory default `longshot_options.ini` tuned for Xeonshot + native monitor resolution + Built-in FG 3x.
+fn default_options_ini() -> String {
+    let (w, h) = build_core::primary_monitor_resolution().unwrap_or((1920, 1080));
+    let ultrawide = u32::from(w * 10 >= h * 20);
+    format!(
+        "quality_preset=0\n\
+         ultrawide={ultrawide}\n\
+         output_res={w}x{h}\n\
+         dlss=6\n\
+         resolution=1\n\
+         upscaling=0\n\
+         frame_generation=3\n\
+         frame_generation_by=1\n\
+         frame_rate_cap=6\n\
+         nvidia_reflex=1\n\
+         vsync=2\n\
+         fullscreen=1\n\
+         shadow_resolution=3\n\
+         contact_shadows=1\n\
+         texture_detail=1\n\
+         anisotropic_filtering=0\n\
+         grass_distance=0\n\
+         foliage_distance=100\n\
+         object_detail=100\n\
+         grass_density=100\n\
+         shadow_distance=100\n\
+         threaded_rendering=1\n\
+         descriptor_reuse=1\n\
+         sampler_cache=1\n\
+         robust_buffers=2\n\
+         fps_counter=2\n\
+         vram_line=1\n\
+         cpu_and_gpu_lines=1\n"
+    )
+}
+
+/// Factory default `longshot_env.txt` with Xeonshot traversal/RAM tuning adapted to the host PC.
+fn default_env_txt() -> String {
+    let cores = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(8).min(8);
+    let large_heap_mb = match build_core::total_memory_mb() {
+        Some(m) if m >= 24 * 1024 => 7168,
+        Some(m) if m >= 16 * 1024 => 4096,
+        _ => 0,
+    };
+    format!(
+        "# Xeonshot 2.0-rt - preset de fabrica validado\n\
+         HOS_CORES={cores}\n\
+         HOS_COLD_TRIM=0\n\
+         HOS_LARGE_HEAP_MB={large_heap_mb}\n\
+         HOS_KEEP_FREED_PAGES=1\n\
+         HOS_HEAP_COMMIT=1\n\
+         RX_VK_MIRROR_SPARSE=0\n\
+         RX_VK_POOL_IDLE=120\n\
+         RX_VK_TARGET_POOL_MB=1536\n\
+         RX_VK_PRESENT_QUEUE=0\n\
+         RX_VK_TRANSLATE_WAIT_MS=2\n\
+         RX_VK_PIPE_SKIP=2\n\
+         RX_VK_ASTC_CHUNK_MPX=0\n\
+         RX_VK_UPLOAD_BUDGET_MS=5\n\
+         RX_VK_COMPACT=0\n\
+         RX_VK_TEX_AHEAD=1\n"
+    )
 }
 
 /// The compile's options for a player's build: the builder's own tools (crate::tools); `ngx`: the DLSS SDK the
@@ -245,7 +312,7 @@ fn finished_files(
     let build = &p.work.build;
     // (the game is the folder's own exe, its libraries beside it)
     let game_dir = p.out.clone();
-    let exe_name = if windows { "longshot.exe" } else { "longshot" };
+    let exe_name = if windows { "xeonshot.exe" } else { "longshot" };
     let mut files = Vec::new();
     let exe = built.game.clone().ok_or_else(|| Error::format("the compile", "no game linked"))?;
     files.push((exe, game_dir.join(exe_name)));
@@ -612,6 +679,14 @@ pub fn build(o: &BuildOptions, p: &Places, st: &Stages, r: &Reporter) -> Result<
         optional(i + 1, what, result);
     }
     fsx::write_if_changed(&p.out.join("language.txt"), folder::language_text(language).as_bytes())?;
+    let opts_path = folder::options_path(&p.out);
+    if !opts_path.exists() {
+        fsx::write_atomic(&opts_path, default_options_ini().as_bytes())?;
+    }
+    let env_path = p.out.join("longshot_env.txt");
+    if !env_path.exists() {
+        fsx::write_atomic(&env_path, default_env_txt().as_bytes())?;
+    }
     if let Some(level) = o.compile_shaders {
         folder::write_compile_shaders(&p.out, level)?;
     }

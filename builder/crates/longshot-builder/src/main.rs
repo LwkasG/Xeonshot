@@ -750,9 +750,19 @@ fn run(a: &Args, r: &Reporter) -> Result<bool> {
             // runtime's, `dev.py packs rt`. Exit status 1 when they were not: the warning says why)
             let folder = std::path::absolute(a.folder.as_deref().unwrap_or(Path::new(".")))
                 .map_err(|e| Error::io(a.folder.as_deref().unwrap_or(Path::new(".")), e))?;
-            let name = if cfg!(windows) { "longshot.exe" } else { "longshot" };
-            let Some(exe) = [folder.join(name), folder.join("bin").join(name)].into_iter().find(|p| p.is_file()) else {
-                return Err(Error::player("game_folder_incomplete", format!("{} has no {name}.", folder.display())));
+            let exe = if cfg!(windows) {
+                ["xeonshot.exe", "longshot.exe"]
+                    .into_iter()
+                    .flat_map(|name| [folder.join(name), folder.join("bin").join(name)])
+                    .find(|p| p.is_file())
+            } else {
+                [folder.join("longshot"), folder.join("bin").join("longshot")]
+                    .into_iter()
+                    .find(|p| p.is_file())
+            };
+            let Some(exe) = exe else {
+                let expected = if cfg!(windows) { "xeonshot.exe" } else { "longshot" };
+                return Err(Error::player("game_folder_incomplete", format!("{} has no {expected}.", folder.display())));
             };
             let level = a
                 .compile_shaders

@@ -41,6 +41,7 @@ pub fn switch(value: &str) -> Option<bool> {
     }
 }
 pub use sys::{
-    detached, hidden_console, join_job, lower_priority, machine_registry, message_box, raise_window_of_child, run_game,
-    run_game_with, running_programs, stay_awake, user_registry,
+    detached, hidden_console, join_job, lower_priority, machine_registry, message_box, primary_monitor_resolution,
+    raise_window_of_child, run_game, run_game_with, running_programs, stay_awake, system_locale, total_memory_mb,
+    user_registry,
 };

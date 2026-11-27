@@ -123,6 +123,21 @@ pub fn raise_window_of_child(parent: u32) -> bool {
     imp::raise_window_of_child(parent)
 }
 
+/// The user's system locale (e.g. `pt-BR`, `en-US`), when the operating system can report one.
+pub fn system_locale() -> Option<String> {
+    imp::system_locale()
+}
+
+/// The primary display's physical pixel resolution (`width`, `height`), ignoring Windows DPI scaling.
+pub fn primary_monitor_resolution() -> Option<(u32, u32)> {
+    imp::primary_monitor_resolution()
+}
+
+/// Total physical RAM in MiB, when known.
+pub fn total_memory_mb() -> Option<u64> {
+    imp::total_memory_mb()
+}
+
 #[cfg(not(windows))]
 mod imp {
     pub(super) fn hidden_console() {}
@@ -187,6 +202,23 @@ mod imp {
 
     pub(super) fn raise_window_of_child(_parent: u32) -> bool {
         false
+    }
+
+    pub(super) fn system_locale() -> Option<String> {
+        ["LC_ALL", "LC_MESSAGES", "LANG"]
+            .into_iter()
+            .find_map(|k| std::env::var(k).ok().filter(|v| !v.is_empty()))
+    }
+
+    pub(super) fn primary_monitor_resolution() -> Option<(u32, u32)> {
+        None
+    }
+
+    pub(super) fn total_memory_mb() -> Option<u64> {
+        let text = fs::read_to_string("/proc/meminfo").ok()?;
+        let line = text.lines().find(|l| l.starts_with("MemTotal:"))?;
+        let kb: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
+        Some(kb / 1024)
     }
 
     pub(super) fn registry(_user: bool, _path: &str) -> (Vec<(String, String)>, Vec<String>) {
@@ -305,6 +337,82 @@ mod imp {
             MEMORYSTATUSEX { dwLength: std::mem::size_of::<MEMORYSTATUSEX>() as u32, ..unsafe { std::mem::zeroed() } };
         // SAFETY: `m` is a MEMORYSTATUSEX of this size, owned here, as the call requires.
         (unsafe { GlobalMemoryStatusEx(&mut m) } != 0).then_some(m.ullAvailPhys)
+    }
+
+    pub(super) fn total_memory_mb() -> Option<u64> {
+        let mut m =
+            MEMORYSTATUSEX { dwLength: std::mem::size_of::<MEMORYSTATUSEX>() as u32, ..unsafe { std::mem::zeroed() } };
+        // SAFETY: `m` is a MEMORYSTATUSEX of this size, owned here, as the call requires.
+        (unsafe { GlobalMemoryStatusEx(&mut m) } != 0).then_some(m.ullTotalPhys / (1024 * 1024))
+    }
+
+    pub(super) fn system_locale() -> Option<String> {
+        #[link(name = "kernel32")]
+        unsafe extern "system" {
+            fn GetUserDefaultLocaleName(lp_locale_name: *mut u16, cch_locale_name: i32) -> i32;
+        }
+        let mut buf = [0u16; 85];
+        // SAFETY: `buf` is a mutable UTF-16 buffer of length 85 (`cch_locale_name == 85`).
+        let len = unsafe { GetUserDefaultLocaleName(buf.as_mut_ptr(), buf.len() as i32) };
+        if len <= 1 {
+            return None;
+        }
+        let s = text(&buf);
+        (!s.is_empty()).then_some(s)
+    }
+
+    pub(super) fn primary_monitor_resolution() -> Option<(u32, u32)> {
+        #[repr(C)]
+        struct DevModeW {
+            dm_device_name: [u16; 32],
+            dm_spec_version: u16,
+            dm_driver_version: u16,
+            dm_size: u16,
+            dm_driver_extra: u16,
+            dm_fields: u32,
+            _union: [u32; 4],
+            dm_color: i16,
+            dm_duplex: i16,
+            dm_y_resolution: i16,
+            dm_tt_option: i16,
+            dm_collate: i16,
+            dm_form_name: [u16; 32],
+            dm_log_pixels: u16,
+            dm_bits_per_pel: u32,
+            dm_pels_width: u32,
+            dm_pels_height: u32,
+            dm_display_flags: u32,
+            dm_display_frequency: u32,
+            dm_icm_method: u32,
+            dm_icm_intent: u32,
+            dm_media_type: u32,
+            dm_dither_type: u32,
+            dm_reserved1: u32,
+            dm_reserved2: u32,
+            dm_panning_width: u32,
+            dm_panning_height: u32,
+        }
+        const _: () = {
+            assert!(std::mem::size_of::<DevModeW>() == 220);
+            assert!(std::mem::offset_of!(DevModeW, dm_pels_width) == 172);
+            assert!(std::mem::offset_of!(DevModeW, dm_pels_height) == 176);
+        };
+        const ENUM_CURRENT_SETTINGS: u32 = 0xFFFF_FFFF;
+        #[link(name = "user32")]
+        unsafe extern "system" {
+            fn EnumDisplaySettingsW(
+                lpsz_device_name: *const u16,
+                i_mode_num: u32,
+                lp_dev_mode: *mut DevModeW,
+            ) -> i32;
+        }
+        // SAFETY: zeroed DevModeW is valid when `dm_size` is initialized to 220 bytes.
+        let mut dm: DevModeW = unsafe { std::mem::zeroed() };
+        dm.dm_size = std::mem::size_of::<DevModeW>() as u16;
+        // SAFETY: `dm` is valid for writes and initialized with `dm_size == 220`.
+        let ok = unsafe { EnumDisplaySettingsW(std::ptr::null(), ENUM_CURRENT_SETTINGS, &mut dm) };
+        (ok != 0 && dm.dm_pels_width > 0 && dm.dm_pels_height > 0)
+            .then_some((dm.dm_pels_width, dm.dm_pels_height))
     }
 
     /// UTF-16 up to its first NUL, as text.

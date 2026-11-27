@@ -220,11 +220,15 @@ def game_exe(game, exe=None):
     """A builder folder's root executable is the launcher, not the game; a source build has no bin folder"""
     if exe:
         return os.path.abspath(exe)
-    name = "longshot.exe" if WINDOWS else "longshot"
-    nested = os.path.join(game, "bin", name)
-    if os.path.isfile(nested) or os.path.isdir(os.path.join(game, "bin")):
-        return nested   # (an incomplete builder folder must not fall back to its launcher)
-    return os.path.join(game, name)
+    names = ("xeonshot.exe", "longshot.exe") if WINDOWS else ("longshot",)
+    has_bin = os.path.isdir(os.path.join(game, "bin"))
+    for name in names:
+        nested = os.path.join(game, "bin", name)
+        if os.path.isfile(nested):
+            return nested
+        if not has_bin and os.path.isfile(os.path.join(game, name)):
+            return os.path.join(game, name)
+    return os.path.join(game, "bin", names[0]) if has_bin else os.path.join(game, names[0])
 
 
 def hos_steps(script):

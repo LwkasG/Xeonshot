@@ -33,6 +33,86 @@ pub const PROGRESS_AFTER: Duration = Duration::from_millis(500);
 /// A page's first moments, in which no key or click counts.
 pub const PAGE_GUARD: Duration = Duration::from_millis(400);
 
+/// Localized UI strings detected from the host system locale.
+struct UiStrings {
+    window_title: &'static str,
+    installer_title: &'static str,
+    pick_heading: &'static str,
+    pick_sub: &'static str,
+    pick_placeholder: &'static str,
+    browse: &'static str,
+    cancel: &'static str,
+    install_and_play: &'static str,
+    missing_file_note: &'static str,
+    file_dialog_title: &'static str,
+    progress_heading: &'static str,
+    progress_sub: &'static str,
+    error_title: &'static str,
+    close: &'static str,
+    preset_info: String,
+}
+
+fn strings() -> UiStrings {
+    let raw_locale = build_core::system_locale().unwrap_or_else(|| "en-US".into());
+    let family = raw_locale.split(['-', '_', '.', '@']).next().unwrap_or("en").to_ascii_lowercase();
+    let (w, h) = build_core::primary_monitor_resolution().unwrap_or((1920, 1080));
+    let ultrawide = w * 10 >= h * 20;
+    let res_label = if ultrawide { format!("{w}x{h} (Ultrawide)") } else { format!("{w}x{h}") };
+    match family.as_str() {
+        "pt" => UiStrings {
+            preset_info: format!("Idioma: {raw_locale}  •  Monitor: {res_label}  •  Preset Xeonshot + FG 3x"),
+            window_title: "Xeonshot",
+            installer_title: "Xeonshot — Instalador",
+            pick_heading: "Selecione a ROM (.nup) de Ocarina of Time",
+            pick_sub: "O Xeonshot compila o jogo nativamente a partir da sua própria cópia (.nup) de Nintendo Switch 2. Nada sai do seu PC.",
+            pick_placeholder: "Caminho do arquivo .nup",
+            browse: "Procurar...",
+            cancel: "Cancelar",
+            install_and_play: "Instalar e Jogar",
+            missing_file_note: "Arquivo não encontrado. Cole o caminho do .nup ou clique em Procurar.",
+            file_dialog_title: "Selecione o arquivo .nup de Ocarina of Time",
+            progress_heading: "Preparando o Xeonshot",
+            progress_sub: "O Xeonshot iniciará o jogo automaticamente quando terminar.",
+            error_title: "Xeonshot: não foi possível compilar o jogo",
+            close: "Fechar",
+        },
+        "es" => UiStrings {
+            preset_info: format!("Idioma: {raw_locale}  •  Monitor: {res_label}  •  Preset Xeonshot + FG 3x"),
+            window_title: "Xeonshot",
+            installer_title: "Xeonshot — Instalador",
+            pick_heading: "Selecciona la ROM (.nup) de Ocarina of Time",
+            pick_sub: "Xeonshot compila el juego de forma nativa desde tu propia copia (.nup) de Nintendo Switch 2. Nada sale de tu PC.",
+            pick_placeholder: "Ruta del archivo .nup",
+            browse: "Examinar...",
+            cancel: "Cancelar",
+            install_and_play: "Instalar y Jugar",
+            missing_file_note: "No se encontró el archivo. Pega la ruta del .nup o haz clic en Examinar.",
+            file_dialog_title: "Selecciona tu archivo .nup de Ocarina of Time",
+            progress_heading: "Preparando Xeonshot",
+            progress_sub: "Xeonshot iniciará el juego automáticamente al terminar.",
+            error_title: "Xeonshot: no se pudo compilar el juego",
+            close: "Cerrar",
+        },
+        _ => UiStrings {
+            preset_info: format!("Language: {raw_locale}  •  Display: {res_label}  •  Xeonshot Preset + FG 3x"),
+            window_title: "Xeonshot",
+            installer_title: "Xeonshot — Installer",
+            pick_heading: "Select your Ocarina of Time .nup ROM",
+            pick_sub: "Xeonshot builds the game natively from your own copy of Ocarina of Time (Nintendo Switch 2): its .nup file. Nothing leaves this PC.",
+            pick_placeholder: "Path to your .nup file",
+            browse: "Browse...",
+            cancel: "Cancel",
+            install_and_play: "Install & Play",
+            missing_file_note: "File not found. Paste the path to your .nup or click Browse.",
+            file_dialog_title: "Select your Ocarina of Time .nup",
+            progress_heading: "Getting Xeonshot ready",
+            progress_sub: "Xeonshot will start the game automatically when it's done.",
+            error_title: "Xeonshot: the game could not be built",
+            close: "Close",
+        },
+    }
+}
+
 /// A question for the player ([`Ui::confirm`]): what is asked, the facts the answer should rest on, and the two answers.
 #[derive(Clone, Copy, Debug)]
 pub struct Confirm<'a> {
@@ -311,8 +391,8 @@ impl Ui {
 
     /// An error, until the player closes it (Close).
     pub fn error(&self, text: &str) -> Result<(), NoWindow> {
-        self.page(&Page { title: "Longshot: the game could not be built", text, block: None, buttons: &["Close"] })
-            .map(|_| ())
+        let s = strings();
+        self.page(&Page { title: s.error_title, text, block: None, buttons: &[s.close] }).map(|_| ())
     }
 
     /// The crash window and its pages ([`crash::flow::show`], with the desktop's clipboard, browser and curl): how it
@@ -331,6 +411,9 @@ impl Ui {
     /// when the player cancelled.
     pub fn pick_game(&self) -> Result<Option<PathBuf>, NoWindow> {
         self.start()?;
+        let s = strings();
+        let missing_note = s.missing_file_note;
+        let dialog_title = s.file_dialog_title;
         let (tx, rx) = mpsc::channel::<Option<PathBuf>>();
         let r = slint::invoke_from_event_loop(move || {
             with(|w| {
@@ -356,7 +439,7 @@ impl Ui {
                     }
                     let path = PathBuf::from(p.get_path().trim().trim_matches('"'));
                     if path.as_os_str().is_empty() || !path.exists() {
-                        p.set_note("There is no such file. Paste the path of your .nup, or press Browse.".into());
+                        p.set_note(missing_note.into());
                         return;
                     }
                     a1.set(true);
@@ -368,7 +451,7 @@ impl Ui {
                     let w = w2.clone();
                     std::thread::spawn(move || {
                         let file = rfd::FileDialog::new()
-                            .set_title("Pick your Ocarina of Time .nup")
+                            .set_title(dialog_title)
                             .add_filter("Ocarina of Time (Nintendo Switch 2)", &["nup"])
                             .pick_file();
                         if let Some(f) = file {
@@ -429,11 +512,24 @@ fn ui_thread(ready: mpsc::Sender<Result<(), NoWindow>>, cancel: Arc<Mutex<Cancel
             .renderer_name("software".into())
             .select()
             .map_err(no)?;
+        let s = strings();
         let w = Windows {
             progress: ProgressWindow::new().map_err(no)?,
             page: PageWindow::new().map_err(no)?,
             pick: PickWindow::new().map_err(no)?,
         };
+        w.progress.set_window_title(s.window_title.into());
+        w.progress.set_heading(s.progress_heading.into());
+        w.progress.set_sub(s.progress_sub.into());
+        w.progress.set_cancel_label(s.cancel.into());
+        w.pick.set_window_title(s.installer_title.into());
+        w.pick.set_heading(s.pick_heading.into());
+        w.pick.set_sub(s.pick_sub.into());
+        w.pick.set_placeholder(s.pick_placeholder.into());
+        w.pick.set_browse_label(s.browse.into());
+        w.pick.set_cancel_label(s.cancel.into());
+        w.pick.set_continue_label(s.install_and_play.into());
+        w.pick.set_preset_info(s.preset_info.into());
         let c = cancel.clone();
         w.progress.on_cancel(move || {
             let f = c.lock().unwrap_or_else(|e| e.into_inner()).clone();

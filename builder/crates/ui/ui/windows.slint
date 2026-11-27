@@ -9,67 +9,59 @@ import "../fonts/Inter-SemiBold.ttf";
 import "../fonts/NotoSans-Black.ttf";
 
 global Theme {
-    out property <color> page: #14161A;
-    out property <color> ink: #EDEFF2;
-    out property <color> ink-soft: #A2A9B3;
-    out property <color> ink-faint: #8A919B;
-    out property <color> glass: #FFFFFF0D;
-    out property <color> glass-hover: #FFFFFF17;
-    out property <color> glass-line: #FFFFFF17;
-    out property <color> glass-line-strong: #FFFFFF2A;
-    out property <color> quiet-fill: #FFFFFF08;
-    out property <color> quiet-line: #FFFFFF1F;
+    out property <color> page: #0B101B;
+    out property <color> ink: #EDF2FA;
+    out property <color> ink-soft: #9FB2CF;
+    out property <color> ink-faint: #7E92B2;
+    out property <color> glass: #121B2E;
+    out property <color> glass-hover: #192640;
+    out property <color> glass-line: #23385C;
+    out property <color> glass-line-strong: #325082;
+    out property <color> quiet-fill: #FFFFFF0A;
+    out property <color> quiet-line: #325082;
     out property <color> quiet-pressed: #FFFFFF05;
-    out property <color> brand: #3D63E6;
-    out property <color> brand-hover: #4B70F0;
-    out property <color> brand-pressed: #3357D0;
-    out property <color> primary-line: #FFFFFF33;
-    out property <color> bar-track: #FFFFFF12;
-    out property <color> well: #00000033;
-    out property <color> bad: #E2776B;
-    // the brand's Go (the launcher's Play and Build): green, its ink dark, its shadow a hard 3 px step below
-    out property <color> go: #7CC242;
-    out property <color> go-hover: #8DD253;
-    out property <color> go-pressed: #6AAE36;
-    out property <color> go-ink: #13210D;
-    out property <color> go-line: #FFFFFF40;
-    out property <color> go-glow: #00000066;
-    // the keyboard focus ring: the brand's gold
+    out property <color> brand: #0098FF;
+    out property <color> brand-hover: #24B0FF;
+    out property <color> brand-pressed: #007CD4;
+    out property <color> primary-line: #FFFFFF38;
+    out property <color> bar-track: #182338;
+    out property <color> well: #070B14;
+    out property <color> bad: #FF7B72;
+    // Xeonshot Go button: electric cyan with deep ink and hard 3 px shadow step
+    out property <color> go: #00D4FF;
+    out property <color> go-hover: #3BE2FF;
+    out property <color> go-pressed: #00B4DC;
+    out property <color> go-ink: #041320;
+    out property <color> go-line: #FFFFFF45;
+    out property <color> go-glow: #00000080;
+    out property <color> accent: #3BE2FF;
+    out property <color> accent-well: #0098FF1F;
+    out property <color> accent-line: #00D4FF44;
+    // keyboard focus ring: gold
     out property <color> focus-ring: #F3C24F;
-    // warn and bad boxes: a tint (#33), a line (#55), a chip's line (#38 on gold; #40 on red)
+    // warn and bad boxes
     out property <color> warn: #F3C24F;
     out property <color> warn-fill: #F3C24F33;
     out property <color> warn-line: #F3C24F55;
     out property <color> bad-fill: #EC7A5F33;
     out property <color> bad-line: #EC7A5F55;
-    // MagicBean's brand (MagicBeanDev/Brand), by its names there
-    out property <color> night: #21140D;
-    out property <color> night2: #2E1D13;
-    out property <color> rust: #A8472B;
-    out property <color> rust-dark: #7C3220;
-    out property <color> cream: #FBF1DC;
-    out property <color> cream-card: #FFF8E8;
-    out property <color> cream-line: #E6D3AE;
-    out property <color> cream-ink: #2A1A10;
-    out property <color> cream-muted: #6E5643;
-    out property <color> lime: #C2ED83;
-    out property <color> leaf: #7CC242;
-    out property <color> deep: #3C651E;
-    out property <color> gold: #F3C24F;
-    out property <color> tan: #EFD3A6;
-    out property <color> orange: #D9783A;
+    // Xeonshot + Triforce accent stripes
+    out property <color> stripe-1: #004499;
+    out property <color> stripe-2: #0098FF;
+    out property <color> stripe-3: #00D4FF;
+    out property <color> stripe-4: #F3C24F;
 }
 
-// The brand's four stripes across a window's top edge: rust, orange, gold, leaf, 3 px, each a quarter of the width.
+// Xeonshot four stripes across a window's top edge, 3 px tall.
 component Stripes inherits Rectangle {
     x: 0;
     y: 0;
     height: 3px;
     HorizontalLayout {
-        Rectangle { background: Theme.rust; }
-        Rectangle { background: Theme.orange; }
-        Rectangle { background: Theme.gold; }
-        Rectangle { background: Theme.leaf; }
+        Rectangle { background: Theme.stripe-1; }
+        Rectangle { background: Theme.stripe-2; }
+        Rectangle { background: Theme.stripe-3; }
+        Rectangle { background: Theme.stripe-4; }
     }
 }
 
@@ -195,11 +187,15 @@ component ProgressBar inherits Rectangle {
 
 // A build's progress: its step, how far, a bar, Cancel. Shown only once a build has gone on for a moment.
 export component ProgressWindow inherits Window {
+    in property <string> window-title: "Xeonshot";
+    in property <string> heading: "Getting the game ready";
+    in property <string> sub: "Xeonshot starts the game by itself when it's done.";
+    in property <string> cancel-label: "Cancel";
     in property <string> step;
     in property <float> fraction;
     callback cancel();
-    title: "Longshot";
-    width: 560px;
+    title: root.window-title;
+    width: 600px;
     height: layout.preferred-height;
     background: Theme.page;
     default-font-family: "Inter";
@@ -207,15 +203,29 @@ export component ProgressWindow inherits Window {
         padding: 28px;
         spacing: 16px;
         HorizontalLayout {
-            spacing: 24px;
+            spacing: 18px;
+            Rectangle {
+                width: 56px;
+                height: 56px;
+                border-radius: 12px;
+                background: Theme.accent-well;
+                border-width: 1px;
+                border-color: Theme.accent-line;
+                Image {
+                    source: @image-url("../assets/xeonshot.png");
+                    width: 48px;
+                    height: 48px;
+                    image-fit: contain;
+                }
+            }
             Title {
-                text: "Getting the game ready";
-                sub: "Longshot starts the game by itself when it's done.";
+                text: root.heading;
+                sub: root.sub;
             }
             Text {
                 text: floor(root.fraction * 100) + " %";
-                color: Theme.ink;
-                font-size: 40px;
+                color: Theme.accent;
+                font-size: 38px;
                 font-weight: 600;
                 horizontal-alignment: right;
                 vertical-alignment: bottom;
@@ -232,7 +242,7 @@ export component ProgressWindow inherits Window {
                 vertical-alignment: center;
             }
             SecondaryButton {
-                text: "Cancel";
+                text: root.cancel-label;
                 clicked => { root.cancel(); }
             }
         }
@@ -243,7 +253,7 @@ export component ProgressWindow inherits Window {
 // A page: what happened, a block shown as it is (a report), and its buttons, the first (primary) Enter's and the
 // last Escape's. What a button does is the caller's: pressed(index); key(0 Enter, 1 Escape, repeat).
 export component PageWindow inherits Window {
-    in property <string> window-title: "Longshot";
+    in property <string> window-title: "Xeonshot";
     in property <string> heading;
     in property <string> text;
     in property <string> block;
@@ -330,12 +340,20 @@ export component PageWindow inherits Window {
 
 // The first run: the player's .nup, by its path or the system's file chooser (Browse).
 export component PickWindow inherits Window {
+    in property <string> window-title: "Xeonshot";
+    in property <string> heading: "Select your Ocarina of Time .nup";
+    in property <string> sub: "Xeonshot builds the game natively from your own copy (.nup). Nothing leaves this PC.";
+    in property <string> placeholder: "The path of your .nup";
+    in property <string> browse-label: "Browse";
+    in property <string> cancel-label: "Cancel";
+    in property <string> continue-label: "Install & Play";
+    in property <string> preset-info;
     in-out property <string> path;
     in property <string> note;
     callback browse();
     callback done(bool);
-    title: "Longshot";
-    width: 640px;
+    title: root.window-title;
+    width: 680px;
     height: layout.preferred-height;
     background: Theme.page;
     default-font-family: "Inter";
@@ -349,9 +367,26 @@ export component PickWindow inherits Window {
                 padding-top: 22px;
                 padding-bottom: 22px;
                 spacing: 14px;
-                Title {
-                    text: "Pick your Ocarina of Time .nup";
-                    sub: "Longshot builds the game from your own copy of Ocarina of Time (Nintendo Switch 2): its .nup file. Nothing of it leaves this PC.";
+                HorizontalLayout {
+                    spacing: 16px;
+                    Rectangle {
+                        width: 64px;
+                        height: 64px;
+                        border-radius: 14px;
+                        background: Theme.accent-well;
+                        border-width: 1px;
+                        border-color: Theme.accent-line;
+                        Image {
+                            source: @image-url("../assets/xeonshot.png");
+                            width: 56px;
+                            height: 56px;
+                            image-fit: contain;
+                        }
+                    }
+                    Title {
+                        text: root.heading;
+                        sub: root.sub;
+                    }
                 }
                 HorizontalLayout {
                     spacing: 10px;
@@ -373,15 +408,32 @@ export component PickWindow inherits Window {
                         }
                         if root.path == "": Text {
                             x: 12px;
-                            text: "The path of your .nup";
+                            text: root.placeholder;
                             color: Theme.ink-faint;
                             font-size: 14px;
                             vertical-alignment: center;
                         }
                     }
                     SecondaryButton {
-                        text: "Browse";
+                        text: root.browse-label;
                         clicked => { root.browse(); }
+                    }
+                }
+                if root.preset-info != "": Rectangle {
+                    height: 34px;
+                    border-radius: 8px;
+                    background: Theme.accent-well;
+                    border-width: 1px;
+                    border-color: Theme.accent-line;
+                    Text {
+                        x: 12px;
+                        width: parent.width - 24px;
+                        text: root.preset-info;
+                        color: Theme.accent;
+                        font-size: 12px;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                        overflow: elide;
                     }
                 }
                 if root.note != "": Text {
@@ -398,12 +450,12 @@ export component PickWindow inherits Window {
             VerticalLayout {
                 alignment: center;
                 SecondaryButton {
-                    text: "Cancel";
+                    text: root.cancel-label;
                     clicked => { root.done(false); }
                 }
             }
             GoButton {
-                text: "Continue";
+                text: root.continue-label;
                 clicked => { root.done(true); }
             }
         }

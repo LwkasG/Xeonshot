@@ -120,7 +120,7 @@ impl Compile for FakeCompile {
             }));
         }
         std::fs::create_dir_all(&o.build_dir).unwrap();
-        let exe = o.build_dir.join(if o.settings.windows { "longshot.exe" } else { "longshot" });
+        let exe = o.build_dir.join(if o.settings.windows { "xeonshot.exe" } else { "longshot" });
         let names: Vec<String> = units.iter().map(|u| u.0.clone()).collect();
         std::fs::write(&exe, names.join("\n")).unwrap();
         let vk = o.build_dir.join("longshot_vk.so");

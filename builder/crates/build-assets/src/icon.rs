@@ -89,8 +89,8 @@ pub fn title_res(title: &str) -> Vec<u8> {
         &[
             ("FileDescription", title),
             ("ProductName", title),
-            ("InternalName", "longshot"),
-            ("OriginalFilename", "longshot.exe"),
+            ("InternalName", "xeonshot"),
+            ("OriginalFilename", "xeonshot.exe"),
         ],
     )
 }

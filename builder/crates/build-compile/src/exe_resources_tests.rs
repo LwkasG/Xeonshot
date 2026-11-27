@@ -49,5 +49,5 @@ fn the_windows_game_links_the_manifest_with_or_without_an_icon() {
 fn the_linux_game_is_named_longshot() {
     // (NVIDIA's Linux driver files its shader cache by the program's file name alone: tests/test_driver_cache_folder.py)
     assert_eq!(game_exe_name(true), "longshot");
-    assert_eq!(game_exe_name(false), "longshot.exe");
+    assert_eq!(game_exe_name(false), "xeonshot.exe");
 }
