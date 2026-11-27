@@ -170,7 +170,7 @@ component SecondaryButton inherits ButtonBase {
 // (#3D63E6 to #4B70F0) left out, as Slint's software renderer draws a gradient with square corners.
 component ProgressBar inherits Rectangle {
     in property <float> value;
-    height: 10px;
+    height: 12px;
     border-radius: self.height / 2;
     background: Theme.bar-track;
     clip: true;
@@ -180,22 +180,29 @@ component ProgressBar inherits Rectangle {
         height: parent.height;
         width: max(parent.height, parent.width * clamp(root.value, 0, 1));
         border-radius: self.height / 2;
-        background: Theme.brand;
+        background: Theme.go;
         visible: root.value > 0;
     }
 }
 
-// A build's progress: its step, how far, a bar, Cancel. Shown only once a build has gone on for a moment.
+// A build's progress: 6-stage stepper, step detail, progress bar, Cancel.
 export component ProgressWindow inherits Window {
     in property <string> window-title: "Xeonshot";
-    in property <string> heading: "Getting the game ready";
-    in property <string> sub: "Xeonshot starts the game by itself when it's done.";
+    in property <string> heading: "Installing Xeonshot";
+    in property <string> sub: "Xeonshot starts the game automatically when it's done.";
     in property <string> cancel-label: "Cancel";
+    in property <string> stage-badge;
+    in property <int> active-stage: 0;
+    in property <[string]> stages;
+    in property <string> status-done: "Done";
+    in property <string> status-active: "In progress...";
+    in property <string> status-pending: "Pending";
     in property <string> step;
+    in property <string> detail;
     in property <float> fraction;
     callback cancel();
     title: root.window-title;
-    width: 600px;
+    width: 680px;
     height: layout.preferred-height;
     background: Theme.page;
     default-font-family: "Inter";
@@ -204,38 +211,117 @@ export component ProgressWindow inherits Window {
         spacing: 16px;
         HorizontalLayout {
             spacing: 18px;
-            Rectangle {
-                width: 56px;
-                height: 56px;
-                border-radius: 12px;
-                background: Theme.accent-well;
-                border-width: 1px;
-                border-color: Theme.accent-line;
-                Image {
-                    source: @image-url("../assets/xeonshot.png");
-                    width: 48px;
-                    height: 48px;
-                    image-fit: contain;
+            VerticalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 56px;
+                    height: 56px;
+                    border-radius: 12px;
+                    background: Theme.accent-well;
+                    border-width: 1px;
+                    border-color: Theme.accent-line;
+                    Image {
+                        source: @image-url("../assets/xeonshot.png");
+                        width: 48px;
+                        height: 48px;
+                        image-fit: contain;
+                    }
                 }
             }
             Title {
+                horizontal-stretch: 1;
                 text: root.heading;
                 sub: root.sub;
             }
-            Text {
-                text: floor(root.fraction * 100) + " %";
-                color: Theme.accent;
-                font-size: 38px;
-                font-weight: 600;
-                horizontal-alignment: right;
-                vertical-alignment: bottom;
+            VerticalLayout {
+                alignment: center;
+                spacing: 4px;
+                Text {
+                    text: floor(root.fraction * 100) + " %";
+                    color: Theme.accent;
+                    font-size: 36px;
+                    font-weight: 600;
+                    horizontal-alignment: right;
+                }
+                if root.stage-badge != "": Rectangle {
+                    height: 22px;
+                    border-radius: 11px;
+                    background: Theme.accent-well;
+                    border-width: 1px;
+                    border-color: Theme.accent-line;
+                    min-width: badge-text.preferred-width + 18px;
+                    badge-text := Text {
+                        text: root.stage-badge;
+                        color: Theme.accent;
+                        font-size: 10px;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+        if root.stages.length > 0: Card {
+            VerticalLayout {
+                padding: 14px;
+                spacing: 6px;
+                for label[i] in root.stages: Rectangle {
+                    height: 34px;
+                    border-radius: 8px;
+                    background: i == root.active-stage ? Theme.accent-well : transparent;
+                    border-width: i == root.active-stage ? 1px : 0px;
+                    border-color: Theme.accent-line;
+                    HorizontalLayout {
+                        padding-left: 10px;
+                        padding-right: 12px;
+                        spacing: 12px;
+                        VerticalLayout {
+                            alignment: center;
+                            Rectangle {
+                                width: 22px;
+                                height: 22px;
+                                border-radius: 11px;
+                                background: i < root.active-stage ? Theme.go : i == root.active-stage ? Theme.brand : Theme.well;
+                                border-width: i > root.active-stage ? 1px : 0px;
+                                border-color: Theme.glass-line;
+                                Text {
+                                    text: (i + 1);
+                                    color: i < root.active-stage ? Theme.go-ink : i == root.active-stage ? #FFFFFF : Theme.ink-faint;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                        Text {
+                            horizontal-stretch: 1;
+                            text: label;
+                            color: i == root.active-stage ? Theme.ink : i < root.active-stage ? Theme.ink-soft : Theme.ink-faint;
+                            font-size: 13px;
+                            font-weight: i == root.active-stage ? 600 : 400;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                        Text {
+                            horizontal-stretch: 0;
+                            text: i < root.active-stage ? root.status-done : i == root.active-stage ? root.status-active : root.status-pending;
+                            color: i == root.active-stage ? Theme.accent : i < root.active-stage ? Theme.go : Theme.ink-faint;
+                            font-size: 12px;
+                            font-weight: i == root.active-stage ? 600 : 400;
+                            horizontal-alignment: right;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
             }
         }
         ProgressBar { value: root.fraction; }
         HorizontalLayout {
             spacing: 16px;
             Text {
-                text: root.step;
+                horizontal-stretch: 1;
+                text: root.detail != "" ? root.detail : root.step;
                 color: Theme.ink-soft;
                 font-size: 13px;
                 overflow: elide;

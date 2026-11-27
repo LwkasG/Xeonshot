@@ -47,6 +47,12 @@ struct UiStrings {
     file_dialog_title: &'static str,
     progress_heading: &'static str,
     progress_sub: &'static str,
+    stages: [&'static str; 6],
+    stage_word: &'static str,
+    of_word: &'static str,
+    status_done: &'static str,
+    status_active: &'static str,
+    status_pending: &'static str,
     error_title: &'static str,
     close: &'static str,
     preset_info: String,
@@ -71,8 +77,21 @@ fn strings() -> UiStrings {
             install_and_play: "Instalar e Jogar",
             missing_file_note: "Arquivo não encontrado. Cole o caminho do .nup ou clique em Procurar.",
             file_dialog_title: "Selecione o arquivo .nup de Ocarina of Time",
-            progress_heading: "Preparando o Xeonshot",
+            progress_heading: "Instalando o Xeonshot",
             progress_sub: "O Xeonshot iniciará o jogo automaticamente quando terminar.",
+            stages: [
+                "Preparando ferramentas e ambiente",
+                "Lendo e verificando a ROM (.nup)",
+                "Recompondo código do jogo (Lift)",
+                "Compilando executável nativo",
+                "Aplicando preset Xeonshot e assets",
+                "Compilando shaders Vulkan",
+            ],
+            stage_word: "ETAPA",
+            of_word: "DE",
+            status_done: "Concluído",
+            status_active: "Em andamento...",
+            status_pending: "Aguardando",
             error_title: "Xeonshot: não foi possível compilar o jogo",
             close: "Fechar",
         },
@@ -88,8 +107,21 @@ fn strings() -> UiStrings {
             install_and_play: "Instalar y Jugar",
             missing_file_note: "No se encontró el archivo. Pega la ruta del .nup o haz clic en Examinar.",
             file_dialog_title: "Selecciona tu archivo .nup de Ocarina of Time",
-            progress_heading: "Preparando Xeonshot",
+            progress_heading: "Instalando Xeonshot",
             progress_sub: "Xeonshot iniciará el juego automáticamente al terminar.",
+            stages: [
+                "Preparando herramientas y entorno",
+                "Leyendo y verificando la ROM (.nup)",
+                "Recompilando código del juego (Lift)",
+                "Compilando ejecutable nativo",
+                "Aplicando preset Xeonshot y assets",
+                "Compilando shaders Vulkan",
+            ],
+            stage_word: "ETAPA",
+            of_word: "DE",
+            status_done: "Completado",
+            status_active: "En curso...",
+            status_pending: "En espera",
             error_title: "Xeonshot: no se pudo compilar el juego",
             close: "Cerrar",
         },
@@ -105,8 +137,21 @@ fn strings() -> UiStrings {
             install_and_play: "Install & Play",
             missing_file_note: "File not found. Paste the path to your .nup or click Browse.",
             file_dialog_title: "Select your Ocarina of Time .nup",
-            progress_heading: "Getting Xeonshot ready",
+            progress_heading: "Installing Xeonshot",
             progress_sub: "Xeonshot will start the game automatically when it's done.",
+            stages: [
+                "Preparing build tools and environment",
+                "Reading and verifying game ROM (.nup)",
+                "Lifting game code to native IR",
+                "Compiling native executable",
+                "Applying Xeonshot preset and assets",
+                "Compiling Vulkan shaders",
+            ],
+            stage_word: "STAGE",
+            of_word: "OF",
+            status_done: "Done",
+            status_active: "In progress...",
+            status_pending: "Pending",
             error_title: "Xeonshot: the game could not be built",
             close: "Close",
         },
@@ -201,6 +246,17 @@ fn cancel_as_ctrl_c() {
     std::process::exit(130);
 }
 
+fn stage_badge_text(stage_index: i32) -> String {
+    let raw_locale = build_core::system_locale().unwrap_or_else(|| "en-US".into());
+    let family = raw_locale.split(['-', '_', '.', '@']).next().unwrap_or("en").to_ascii_lowercase();
+    let (stage_word, of_word) = match family.as_str() {
+        "pt" | "es" => ("ETAPA", "DE"),
+        _ => ("STAGE", "OF"),
+    };
+    let n = (stage_index + 1).clamp(1, 6);
+    format!("{stage_word} {n} {of_word} 6")
+}
+
 impl Ui {
     /// The windows, none open yet.
     pub fn new() -> Ui {
@@ -240,10 +296,13 @@ impl Ui {
         self.start().is_ok()
     }
 
-    /// The build's step and how far the whole build is (0 to 1). The progress window shows once the build has gone on
-    /// for [`PROGRESS_AFTER`] since its first step; with no window, a line on stderr each time the step or the whole
-    /// percent changes.
+    /// The build's step and how far the whole build is (0 to 1).
     pub fn step(&self, text: &str, fraction: f64) {
+        self.step_stage(-1, text, "", fraction);
+    }
+
+    /// Updates the 6-stage progress stepper (`stage_index` in `0..=5`, or `< 0`), detail text, and fraction (`0..=1`).
+    pub fn step_stage(&self, stage_index: i32, text: &str, detail: &str, fraction: f64) {
         let first = {
             let mut st = self.state.lock().unwrap_or_else(|e| e.into_inner());
             if st.done {
@@ -257,19 +316,29 @@ impl Ui {
             self.say(text, fraction);
             return;
         }
-        let (text, fraction) = (text.to_string(), fraction.clamp(0.0, 1.0) as f32);
+        let (text, detail, fraction) = (text.to_string(), detail.to_string(), fraction.clamp(0.0, 1.0) as f32);
+        let badge = (stage_index >= 0).then(|| stage_badge_text(stage_index));
         let state = self.state.clone();
         let _ = slint::invoke_from_event_loop(move || {
             with(|w| {
                 w.progress.set_step(text.into());
+                w.progress.set_detail(detail.into());
                 w.progress.set_fraction(fraction);
+                if let Some(badge) = badge {
+                    w.progress.set_active_stage(stage_index);
+                    w.progress.set_stage_badge(badge.into());
+                }
             });
             if first {
-                slint::Timer::single_shot(PROGRESS_AFTER, move || {
-                    if !state.lock().unwrap_or_else(|e| e.into_inner()).done {
-                        with(|w| w.progress.show().ok());
-                    }
-                });
+                if stage_index >= 0 {
+                    with(|w| w.progress.show().ok());
+                } else {
+                    slint::Timer::single_shot(PROGRESS_AFTER, move || {
+                        if !state.lock().unwrap_or_else(|e| e.into_inner()).done {
+                            with(|w| w.progress.show().ok());
+                        }
+                    });
+                }
             }
         });
     }
@@ -279,7 +348,7 @@ impl Ui {
         let mut st = self.state.lock().unwrap_or_else(|e| e.into_inner());
         let now = (text.to_string(), pct);
         if st.said.as_ref() != Some(&now) {
-            eprintln!("longshot: {text} ({pct} %)");
+            eprintln!("xeonshot: {text} ({pct} %)");
             st.said = Some(now);
         }
     }
@@ -309,7 +378,7 @@ impl Ui {
     fn page_with_keys(&self, page: &Page, enter: usize, escape: usize) -> Result<Option<usize>, NoWindow> {
         self.start()?;
         let heading = {
-            let t = page.title.strip_prefix("Longshot: ").unwrap_or(page.title);
+            let t = page.title.strip_prefix("Xeonshot: ").or_else(|| page.title.strip_prefix("Longshot: ")).unwrap_or(page.title);
             let mut c = t.chars();
             c.next().map(|f| f.to_uppercase().chain(c).collect::<String>()).unwrap_or_default()
         };
@@ -522,6 +591,13 @@ fn ui_thread(ready: mpsc::Sender<Result<(), NoWindow>>, cancel: Arc<Mutex<Cancel
         w.progress.set_heading(s.progress_heading.into());
         w.progress.set_sub(s.progress_sub.into());
         w.progress.set_cancel_label(s.cancel.into());
+        let stage_labels: Vec<slint::SharedString> = s.stages.iter().map(|t| (*t).into()).collect();
+        w.progress.set_stages(std::rc::Rc::new(slint::VecModel::from(stage_labels)).into());
+        w.progress.set_status_done(s.status_done.into());
+        w.progress.set_status_active(s.status_active.into());
+        w.progress.set_status_pending(s.status_pending.into());
+        w.progress.set_active_stage(0);
+        w.progress.set_stage_badge(format!("{} 1 {} 6", s.stage_word, s.of_word).into());
         w.pick.set_window_title(s.installer_title.into());
         w.pick.set_heading(s.pick_heading.into());
         w.pick.set_sub(s.pick_sub.into());

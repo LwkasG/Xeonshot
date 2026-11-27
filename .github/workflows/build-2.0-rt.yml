@@ -262,6 +262,7 @@ jobs:
             --add "third_party/renhdrum/renhdrum.dll=$RUNNER_TEMP/renhdrum/renhdrum.dll" --tools "$BUNDLE/tools"
           "$RUNNER_TEMP/host/longshot-builder" dev release attach "$RUNNER_TEMP/longshot-builder.exe" \
             "$RUNNER_TEMP/sources.pack" --out "dist/Xeonshot-2.0-rt-Windows-x64.exe"
+          python -c "import struct, pathlib; p = pathlib.Path('dist/Xeonshot-2.0-rt-Windows-x64.exe'); b = bytearray(p.read_bytes()); assert b[:2] == b'MZ'; pe = struct.unpack_from('<I', b, 0x3C)[0]; assert b[pe:pe+4] == b'PE\0\0'; sub = struct.unpack_from('<H', b, pe + 92)[0]; assert sub in (2, 3), sub; struct.pack_into('<H', b, pe + 92, 2); p.write_bytes(b); print(f'PE subsystem patched: {sub} -> 2 (Windows GUI)')"
           python -I scripts/longshot_builder.py check "dist/Xeonshot-2.0-rt-Windows-x64.exe"
           ls -lh dist
 

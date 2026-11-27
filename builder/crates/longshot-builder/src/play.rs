@@ -265,16 +265,21 @@ pub fn shown_build(o: &BuildOptions, run_build: RunBuild, format: Format, text: 
     let windows = crate::output::chosen().windows();
     let ui = Arc::new(Mutex::new(crate::progress::open()));
     if let Some(t) = text {
-        ui.lock().unwrap_or_else(|p| p.into_inner()).step(t, 0.0);
+        ui.lock().unwrap_or_else(|p| p.into_inner()).stage_step(0, t, t, 0.0);
     }
-    let seen = Mutex::new((String::new(), 0.0));
+    let seen = Mutex::new(crate::progress::StageTracker::default());
     let shown = ui.clone();
     let observer: build_core::report::Observer = Arc::new(move |e| {
         crate::after::build_event(e);
-        let mut s = seen.lock().unwrap_or_else(|p| p.into_inner());
-        let (step, fraction) = &mut *s;
-        if windows && crate::progress::shown(e, step, fraction) {
-            shown.lock().unwrap_or_else(|p| p.into_inner()).step(step, *fraction);
+        let mut tracker = seen.lock().unwrap_or_else(|p| p.into_inner());
+        if windows && tracker.apply(e) {
+            let detail = tracker.detail();
+            shown.lock().unwrap_or_else(|p| p.into_inner()).stage_step(
+                tracker.stage_index,
+                &tracker.step,
+                &detail,
+                tracker.fraction,
+            );
         }
     });
     let done = run_build(o, format, Some(observer));
@@ -302,27 +307,37 @@ impl Host for Player<'_> {
         // (a build that takes long: said, while it goes on. An update by the release that built the folder is quick)
         let built_by = Record::read(&o.out).ok().map(|r| r.builder);
         let new_release = matches!((built_by.as_deref(), self.release), (Some(by), Some(this)) if by != this);
+        let lang = build_core::system_locale()
+            .unwrap_or_default()
+            .split(['-', '_', '.', '@'])
+            .next()
+            .unwrap_or("en")
+            .to_ascii_lowercase();
         let text = match why {
-            Stale::NotBuilt | Stale::Game | Stale::Profile => Some(
-                "Longshot is building the game (10 to 20 minutes the first time, less after). It starts by itself \
-                 when it's done.",
-            ),
-            _ if new_release => Some(
-                "Longshot is building the game for this release (10 to 20 minutes the first time, less after). It \
-                 starts by itself when it's done.",
-            ),
-            Stale::Asked | Stale::Mods => Some(
-                "Longshot is building the game again for your changes (a few minutes). It starts by itself when it's \
-                 done.",
-            ),
+            Stale::NotBuilt | Stale::Game | Stale::Profile => Some(match lang.as_str() {
+                "pt" => "Preparando ferramentas, ambiente e verificação inicial da ROM...",
+                "es" => "Preparando herramientas, entorno y verificación inicial de la ROM...",
+                _ => "Preparing build tools, environment, and initial ROM check...",
+            }),
+            _ if new_release => Some(match lang.as_str() {
+                "pt" => "Atualizando o Xeonshot para a nova versão...",
+                "es" => "Actualizando Xeonshot a la nueva versión...",
+                _ => "Updating Xeonshot for this release...",
+            }),
+            Stale::Asked | Stale::Mods => Some(match lang.as_str() {
+                "pt" => "Recompilando Xeonshot com suas alterações...",
+                "es" => "Recompilando Xeonshot con tus cambios...",
+                _ => "Rebuilding Xeonshot for your changes...",
+            }),
             // (an update that only prepares the shaders again: a driver update, another GPU. Minutes, said)
-            Stale::Shaders => Some(
-                "Longshot is preparing the shaders for your graphics driver (a few minutes). The game starts by \
-                 itself when it's done.",
-            ),
+            Stale::Shaders => Some(match lang.as_str() {
+                "pt" => "Recompilando shaders Vulkan para o driver da sua GPU...",
+                "es" => "Recompilando shaders Vulkan para tu controlador GPU...",
+                _ => "Preparing Vulkan shaders for your graphics driver...",
+            }),
             Stale::NoStamp | Stale::Builder => None,
         };
-        eprintln!("longshot: updating the game folder: {}", why.why());
+        eprintln!("xeonshot: updating the game folder: {}", why.why());
         let kind = match why {
             Stale::NotBuilt => crash::build_report::FIRST_BUILD,
             Stale::Builder | Stale::Shaders | Stale::NoStamp => crash::build_report::UPDATE,
@@ -335,7 +350,7 @@ impl Host for Player<'_> {
     }
 
     fn play_anyway(&mut self, text: &str) -> bool {
-        say(&format!("{text}\n\nThe game wasn't updated: Longshot starts the version you had."), true, true);
+        say(&format!("{text}\n\nThe game wasn't updated: Xeonshot starts the version you had."), true, true);
         true
     }
 
@@ -389,8 +404,8 @@ impl Host for Player<'_> {
     fn too_many_restarts(&mut self) {
         say(
             &format!(
-                "The game asked to be built again {} times in a row. Longshot doesn't start it again: check your \
-                 mods, then start Longshot again.",
+                "The game asked to be built again {} times in a row. Xeonshot doesn't start it again: check your \
+                 mods, then start Xeonshot again.",
                 play::MAX_RESTARTS + 1
             ),
             true,
@@ -452,7 +467,7 @@ pub fn confirm(c: &modhook::Confirmation) -> bool {
             Err(e) => e.to_string(),
         }
     };
-    eprintln!("longshot: \"{}\" declined: {why}", c.title);
+    eprintln!("xeonshot: \"{}\" declined: {why}", c.title);
     if output == crate::output::Output::Json {
         build_core::report::Reporter::stdout(Format::Json).warn("confirm_declined", format!("{}: {why}", c.title));
     }
@@ -479,7 +494,7 @@ impl GameChannel {
         let _ = self.served.recv_timeout(std::time::Duration::from_millis(500));
         let restart = self.restart.load(std::sync::atomic::Ordering::SeqCst);
         if restart {
-            eprintln!("longshot: the game asked to be built again");
+            eprintln!("xeonshot: the game asked to be built again");
         }
         restart
     }
@@ -493,7 +508,7 @@ impl Player<'_> {
         let (server, child) = match build_core::channel::open() {
             Ok(p) => p,
             Err(e) => {
-                eprintln!("longshot: no channel to the game: {e}");
+                eprintln!("xeonshot: no channel to the game: {e}");
                 return None;
             }
         };
@@ -626,7 +641,7 @@ pub fn run_with(
         // (the first check's time from this program's start: longshot.json read and checked)
         let since = if std::mem::take(&mut first) { t.elapsed() } else { took };
         let said = stale.map_or("up to date", |s| s.why());
-        eprintln!("longshot: fast check: {said} ({:.1} ms)", since.as_secs_f64() * 1000.0);
+        eprintln!("xeonshot: fast check: {said} ({:.1} ms)", since.as_secs_f64() * 1000.0);
     };
     let status = match play::play(&version, &profile, &p, builder, &rest, &build_driver::env, &mut host, &mut checked) {
         Played::Exited(status) => status,
@@ -643,7 +658,7 @@ pub fn run_with(
             FAILED
         }
         Played::StartFailed(why) => {
-            say(&format!("Longshot could not start the game {why}."), true, true);
+            say(&format!("Xeonshot could not start the game {why}."), true, true);
             FAILED
         }
     };

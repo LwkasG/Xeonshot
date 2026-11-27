@@ -40,6 +40,10 @@ impl crate::progress::UserUi for Windows {
         ui().step(text, fraction);
     }
 
+    fn stage_step(&mut self, stage_index: i32, text: &str, detail: &str, fraction: f64) {
+        ui().step_stage(stage_index, text, detail, fraction);
+    }
+
     fn error(&mut self, text: &str) {
         if !error_window(text) {
             crate::play::say(text, true, true);
@@ -83,7 +87,7 @@ fn tell(s: &crash::Shown) -> bool {
         Output::User => match ui().crash_window(s) {
             Ok(_) => true,
             Err(e) => {
-                eprintln!("longshot: {}\nlongshot: ({e}: it is shown at the next start)", s.text());
+                eprintln!("xeonshot: {}\nxeonshot: ({e}: it is shown at the next start)", s.text());
                 false
             }
         },
@@ -98,7 +102,7 @@ fn tell(s: &crash::Shown) -> bool {
             true
         }
         Output::Text | Output::RecompLauncher => {
-            eprintln!("longshot: {}", s.text());
+            eprintln!("xeonshot: {}", s.text());
             true
         }
     }
@@ -285,7 +289,7 @@ pub fn build_ended(result: &Result<(), String>, release: Option<&str>, builder: 
         let t = std::thread::spawn(move || {
             let _ = std::fs::create_dir_all(payload.parent().unwrap_or(Path::new(".")));
             let (_, said, _) = br::send(&json, &payload, br::ADDRESS);
-            eprintln!("longshot: build statistics: {said}");
+            eprintln!("xeonshot: build statistics: {said}");
         });
         SENDING.lock().unwrap_or_else(|e| e.into_inner()).push(t);
     }
@@ -326,7 +330,7 @@ pub fn error_window(text: &str) -> bool {
         if built { &["Send report", "Open the log folder", "Save diagnostics", "Close"] } else { &["Close"] };
     let who = crash::redact::Who::here();
     loop {
-        let hit = ui.page(&Page { title: "Longshot: the game could not be built", text, block: None, buttons });
+        let hit = ui.page(&Page { title: "Xeonshot: the game could not be built", text, block: None, buttons });
         let Ok(hit) = hit else { return false };
         match hit.map(|h| buttons[h]) {
             Some("Send report") => {
@@ -335,7 +339,7 @@ pub fn error_window(text: &str) -> bool {
                 let json =
                     report(br::FAILED, text, release.as_deref(), &builder, false).json(&who.home, &[who.user.as_str()]);
                 let sent = ui.page(&Page {
-                    title: "Longshot: send the report",
+                    title: "Xeonshot: send the report",
                     text: "This is what goes to the Longshot team, and nothing else: the build's settings, how far it got, \
                            your PC's system and the end of its log, with your home folder and user name taken out.",
                     block: Some(&json),
@@ -344,7 +348,7 @@ pub fn error_window(text: &str) -> bool {
                 if sent == Ok(Some(0)) {
                     let (_, said, _) = br::send(&json, &out.join("logs").join("build-report.json"), br::ADDRESS);
                     let _ = ui.page(&Page {
-                        title: "Longshot: send the report",
+                        title: "Xeonshot: send the report",
                         text: &said,
                         block: None,
                         buttons: &["Done"],
@@ -371,7 +375,7 @@ pub fn error_window(text: &str) -> bool {
                     }
                     Err(e) => format!("The diagnostics could not be saved: {e}."),
                 };
-                let _ = ui.page(&Page { title: "Longshot: diagnostics", text: &said, block: None, buttons: &["Done"] });
+                let _ = ui.page(&Page { title: "Xeonshot: diagnostics", text: &said, block: None, buttons: &["Done"] });
             }
             _ => return true,
         }
