@@ -9,64 +9,95 @@ use build_core::report::{Event, Stage};
 pub trait UserUi: Send {
     /// The step's sentence and how far the whole build is (0 to 1).
     fn step(&mut self, text: &str, fraction: f64);
-    /// The build's current stepper stage (`0..=5`, or `< 0` if unknown), step text, live detail line, and fraction.
-    fn stage_step(&mut self, _stage_index: i32, text: &str, _detail: &str, fraction: f64) {
+    /// The build's current stepper stage (`0..=5`, or `< 0`), step text, live detail line, global fraction, and per-stage fractions (`0.0..=1.0`).
+    fn stage_step(&mut self, _stage_index: i32, text: &str, _detail: &str, fraction: f64, _stage_progress: [f32; 6]) {
         self.step(text, fraction);
     }
+    /// Appends a live log line to the installer drawer, when supported.
+    fn log_line(&mut self, _line: &str) {}
     /// The build stopped: why, for the player.
     fn error(&mut self, text: &str);
     /// The build is done.
     fn done(&mut self);
 }
 
-/// Live stage, module compilation count, and ETA tracker for the Xeonshot installer stepper.
+const STAGE_WEIGHTS: [f64; 6] = [0.05, 0.10, 0.12, 0.50, 0.08, 0.15];
+
+fn stage_index_of(stage: Stage) -> usize {
+    match stage {
+        Stage::Tools
+        | Stage::Source
+        | Stage::Rust
+        | Stage::SourceTools
+        | Stage::Crates
+        | Stage::Pack
+        | Stage::Builder => 0,
+        Stage::Read => 1,
+        Stage::Lift => 2,
+        Stage::Compile => 3,
+        Stage::Finish => 4,
+        Stage::Shaders => 5,
+    }
+}
+
+/// Live stage, per-stage percentages, module compilation count, and ETA tracker for the Xeonshot installer stepper.
 #[derive(Default)]
 pub struct StageTracker {
     /// Current 0-based stage index (`0..=5`, or `-1` before the first stage).
     pub stage_index: i32,
     /// Current human-readable stage text.
     pub step: String,
-    /// Current progress fraction (`0.0..=1.0`).
+    /// Weighted global progress fraction across all 6 stages (`0.0..=1.0`).
     pub fraction: f64,
+    /// Individual progress (`0.0..=1.0`) for each of the 6 stages.
+    pub stage_progress: [f32; 6],
+    stage_fractions: [f64; 6],
     units_done: usize,
     units_total: usize,
     eta_secs: Option<u64>,
 }
 
 impl StageTracker {
+    fn recompute(&mut self) {
+        for (dst, src) in self.stage_progress.iter_mut().zip(self.stage_fractions.iter()) {
+            *dst = src.clamp(0.0, 1.0) as f32;
+        }
+        self.fraction = STAGE_WEIGHTS
+            .iter()
+            .zip(self.stage_fractions.iter())
+            .map(|(w, f)| w * f.clamp(0.0, 1.0))
+            .sum::<f64>()
+            .clamp(0.0, 1.0);
+    }
+
     /// Applies a build event and returns `true` if the visible UI state changed.
     pub fn apply(&mut self, event: &Event) -> bool {
         match event {
             Event::Stage { stage, text } => {
-                self.stage_index = match stage {
-                    Stage::Tools
-                    | Stage::Source
-                    | Stage::Rust
-                    | Stage::SourceTools
-                    | Stage::Crates
-                    | Stage::Pack
-                    | Stage::Builder => 0,
-                    Stage::Read => 1,
-                    Stage::Lift => 2,
-                    Stage::Compile => 3,
-                    Stage::Finish => 4,
-                    Stage::Shaders => 5,
-                };
+                let idx = stage_index_of(*stage);
+                self.stage_index = idx as i32;
+                for slot in &mut self.stage_fractions[..idx] {
+                    *slot = 1.0;
+                }
                 self.step = text.clone();
                 if *stage != Stage::Compile {
                     self.units_done = 0;
                     self.units_total = 0;
                     self.eta_secs = None;
                 }
+                self.recompute();
                 true
             }
-            Event::Progress { stage: Stage::Shaders, fraction, .. } => {
-                self.stage_index = 5;
-                self.fraction = fraction.clamp(0.0, 1.0);
-                true
-            }
-            Event::Progress { overall, .. } => {
-                self.fraction = overall.clamp(0.0, 1.0);
+            Event::Progress { stage, fraction, .. } => {
+                let idx = stage_index_of(*stage);
+                if (idx as i32) > self.stage_index {
+                    self.stage_index = idx as i32;
+                }
+                for slot in &mut self.stage_fractions[..idx] {
+                    *slot = 1.0;
+                }
+                self.stage_fractions[idx] = self.stage_fractions[idx].max(fraction.clamp(0.0, 1.0));
+                self.recompute();
                 true
             }
             Event::CompilePlan { total, .. } => {
@@ -76,6 +107,11 @@ impl StageTracker {
             }
             Event::Unit { .. } => {
                 self.units_done += 1;
+                if self.stage_index == 3 && self.units_total > 0 {
+                    let frac = (self.units_done as f64 / self.units_total as f64).clamp(0.0, 1.0);
+                    self.stage_fractions[3] = self.stage_fractions[3].max(frac);
+                    self.recompute();
+                }
                 true
             }
             Event::Eta { seconds } => {
@@ -97,8 +133,7 @@ impl StageTracker {
         let mut parts = Vec::new();
         if self.stage_index == 3 && self.units_total > 0 {
             let mods = match lang.as_str() {
-                "pt" => format!("Módulos: {} / {}", self.units_done, self.units_total),
-                "es" => format!("Módulos: {} / {}", self.units_done, self.units_total),
+                "pt" | "es" => format!("Módulos: {} / {}", self.units_done, self.units_total),
                 _ => format!("Modules: {} / {}", self.units_done, self.units_total),
             };
             parts.push(mods);
@@ -142,6 +177,27 @@ impl StageTracker {
             };
         }
         self.step.clone()
+    }
+}
+
+/// Formats a concise live activity log entry for the installer log drawer.
+pub fn event_log_line(event: &Event) -> Option<String> {
+    use build_core::report::UnitResult;
+    match event {
+        Event::Stage { text, .. } => Some(format!("> {text}")),
+        Event::CompilePlan { changed, total } => Some(format!("  plan: {changed} changed / {total} total units")),
+        Event::Unit { name, seconds, result } => {
+            let tag = match result {
+                UnitResult::Compiled => "OK",
+                UnitResult::Cached => "CACHE",
+                UnitResult::Retried => "RETRY",
+                UnitResult::Failed => "FAIL",
+            };
+            Some(format!("  [{tag}] {name} ({seconds:.1}s)"))
+        }
+        Event::Warning { code, text } => Some(format!("[WARN {code}] {text}")),
+        Event::Log { text } => (!text.trim().is_empty()).then(|| text.trim_end().to_string()),
+        _ => None,
     }
 }
 

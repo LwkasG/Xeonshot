@@ -265,21 +265,33 @@ pub fn shown_build(o: &BuildOptions, run_build: RunBuild, format: Format, text: 
     let windows = crate::output::chosen().windows();
     let ui = Arc::new(Mutex::new(crate::progress::open()));
     if let Some(t) = text {
-        ui.lock().unwrap_or_else(|p| p.into_inner()).stage_step(0, t, t, 0.0);
+        let mut locked = ui.lock().unwrap_or_else(|p| p.into_inner());
+        locked.stage_step(0, t, t, 0.0, [0.0; 6]);
+        locked.log_line(&format!("> {t}"));
     }
     let seen = Mutex::new(crate::progress::StageTracker::default());
     let shown = ui.clone();
     let observer: build_core::report::Observer = Arc::new(move |e| {
         crate::after::build_event(e);
-        let mut tracker = seen.lock().unwrap_or_else(|p| p.into_inner());
-        if windows && tracker.apply(e) {
-            let detail = tracker.detail();
-            shown.lock().unwrap_or_else(|p| p.into_inner()).stage_step(
-                tracker.stage_index,
-                &tracker.step,
-                &detail,
-                tracker.fraction,
-            );
+        if windows {
+            let mut tracker = seen.lock().unwrap_or_else(|p| p.into_inner());
+            let changed = tracker.apply(e);
+            let detail = changed.then(|| tracker.detail());
+            let stage_index = tracker.stage_index;
+            let step = changed.then(|| tracker.step.clone());
+            let fraction = tracker.fraction;
+            let stage_progress = tracker.stage_progress;
+            drop(tracker);
+            let log_line = crate::progress::event_log_line(e);
+            if changed || log_line.is_some() {
+                let mut ui_locked = shown.lock().unwrap_or_else(|p| p.into_inner());
+                if let (Some(step), Some(detail)) = (step, detail) {
+                    ui_locked.stage_step(stage_index, &step, &detail, fraction, stage_progress);
+                }
+                if let Some(line) = log_line {
+                    ui_locked.log_line(&line);
+                }
+            }
         }
     });
     let done = run_build(o, format, Some(observer));

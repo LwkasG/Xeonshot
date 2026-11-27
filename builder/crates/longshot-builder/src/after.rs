@@ -40,8 +40,12 @@ impl crate::progress::UserUi for Windows {
         ui().step(text, fraction);
     }
 
-    fn stage_step(&mut self, stage_index: i32, text: &str, detail: &str, fraction: f64) {
-        ui().step_stage(stage_index, text, detail, fraction);
+    fn stage_step(&mut self, stage_index: i32, text: &str, detail: &str, fraction: f64, stage_progress: [f32; 6]) {
+        ui().step_stage(stage_index, text, detail, fraction, stage_progress);
+    }
+
+    fn log_line(&mut self, line: &str) {
+        ui().log_line(line);
     }
 
     fn error(&mut self, text: &str) {

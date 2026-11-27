@@ -25,7 +25,7 @@ use std::time::{Duration, Instant};
 mod windows {
     slint::include_modules!();
 }
-use slint::ComponentHandle;
+use slint::{ComponentHandle, Model};
 use windows::{PageWindow, PickWindow, ProgressWindow};
 
 /// How long a build goes on before its progress window shows.
@@ -47,15 +47,27 @@ struct UiStrings {
     file_dialog_title: &'static str,
     progress_heading: &'static str,
     progress_sub: &'static str,
+    total_label: &'static str,
     stages: [&'static str; 6],
+    stage_descs: [&'static str; 6],
     stage_word: &'static str,
     of_word: &'static str,
     status_done: &'static str,
     status_active: &'static str,
     status_pending: &'static str,
+    follow_active: &'static str,
+    tip_badge: &'static str,
+    tips: [&'static str; 5],
+    toggle_log_show: &'static str,
+    toggle_log_hide: &'static str,
+    card_lang_title: &'static str,
+    card_display_title: &'static str,
+    card_preset_title: &'static str,
+    lang_value: String,
+    display_value: String,
+    preset_value: &'static str,
     error_title: &'static str,
     close: &'static str,
-    preset_info: String,
 }
 
 fn strings() -> UiStrings {
@@ -66,11 +78,10 @@ fn strings() -> UiStrings {
     let res_label = if ultrawide { format!("{w}x{h} (Ultrawide)") } else { format!("{w}x{h}") };
     match family.as_str() {
         "pt" => UiStrings {
-            preset_info: format!("Idioma: {raw_locale}  •  Monitor: {res_label}  •  Preset Xeonshot + FG 3x"),
             window_title: "Xeonshot",
             installer_title: "Xeonshot — Instalador",
             pick_heading: "Selecione a ROM (.nup) de Ocarina of Time",
-            pick_sub: "O Xeonshot compila o jogo nativamente a partir da sua própria cópia (.nup) de Nintendo Switch 2. Nada sai do seu PC.",
+            pick_sub: "O Xeonshot recompila o jogo nativamente a partir da sua própria cópia (.nup) de Nintendo Switch 2. Nada sai do seu PC.",
             pick_placeholder: "Caminho do arquivo .nup",
             browse: "Procurar...",
             cancel: "Cancelar",
@@ -79,6 +90,7 @@ fn strings() -> UiStrings {
             file_dialog_title: "Selecione o arquivo .nup de Ocarina of Time",
             progress_heading: "Instalando o Xeonshot",
             progress_sub: "O Xeonshot iniciará o jogo automaticamente quando terminar.",
+            total_label: "TOTAL GLOBAL",
             stages: [
                 "Preparando ferramentas e ambiente",
                 "Lendo e verificando a ROM (.nup)",
@@ -87,20 +99,44 @@ fn strings() -> UiStrings {
                 "Aplicando preset Xeonshot e assets",
                 "Compilando shaders Vulkan",
             ],
+            stage_descs: [
+                "Extrai compilador LLVM, runtime Vulkan e ferramentas necessárias para o cache local.",
+                "Lê e valida os arquivos da ROM (.nup) de Nintendo Switch 2 com verificação de integridade.",
+                "Traduz as instruções originais do jogo (ARM64) para representação nativa LLVM IR.",
+                "Compila todos os módulos C++/Rust otimizados e gera o binário nativo xeonshot.exe.",
+                "Aplica idioma do Windows, resolução nativa do monitor e o preset validado Xeonshot + FG 3x.",
+                "Pré-compila os pipelines e shaders Vulkan para eliminar engasgos durante a jogatina.",
+            ],
             stage_word: "ETAPA",
             of_word: "DE",
             status_done: "Concluído",
             status_active: "Em andamento...",
             status_pending: "Aguardando",
+            follow_active: "Seguir etapa atual",
+            tip_badge: "DICA",
+            tips: [
+                "Clique em qualquer etapa acima para acompanhar o que o instalador está fazendo em detalhes.",
+                "Pressione F1 ou Insert dentro do jogo para abrir o menu completo de gráficos, FPS e câmera.",
+                "Seu jogo já nasce na resolução nativa do monitor com preset Xeonshot e Built-in FG 3x.",
+                "100% privado e local: sua ROM (.nup) nunca sai do seu PC durante ou após a instalação.",
+                "Saves e configurações ficam isolados na pasta profile/ e são preservados entre atualizações.",
+            ],
+            toggle_log_show: "Ver log ao vivo",
+            toggle_log_hide: "Ocultar log",
+            card_lang_title: "IDIOMA DETECTADO",
+            card_display_title: "MONITOR NATIVO",
+            card_preset_title: "PRESET DE FÁBRICA",
+            lang_value: raw_locale,
+            display_value: res_label,
+            preset_value: "Xeonshot + FG 3x",
             error_title: "Xeonshot: não foi possível compilar o jogo",
             close: "Fechar",
         },
         "es" => UiStrings {
-            preset_info: format!("Idioma: {raw_locale}  •  Monitor: {res_label}  •  Preset Xeonshot + FG 3x"),
             window_title: "Xeonshot",
             installer_title: "Xeonshot — Instalador",
             pick_heading: "Selecciona la ROM (.nup) de Ocarina of Time",
-            pick_sub: "Xeonshot compila el juego de forma nativa desde tu propia copia (.nup) de Nintendo Switch 2. Nada sale de tu PC.",
+            pick_sub: "Xeonshot recompila el juego de forma nativa desde tu propia copia (.nup) de Nintendo Switch 2. Nada sale de tu PC.",
             pick_placeholder: "Ruta del archivo .nup",
             browse: "Examinar...",
             cancel: "Cancelar",
@@ -109,6 +145,7 @@ fn strings() -> UiStrings {
             file_dialog_title: "Selecciona tu archivo .nup de Ocarina of Time",
             progress_heading: "Instalando Xeonshot",
             progress_sub: "Xeonshot iniciará el juego automáticamente al terminar.",
+            total_label: "TOTAL GLOBAL",
             stages: [
                 "Preparando herramientas y entorno",
                 "Leyendo y verificando la ROM (.nup)",
@@ -117,16 +154,40 @@ fn strings() -> UiStrings {
                 "Aplicando preset Xeonshot y assets",
                 "Compilando shaders Vulkan",
             ],
+            stage_descs: [
+                "Prepara el compilador LLVM, el runtime Vulkan y las herramientas locales en caché.",
+                "Lee y verifica la integridad de los datos de tu copia (.nup) de Nintendo Switch 2.",
+                "Traduce el binario del juego (ARM64) a representación nativa LLVM IR.",
+                "Compila todos los módulos optimizados y genera el ejecutable nativo xeonshot.exe.",
+                "Aplica el idioma del sistema, la resolución nativa del monitor y el preset Xeonshot + FG 3x.",
+                "Precompila los shaders Vulkan para evitar tirones durante la partida.",
+            ],
             stage_word: "ETAPA",
             of_word: "DE",
             status_done: "Completado",
             status_active: "En curso...",
             status_pending: "En espera",
+            follow_active: "Seguir etapa actual",
+            tip_badge: "CONSEJO",
+            tips: [
+                "Haz clic en cualquier etapa arriba para inspeccionar qué ocurre en ese paso.",
+                "Pulsa F1 o Insert dentro del juego para abrir el menú completo de gráficos y rendimiento.",
+                "El juego se configura automáticamente a la resolución nativa de tu monitor + FG 3x.",
+                "100% local y privado: tu archivo .nup nunca sale de tu ordenador.",
+                "Tus partidas guardadas y ajustes se conservan en profile/ al actualizar.",
+            ],
+            toggle_log_show: "Ver registro en vivo",
+            toggle_log_hide: "Ocultar registro",
+            card_lang_title: "IDIOMA DETECTADO",
+            card_display_title: "PANTALLA NATIVA",
+            card_preset_title: "PRESET DE FÁBRICA",
+            lang_value: raw_locale,
+            display_value: res_label,
+            preset_value: "Xeonshot + FG 3x",
             error_title: "Xeonshot: no se pudo compilar el juego",
             close: "Cerrar",
         },
         _ => UiStrings {
-            preset_info: format!("Language: {raw_locale}  •  Display: {res_label}  •  Xeonshot Preset + FG 3x"),
             window_title: "Xeonshot",
             installer_title: "Xeonshot — Installer",
             pick_heading: "Select your Ocarina of Time .nup ROM",
@@ -139,6 +200,7 @@ fn strings() -> UiStrings {
             file_dialog_title: "Select your Ocarina of Time .nup",
             progress_heading: "Installing Xeonshot",
             progress_sub: "Xeonshot will start the game automatically when it's done.",
+            total_label: "OVERALL",
             stages: [
                 "Preparing build tools and environment",
                 "Reading and verifying game ROM (.nup)",
@@ -147,11 +209,36 @@ fn strings() -> UiStrings {
                 "Applying Xeonshot preset and assets",
                 "Compiling Vulkan shaders",
             ],
+            stage_descs: [
+                "Sets up the LLVM toolchain, Vulkan runtime, and local build cache.",
+                "Reads and validates game data from your own Nintendo Switch 2 (.nup) copy.",
+                "Translates game instructions (ARM64) into native LLVM intermediate code.",
+                "Compiles all optimized C++/Rust modules and links xeonshot.exe.",
+                "Applies host locale, native monitor resolution, and the Xeonshot + FG 3x preset.",
+                "Pre-compiles Vulkan shader pipelines for smooth, stutter-free gameplay.",
+            ],
             stage_word: "STAGE",
             of_word: "OF",
             status_done: "Done",
             status_active: "In progress...",
             status_pending: "Pending",
+            follow_active: "Follow current stage",
+            tip_badge: "TIP",
+            tips: [
+                "Click any stage above to inspect what the installer does at that step.",
+                "Press F1 or Insert in-game to open the full graphics, FPS, and camera settings menu.",
+                "Configured automatically for your monitor's native resolution + Built-in FG 3x.",
+                "100% local and private: your .nup copy never leaves this computer.",
+                "Saves and settings live in profile/ and stay intact across future updates.",
+            ],
+            toggle_log_show: "Show live log",
+            toggle_log_hide: "Hide log",
+            card_lang_title: "SYSTEM LOCALE",
+            card_display_title: "NATIVE DISPLAY",
+            card_preset_title: "FACTORY PRESET",
+            lang_value: raw_locale,
+            display_value: res_label,
+            preset_value: "Xeonshot + FG 3x",
             error_title: "Xeonshot: the game could not be built",
             close: "Close",
         },
@@ -202,6 +289,9 @@ struct Windows {
     progress: ProgressWindow,
     page: PageWindow,
     pick: PickWindow,
+    stage_progress: std::rc::Rc<slint::VecModel<f32>>,
+    _shimmer_timer: slint::Timer,
+    _tip_timer: slint::Timer,
 }
 
 thread_local! {
@@ -221,6 +311,12 @@ struct State {
     started: Option<Result<(), NoWindow>>,
     /// The build's first step (the progress window's clock).
     first_step: Option<Instant>,
+    /// Start instant for elapsed clock display.
+    progress_started: Option<Instant>,
+    /// Whether the progress window is currently shown.
+    progress_visible: bool,
+    /// Recent lines displayed in the collapsible activity log drawer.
+    log_lines: Vec<String>,
     /// The build is done: the progress window closed, not shown again.
     done: bool,
     /// The last line said in text (when there is no window).
@@ -281,8 +377,9 @@ impl Ui {
             return r.clone();
         }
         let (tx, rx) = mpsc::channel();
+        let state = self.state.clone();
         let cancel = self.cancel.clone();
-        let spawned = std::thread::Builder::new().name("ui".into()).spawn(move || ui_thread(tx, cancel));
+        let spawned = std::thread::Builder::new().name("ui".into()).spawn(move || ui_thread(tx, state, cancel));
         let r = match spawned {
             Ok(_) => rx.recv().unwrap_or_else(|_| Err(NoWindow("the window thread stopped".into()))),
             Err(e) => Err(NoWindow(e.to_string())),
@@ -298,11 +395,11 @@ impl Ui {
 
     /// The build's step and how far the whole build is (0 to 1).
     pub fn step(&self, text: &str, fraction: f64) {
-        self.step_stage(-1, text, "", fraction);
+        self.step_stage(-1, text, "", fraction, [0.0; 6]);
     }
 
-    /// Updates the 6-stage progress stepper (`stage_index` in `0..=5`, or `< 0`), detail text, and fraction (`0..=1`).
-    pub fn step_stage(&self, stage_index: i32, text: &str, detail: &str, fraction: f64) {
+    /// Updates the 6-stage progress stepper (`stage_index` in `0..=5`, or `< 0`), detail text, global fraction, and per-stage progress bars.
+    pub fn step_stage(&self, stage_index: i32, text: &str, detail: &str, fraction: f64, stage_progress: [f32; 6]) {
         let first = {
             let mut st = self.state.lock().unwrap_or_else(|e| e.into_inner());
             if st.done {
@@ -310,6 +407,12 @@ impl Ui {
             }
             let first = st.first_step.is_none();
             st.first_step.get_or_insert_with(Instant::now);
+            if first {
+                st.progress_started = Some(Instant::now());
+                if stage_index >= 0 {
+                    st.progress_visible = true;
+                }
+            }
             first
         };
         if self.start().is_err() {
@@ -324,6 +427,9 @@ impl Ui {
                 w.progress.set_step(text.into());
                 w.progress.set_detail(detail.into());
                 w.progress.set_fraction(fraction);
+                for (i, val) in stage_progress.iter().enumerate() {
+                    w.stage_progress.set_row_data(i, *val);
+                }
                 if let Some(badge) = badge {
                     w.progress.set_active_stage(stage_index);
                     w.progress.set_stage_badge(badge.into());
@@ -334,12 +440,38 @@ impl Ui {
                     with(|w| w.progress.show().ok());
                 } else {
                     slint::Timer::single_shot(PROGRESS_AFTER, move || {
-                        if !state.lock().unwrap_or_else(|e| e.into_inner()).done {
+                        let mut st = state.lock().unwrap_or_else(|e| e.into_inner());
+                        if !st.done {
+                            st.progress_visible = true;
+                            drop(st);
                             with(|w| w.progress.show().ok());
                         }
                     });
                 }
             }
+        });
+    }
+
+    /// Appends a line to the collapsible live activity log drawer (retaining the last 80 lines).
+    pub fn log_line(&self, line: &str) {
+        let trimmed = line.trim_end();
+        if trimmed.is_empty() {
+            return;
+        }
+        let text = {
+            let mut st = self.state.lock().unwrap_or_else(|e| e.into_inner());
+            if !matches!(st.started, Some(Ok(()))) {
+                return;
+            }
+            st.log_lines.push(trimmed.to_string());
+            if st.log_lines.len() > 80 {
+                let extra = st.log_lines.len() - 80;
+                st.log_lines.drain(..extra);
+            }
+            st.log_lines.join("\n")
+        };
+        let _ = slint::invoke_from_event_loop(move || {
+            with(|w| w.progress.set_log_text(text.into()));
         });
     }
 
@@ -358,6 +490,7 @@ impl Ui {
         let started = {
             let mut st = self.state.lock().unwrap_or_else(|e| e.into_inner());
             st.done = true;
+            st.progress_visible = false;
             matches!(st.started, Some(Ok(())))
         };
         if started {
@@ -573,7 +706,7 @@ impl Pages for UiPages<'_> {
 
 /// The UI thread: Slint's winit back end with its software renderer, the windows made (hidden), then its event loop
 /// for as long as the builder runs (winit makes one event loop a process).
-fn ui_thread(ready: mpsc::Sender<Result<(), NoWindow>>, cancel: Arc<Mutex<Cancel>>) {
+fn ui_thread(ready: mpsc::Sender<Result<(), NoWindow>>, state: Arc<Mutex<State>>, cancel: Arc<Mutex<Cancel>>) {
     let made = (|| -> Result<Windows, NoWindow> {
         let no = |e: slint::PlatformError| NoWindow(e.to_string());
         slint::BackendSelector::new()
@@ -582,20 +715,70 @@ fn ui_thread(ready: mpsc::Sender<Result<(), NoWindow>>, cancel: Arc<Mutex<Cancel
             .select()
             .map_err(no)?;
         let s = strings();
+        let stage_progress = std::rc::Rc::new(slint::VecModel::from(vec![0.0f32; 6]));
+        let shimmer_timer = slint::Timer::default();
+        let state_timer = state.clone();
+        shimmer_timer.start(slint::TimerMode::Repeated, Duration::from_millis(60), move || {
+            let (visible, elapsed) = match state_timer.try_lock() {
+                Ok(st) => {
+                    let secs = st.progress_started.map_or(0, |t| t.elapsed().as_secs());
+                    (st.progress_visible, format!("{:02}:{:02}", secs / 60, secs % 60))
+                }
+                Err(_) => return,
+            };
+            if !visible {
+                return;
+            }
+            with(|w| {
+                let mut pos = w.progress.get_shimmer_pos() + 0.03;
+                if pos > 1.0 {
+                    pos = 0.0;
+                }
+                w.progress.set_shimmer_pos(pos);
+                w.progress.set_elapsed(elapsed.into());
+            });
+        });
+        let tip_timer = slint::Timer::default();
+        let state_tips = state;
+        let tip_count = s.tips.len() as i32;
+        tip_timer.start(slint::TimerMode::Repeated, Duration::from_secs(9), move || {
+            let Ok(st) = state_tips.try_lock() else { return };
+            if !st.progress_visible || tip_count <= 0 {
+                return;
+            }
+            drop(st);
+            with(|w| {
+                let next = (w.progress.get_tip_index() + 1) % tip_count;
+                w.progress.set_tip_index(next);
+            });
+        });
         let w = Windows {
             progress: ProgressWindow::new().map_err(no)?,
             page: PageWindow::new().map_err(no)?,
             pick: PickWindow::new().map_err(no)?,
+            stage_progress,
+            _shimmer_timer: shimmer_timer,
+            _tip_timer: tip_timer,
         };
         w.progress.set_window_title(s.window_title.into());
         w.progress.set_heading(s.progress_heading.into());
         w.progress.set_sub(s.progress_sub.into());
+        w.progress.set_total_label(s.total_label.into());
         w.progress.set_cancel_label(s.cancel.into());
         let stage_labels: Vec<slint::SharedString> = s.stages.iter().map(|t| (*t).into()).collect();
         w.progress.set_stages(std::rc::Rc::new(slint::VecModel::from(stage_labels)).into());
+        w.progress.set_stage_progress(w.stage_progress.clone().into());
+        let stage_desc_labels: Vec<slint::SharedString> = s.stage_descs.iter().map(|t| (*t).into()).collect();
+        w.progress.set_stage_descs(std::rc::Rc::new(slint::VecModel::from(stage_desc_labels)).into());
         w.progress.set_status_done(s.status_done.into());
         w.progress.set_status_active(s.status_active.into());
         w.progress.set_status_pending(s.status_pending.into());
+        w.progress.set_follow_active_label(s.follow_active.into());
+        w.progress.set_tip_badge(s.tip_badge.into());
+        let tip_labels: Vec<slint::SharedString> = s.tips.iter().map(|t| (*t).into()).collect();
+        w.progress.set_tips(std::rc::Rc::new(slint::VecModel::from(tip_labels)).into());
+        w.progress.set_toggle_log_show(s.toggle_log_show.into());
+        w.progress.set_toggle_log_hide(s.toggle_log_hide.into());
         w.progress.set_active_stage(0);
         w.progress.set_stage_badge(format!("{} 1 {} 6", s.stage_word, s.of_word).into());
         w.pick.set_window_title(s.installer_title.into());
@@ -605,7 +788,12 @@ fn ui_thread(ready: mpsc::Sender<Result<(), NoWindow>>, cancel: Arc<Mutex<Cancel
         w.pick.set_browse_label(s.browse.into());
         w.pick.set_cancel_label(s.cancel.into());
         w.pick.set_continue_label(s.install_and_play.into());
-        w.pick.set_preset_info(s.preset_info.into());
+        w.pick.set_card_lang_title(s.card_lang_title.into());
+        w.pick.set_card_lang_value(s.lang_value.into());
+        w.pick.set_card_display_title(s.card_display_title.into());
+        w.pick.set_card_display_value(s.display_value.into());
+        w.pick.set_card_preset_title(s.card_preset_title.into());
+        w.pick.set_card_preset_value(s.preset_value.into());
         let c = cancel.clone();
         w.progress.on_cancel(move || {
             let f = c.lock().unwrap_or_else(|e| e.into_inner()).clone();

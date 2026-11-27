@@ -15,6 +15,8 @@ global Theme {
     out property <color> ink-faint: #7E92B2;
     out property <color> glass: #121B2E;
     out property <color> glass-hover: #192640;
+    out property <color> card-elevated: #152138;
+    out property <color> card-hover: #1B2B49;
     out property <color> glass-line: #23385C;
     out property <color> glass-line-strong: #325082;
     out property <color> quiet-fill: #FFFFFF0A;
@@ -37,6 +39,10 @@ global Theme {
     out property <color> accent: #3BE2FF;
     out property <color> accent-well: #0098FF1F;
     out property <color> accent-line: #00D4FF44;
+    out property <color> shimmer: #9BF4FF88;
+    out property <color> gold: #F3C24F;
+    out property <color> gold-well: #F3C24F1A;
+    out property <color> gold-line: #F3C24F55;
     // keyboard focus ring: gold
     out property <color> focus-ring: #F3C24F;
     // warn and bad boxes
@@ -170,9 +176,12 @@ component SecondaryButton inherits ButtonBase {
 // (#3D63E6 to #4B70F0) left out, as Slint's software renderer draws a gradient with square corners.
 component ProgressBar inherits Rectangle {
     in property <float> value;
-    height: 12px;
+    in property <float> shimmer-pos: 0;
+    height: 14px;
     border-radius: self.height / 2;
     background: Theme.bar-track;
+    border-width: 1px;
+    border-color: Theme.glass-line;
     clip: true;
     Rectangle {
         x: 0;
@@ -182,95 +191,199 @@ component ProgressBar inherits Rectangle {
         border-radius: self.height / 2;
         background: Theme.go;
         visible: root.value > 0;
+        animate width { duration: 220ms; easing: ease-out; }
+    }
+    // Animated energy scanner highlight sweeping smoothly across the progress bar.
+    Rectangle {
+        x: (parent.width + 96px) * clamp(root.shimmer-pos, 0, 1) - 96px;
+        y: 1px;
+        width: 96px;
+        height: parent.height - 2px;
+        border-radius: self.height / 2;
+        background: Theme.shimmer;
     }
 }
 
-// A build's progress: 6-stage stepper, step detail, progress bar, Cancel.
+// A build's progress: interactive 6-stage stepper with per-stage % bars, global %, tips carousel, and live log drawer.
 export component ProgressWindow inherits Window {
     in property <string> window-title: "Xeonshot";
+    in property <string> version-badge: "XEONSHOT 2.0-RT";
+    in property <string> total-label: "GLOBAL";
     in property <string> heading: "Installing Xeonshot";
     in property <string> sub: "Xeonshot starts the game automatically when it's done.";
     in property <string> cancel-label: "Cancel";
     in property <string> stage-badge;
+    in property <string> elapsed: "00:00";
+    in property <float> shimmer-pos: 0;
     in property <int> active-stage: 0;
+    in-out property <int> selected-stage: -1;
+    in property <string> follow-active-label: "Voltar à etapa atual";
     in property <[string]> stages;
+    in property <[float]> stage-progress: [0, 0, 0, 0, 0, 0];
+    in property <[string]> stage-descs;
     in property <string> status-done: "Done";
     in property <string> status-active: "In progress...";
     in property <string> status-pending: "Pending";
+    in property <[string]> tips;
+    in-out property <int> tip-index: 0;
+    in property <string> tip-badge: "TIP";
+    in property <string> log-text;
+    in-out property <bool> show-log: false;
+    in property <string> toggle-log-show: "Show log";
+    in property <string> toggle-log-hide: "Hide log";
     in property <string> step;
     in property <string> detail;
     in property <float> fraction;
     callback cancel();
     title: root.window-title;
-    width: 680px;
+    icon: @image-url("../assets/xeonshot.png");
+    width: 760px;
     height: layout.preferred-height;
     background: Theme.page;
     default-font-family: "Inter";
     layout := VerticalLayout {
-        padding: 28px;
-        spacing: 16px;
-        HorizontalLayout {
-            spacing: 18px;
-            VerticalLayout {
-                alignment: center;
-                Rectangle {
-                    width: 56px;
-                    height: 56px;
-                    border-radius: 12px;
-                    background: Theme.accent-well;
-                    border-width: 1px;
-                    border-color: Theme.accent-line;
-                    Image {
-                        source: @image-url("../assets/xeonshot.png");
-                        width: 48px;
-                        height: 48px;
-                        image-fit: contain;
+        padding: 24px;
+        spacing: 14px;
+        // Hero Header Card
+        Rectangle {
+            background: Theme.card-elevated;
+            border-color: Theme.glass-line-strong;
+            border-width: 1px;
+            border-radius: 14px;
+            HorizontalLayout {
+                padding: 18px;
+                spacing: 18px;
+                VerticalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 64px;
+                        height: 64px;
+                        border-radius: 14px;
+                        background: Theme.accent-well;
+                        border-width: 1px;
+                        border-color: Theme.accent-line;
+                        Image {
+                            source: @image-url("../assets/xeonshot.png");
+                            width: 54px;
+                            height: 54px;
+                            image-fit: contain;
+                        }
                     }
                 }
-            }
-            Title {
-                horizontal-stretch: 1;
-                text: root.heading;
-                sub: root.sub;
-            }
-            VerticalLayout {
-                alignment: center;
-                spacing: 4px;
-                Text {
-                    text: floor(root.fraction * 100) + " %";
-                    color: Theme.accent;
-                    font-size: 36px;
-                    font-weight: 600;
-                    horizontal-alignment: right;
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    alignment: center;
+                    spacing: 5px;
+                    HorizontalLayout {
+                        alignment: start;
+                        Rectangle {
+                            height: 20px;
+                            border-radius: 10px;
+                            background: Theme.gold-well;
+                            border-width: 1px;
+                            border-color: Theme.gold-line;
+                            min-width: ver-txt.preferred-width + 16px;
+                            ver-txt := Text {
+                                text: root.version-badge;
+                                color: Theme.gold;
+                                font-size: 10px;
+                                font-weight: 700;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                    Text {
+                        text: root.heading;
+                        color: Theme.ink;
+                        font-family: "Noto Sans";
+                        font-size: 25px;
+                        font-weight: 900;
+                        letter-spacing: -0.7px;
+                        wrap: word-wrap;
+                    }
+                    Text {
+                        text: root.sub;
+                        color: Theme.ink-soft;
+                        font-size: 13px;
+                        wrap: word-wrap;
+                    }
                 }
-                if root.stage-badge != "": Rectangle {
-                    height: 22px;
-                    border-radius: 11px;
-                    background: Theme.accent-well;
-                    border-width: 1px;
-                    border-color: Theme.accent-line;
-                    min-width: badge-text.preferred-width + 18px;
-                    badge-text := Text {
-                        text: root.stage-badge;
-                        color: Theme.accent;
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 4px;
+                    Text {
+                        text: root.total-label;
+                        color: Theme.ink-faint;
                         font-size: 10px;
                         font-weight: 700;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
+                        horizontal-alignment: right;
+                    }
+                    Text {
+                        text: floor(root.fraction * 100) + " %";
+                        color: Theme.accent;
+                        font-size: 36px;
+                        font-weight: 700;
+                        horizontal-alignment: right;
+                    }
+                    HorizontalLayout {
+                        alignment: end;
+                        spacing: 6px;
+                        if root.stage-badge != "": Rectangle {
+                            height: 22px;
+                            border-radius: 11px;
+                            background: Theme.accent-well;
+                            border-width: 1px;
+                            border-color: Theme.accent-line;
+                            min-width: badge-text.preferred-width + 16px;
+                            badge-text := Text {
+                                text: root.stage-badge;
+                                color: Theme.accent;
+                                font-size: 10px;
+                                font-weight: 700;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                        Rectangle {
+                            height: 22px;
+                            border-radius: 11px;
+                            background: Theme.well;
+                            border-width: 1px;
+                            border-color: Theme.glass-line;
+                            min-width: elapsed-text.preferred-width + 16px;
+                            elapsed-text := Text {
+                                text: root.elapsed;
+                                color: Theme.ink-soft;
+                                font-size: 10px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
                     }
                 }
             }
         }
+        // Interactive 6-Stage Stepper Card with Per-Stage Percentages
         if root.stages.length > 0: Card {
             VerticalLayout {
                 padding: 14px;
                 spacing: 6px;
                 for label[i] in root.stages: Rectangle {
-                    height: 34px;
-                    border-radius: 8px;
-                    background: i == root.active-stage ? Theme.accent-well : transparent;
-                    border-width: i == root.active-stage ? 1px : 0px;
-                    border-color: Theme.accent-line;
+                    height: 44px;
+                    border-radius: 9px;
+                    background: i == root.active-stage
+                        ? Theme.accent-well
+                        : (i == root.selected-stage || row-touch.has-hover ? Theme.card-hover : transparent);
+                    border-width: i == root.active-stage || i == root.selected-stage ? 1px : 0px;
+                    border-color: i == root.active-stage ? Theme.accent-line : Theme.glass-line-strong;
+                    row-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.selected-stage = (i == root.active-stage || i == root.selected-stage) ? -1 : i;
+                        }
+                    }
                     HorizontalLayout {
                         padding-left: 10px;
                         padding-right: 12px;
@@ -278,9 +391,9 @@ export component ProgressWindow inherits Window {
                         VerticalLayout {
                             alignment: center;
                             Rectangle {
-                                width: 22px;
-                                height: 22px;
-                                border-radius: 11px;
+                                width: 24px;
+                                height: 24px;
+                                border-radius: 12px;
                                 background: i < root.active-stage ? Theme.go : i == root.active-stage ? Theme.brand : Theme.well;
                                 border-width: i > root.active-stage ? 1px : 0px;
                                 border-color: Theme.glass-line;
@@ -294,39 +407,243 @@ export component ProgressWindow inherits Window {
                                 }
                             }
                         }
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            alignment: center;
+                            spacing: 5px;
+                            Text {
+                                text: label;
+                                color: i == root.active-stage ? Theme.ink : i < root.active-stage ? Theme.ink-soft : Theme.ink-faint;
+                                font-size: 13px;
+                                font-weight: i == root.active-stage ? 600 : 400;
+                                overflow: elide;
+                            }
+                            Rectangle {
+                                height: 4px;
+                                border-radius: 2px;
+                                background: Theme.bar-track;
+                                clip: true;
+                                Rectangle {
+                                    x: 0;
+                                    y: 0;
+                                    height: parent.height;
+                                    width: parent.width * clamp(root.stage-progress[i], 0, 1);
+                                    border-radius: 2px;
+                                    background: i < root.active-stage ? Theme.go : Theme.brand;
+                                    animate width { duration: 180ms; easing: ease-out; }
+                                }
+                            }
+                        }
+                        HorizontalLayout {
+                            horizontal-stretch: 0;
+                            spacing: 10px;
+                            Text {
+                                text: i < root.active-stage ? root.status-done : i == root.active-stage ? root.status-active : root.status-pending;
+                                color: i == root.active-stage ? Theme.accent : i < root.active-stage ? Theme.go : Theme.ink-faint;
+                                font-size: 11px;
+                                font-weight: i == root.active-stage ? 600 : 400;
+                                vertical-alignment: center;
+                            }
+                            Text {
+                                min-width: 40px;
+                                text: floor(clamp(root.stage-progress[i], 0, 1) * 100) + "%";
+                                color: i < root.active-stage ? Theme.go : i == root.active-stage ? Theme.accent : Theme.ink-faint;
+                                font-size: 13px;
+                                font-weight: 700;
+                                horizontal-alignment: right;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+                if root.stage-descs.length > 0: VerticalLayout {
+                    padding-top: 6px;
+                    spacing: 8px;
+                    Rectangle {
+                        height: 1px;
+                        background: Theme.glass-line;
+                    }
+                    HorizontalLayout {
+                        padding-left: 6px;
+                        padding-right: 6px;
+                        spacing: 10px;
                         Text {
                             horizontal-stretch: 1;
-                            text: label;
-                            color: i == root.active-stage ? Theme.ink : i < root.active-stage ? Theme.ink-soft : Theme.ink-faint;
-                            font-size: 13px;
-                            font-weight: i == root.active-stage ? 600 : 400;
-                            vertical-alignment: center;
-                            overflow: elide;
-                        }
-                        Text {
-                            horizontal-stretch: 0;
-                            text: i < root.active-stage ? root.status-done : i == root.active-stage ? root.status-active : root.status-pending;
-                            color: i == root.active-stage ? Theme.accent : i < root.active-stage ? Theme.go : Theme.ink-faint;
+                            text: root.stage-descs[root.selected-stage >= 0 ? root.selected-stage : root.active-stage];
+                            color: Theme.ink-soft;
                             font-size: 12px;
-                            font-weight: i == root.active-stage ? 600 : 400;
-                            horizontal-alignment: right;
+                            wrap: word-wrap;
                             vertical-alignment: center;
+                        }
+                        if root.selected-stage >= 0 && root.selected-stage != root.active-stage: Rectangle {
+                            height: 24px;
+                            border-radius: 12px;
+                            background: follow-touch.has-hover ? Theme.glass-hover : Theme.accent-well;
+                            border-width: 1px;
+                            border-color: Theme.accent-line;
+                            min-width: follow-lbl.preferred-width + 18px;
+                            follow-lbl := Text {
+                                text: root.follow-active-label;
+                                color: Theme.accent;
+                                font-size: 11px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                            follow-touch := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => { root.selected-stage = -1; }
+                            }
                         }
                     }
                 }
             }
         }
-        ProgressBar { value: root.fraction; }
-        HorizontalLayout {
-            spacing: 16px;
+        // Global Energy Bar & Live Detail
+        VerticalLayout {
+            spacing: 6px;
+            ProgressBar {
+                value: root.fraction;
+                shimmer-pos: root.shimmer-pos;
+            }
             Text {
-                horizontal-stretch: 1;
                 text: root.detail != "" ? root.detail : root.step;
                 color: Theme.ink-soft;
                 font-size: 13px;
                 overflow: elide;
-                vertical-alignment: center;
             }
+        }
+        // Interactive Rotating Tips Bar
+        if root.tips.length > 0: Rectangle {
+            min-height: 40px;
+            border-radius: 10px;
+            background: Theme.gold-well;
+            border-width: 1px;
+            border-color: Theme.gold-line;
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 10px;
+                padding-top: 8px;
+                padding-bottom: 8px;
+                spacing: 10px;
+                VerticalLayout {
+                    alignment: center;
+                    Rectangle {
+                        height: 20px;
+                        border-radius: 10px;
+                        background: Theme.gold;
+                        min-width: tip-lbl.preferred-width + 14px;
+                        tip-lbl := Text {
+                            text: root.tip-badge;
+                            color: Theme.go-ink;
+                            font-size: 10px;
+                            font-weight: 700;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+                Text {
+                    horizontal-stretch: 1;
+                    text: root.tips[root.tip-index];
+                    color: Theme.ink;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                    vertical-alignment: center;
+                }
+                HorizontalLayout {
+                    spacing: 4px;
+                    VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 24px;
+                            height: 24px;
+                            border-radius: 6px;
+                            background: prev-tip.has-hover ? Theme.glass-hover : Theme.quiet-fill;
+                            border-width: 1px;
+                            border-color: Theme.gold-line;
+                            Text {
+                                text: "<";
+                                color: Theme.gold;
+                                font-size: 12px;
+                                font-weight: 700;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                            prev-tip := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => {
+                                    if (root.tip-index <= 0) {
+                                        root.tip-index = root.tips.length - 1;
+                                    } else {
+                                        root.tip-index -= 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 24px;
+                            height: 24px;
+                            border-radius: 6px;
+                            background: next-tip.has-hover ? Theme.glass-hover : Theme.quiet-fill;
+                            border-width: 1px;
+                            border-color: Theme.gold-line;
+                            Text {
+                                text: ">";
+                                color: Theme.gold;
+                                font-size: 12px;
+                                font-weight: 700;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                            next-tip := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => {
+                                    if (root.tip-index + 1 >= root.tips.length) {
+                                        root.tip-index = 0;
+                                    } else {
+                                        root.tip-index += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Collapsible Live Activity Log Drawer
+        if root.show-log: Rectangle {
+            height: 148px;
+            background: Theme.well;
+            border-width: 1px;
+            border-color: Theme.glass-line;
+            border-radius: 10px;
+            Flickable {
+                x: 12px;
+                y: 10px;
+                width: parent.width - 24px;
+                height: parent.height - 20px;
+                content-height: log-view.preferred-height;
+                log-view := Text {
+                    width: parent.width;
+                    text: root.log-text;
+                    color: Theme.ink-soft;
+                    font-size: 11px;
+                    wrap: word-wrap;
+                }
+            }
+        }
+        // Footer Buttons
+        HorizontalLayout {
+            spacing: 12px;
+            SecondaryButton {
+                text: root.show-log ? root.toggle-log-hide : root.toggle-log-show;
+                clicked => { root.show-log = !root.show-log; }
+            }
+            Rectangle { horizontal-stretch: 1; }
             SecondaryButton {
                 text: root.cancel-label;
                 clicked => { root.cancel(); }
@@ -347,6 +664,7 @@ export component PageWindow inherits Window {
     callback pressed(int);
     callback key(int, bool);
     title: root.window-title;
+    icon: @image-url("../assets/xeonshot.png");
     width: max(760px, row.preferred-width + 56px);
     height: page.preferred-height;
     background: Theme.page;
@@ -427,57 +745,93 @@ export component PageWindow inherits Window {
 // The first run: the player's .nup, by its path or the system's file chooser (Browse).
 export component PickWindow inherits Window {
     in property <string> window-title: "Xeonshot";
+    in property <string> version-badge: "XEONSHOT 2.0-RT";
     in property <string> heading: "Select your Ocarina of Time .nup";
     in property <string> sub: "Xeonshot builds the game natively from your own copy (.nup). Nothing leaves this PC.";
     in property <string> placeholder: "The path of your .nup";
     in property <string> browse-label: "Browse";
     in property <string> cancel-label: "Cancel";
     in property <string> continue-label: "Install & Play";
-    in property <string> preset-info;
+    in property <string> card-lang-title: "LANGUAGE";
+    in property <string> card-lang-value: "en-US";
+    in property <string> card-display-title: "DISPLAY";
+    in property <string> card-display-value: "1920x1080";
+    in property <string> card-preset-title: "PRESET";
+    in property <string> card-preset-value: "Xeonshot + FG 3x";
     in-out property <string> path;
     in property <string> note;
     callback browse();
     callback done(bool);
     title: root.window-title;
-    width: 680px;
+    icon: @image-url("../assets/xeonshot.png");
+    width: 740px;
     height: layout.preferred-height;
     background: Theme.page;
     default-font-family: "Inter";
     layout := VerticalLayout {
-        padding: 28px;
-        spacing: 18px;
-        Card {
+        padding: 24px;
+        spacing: 16px;
+        Rectangle {
+            background: Theme.card-elevated;
+            border-color: Theme.glass-line-strong;
+            border-width: 1px;
+            border-radius: 14px;
             VerticalLayout {
-                padding-left: 24px;
-                padding-right: 24px;
-                padding-top: 22px;
-                padding-bottom: 22px;
-                spacing: 14px;
+                padding: 22px;
+                spacing: 16px;
                 HorizontalLayout {
                     spacing: 16px;
-                    Rectangle {
-                        width: 64px;
-                        height: 64px;
-                        border-radius: 14px;
-                        background: Theme.accent-well;
-                        border-width: 1px;
-                        border-color: Theme.accent-line;
-                        Image {
-                            source: @image-url("../assets/xeonshot.png");
-                            width: 56px;
-                            height: 56px;
-                            image-fit: contain;
+                    VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 68px;
+                            height: 68px;
+                            border-radius: 14px;
+                            background: Theme.accent-well;
+                            border-width: 1px;
+                            border-color: Theme.accent-line;
+                            Image {
+                                source: @image-url("../assets/xeonshot.png");
+                                width: 58px;
+                                height: 58px;
+                                image-fit: contain;
+                            }
                         }
                     }
-                    Title {
-                        text: root.heading;
-                        sub: root.sub;
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        alignment: center;
+                        spacing: 5px;
+                        HorizontalLayout {
+                            alignment: start;
+                            Rectangle {
+                                height: 20px;
+                                border-radius: 10px;
+                                background: Theme.gold-well;
+                                border-width: 1px;
+                                border-color: Theme.gold-line;
+                                min-width: pick-ver.preferred-width + 16px;
+                                pick-ver := Text {
+                                    text: root.version-badge;
+                                    color: Theme.gold;
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                        Title {
+                            text: root.heading;
+                            sub: root.sub;
+                        }
                     }
                 }
                 HorizontalLayout {
                     spacing: 10px;
                     Rectangle {
-                        height: 40px;
+                        horizontal-stretch: 1;
+                        height: 42px;
                         background: Theme.well;
                         border-width: 1px;
                         border-color: input.has-focus ? Theme.focus-ring : Theme.glass-line-strong;
@@ -505,21 +859,88 @@ export component PickWindow inherits Window {
                         clicked => { root.browse(); }
                     }
                 }
-                if root.preset-info != "": Rectangle {
-                    height: 34px;
-                    border-radius: 8px;
-                    background: Theme.accent-well;
-                    border-width: 1px;
-                    border-color: Theme.accent-line;
-                    Text {
-                        x: 12px;
-                        width: parent.width - 24px;
-                        text: root.preset-info;
-                        color: Theme.accent;
-                        font-size: 12px;
-                        font-weight: 600;
-                        vertical-alignment: center;
-                        overflow: elide;
+                HorizontalLayout {
+                    spacing: 10px;
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 54px;
+                        border-radius: 10px;
+                        background: Theme.well;
+                        border-width: 1px;
+                        border-color: Theme.glass-line;
+                        VerticalLayout {
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            alignment: center;
+                            spacing: 2px;
+                            Text {
+                                text: root.card-lang-title;
+                                color: Theme.ink-faint;
+                                font-size: 10px;
+                                font-weight: 700;
+                            }
+                            Text {
+                                text: root.card-lang-value;
+                                color: Theme.accent;
+                                font-size: 13px;
+                                font-weight: 600;
+                                overflow: elide;
+                            }
+                        }
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 54px;
+                        border-radius: 10px;
+                        background: Theme.well;
+                        border-width: 1px;
+                        border-color: Theme.glass-line;
+                        VerticalLayout {
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            alignment: center;
+                            spacing: 2px;
+                            Text {
+                                text: root.card-display-title;
+                                color: Theme.ink-faint;
+                                font-size: 10px;
+                                font-weight: 700;
+                            }
+                            Text {
+                                text: root.card-display-value;
+                                color: Theme.accent;
+                                font-size: 13px;
+                                font-weight: 600;
+                                overflow: elide;
+                            }
+                        }
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 54px;
+                        border-radius: 10px;
+                        background: Theme.accent-well;
+                        border-width: 1px;
+                        border-color: Theme.accent-line;
+                        VerticalLayout {
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            alignment: center;
+                            spacing: 2px;
+                            Text {
+                                text: root.card-preset-title;
+                                color: Theme.ink-soft;
+                                font-size: 10px;
+                                font-weight: 700;
+                            }
+                            Text {
+                                text: root.card-preset-value;
+                                color: Theme.gold;
+                                font-size: 13px;
+                                font-weight: 700;
+                                overflow: elide;
+                            }
+                        }
                     }
                 }
                 if root.note != "": Text {
