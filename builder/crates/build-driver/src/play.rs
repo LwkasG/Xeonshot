@@ -649,7 +649,7 @@ pub fn play(
                 }
             }
         }
-        let opts = folder.join(OPTIONS_FILE);
+        let opts = crate::folder::options_path(&folder);
         let prof_settings = settings(&profile);
         if opts.is_file()
             && !prof_settings.exists()
