@@ -1218,6 +1218,7 @@ const std::vector<SharedCode>& codes_of(const NvnState& s) {
         }
     return v;
 }
+const std::vector<Code>& stage_heads_of(const NvnState& s);
 
 std::atomic<int64_t> st_translated, st_failed, st_translate_ns;
 // (longshot) The "not translated" lines name 30 programs each, so that a log is not flooded; these count every program each
@@ -2030,22 +2031,22 @@ void translate_mesh_into(Program& p, const NvnState& s, const Code* task, const 
 /// there are two) and mesh programs; a header-only stage, its per-primitive outputs (shader_lock held)
 const Program* mesh_program_locked(const NvnState& s, const uint8_t color_types[8]) {
     if (!dev.mesh_shader && !dev.mesh_fallback) return nullptr;
-    const auto& cs = codes_of(s);
-    SharedCode fsc, prim, task, mesh;
-    for (const auto& c : cs) {
-        if (c->header_only) prim = c;
-        else if (c->stage == 6) task = c;
-        else if (c->stage == 7) mesh = c;
-        else if (c->stage == 1) fsc = c;
+    const auto& hs = stage_heads_of(s);
+    const Code *fsc_h = nullptr, *prim_h = nullptr, *task_h = nullptr, *mesh_h = nullptr;
+    for (const Code& c : hs) {
+        if (c.header_only) prim_h = &c;
+        else if (c.stage == 6) task_h = &c;
+        else if (c.stage == 7) mesh_h = &c;
+        else if (c.stage == 1) fsc_h = &c;
     }
     static int logged;
     if (logged++ < 6) log_program_stages(s, "mesh draw");
-    if (!mesh) return nullptr;
-    const bool fallback = dev.uses_mesh_fallback(task != nullptr);
-    const uint64_t key = mesh_key(task.get(), *mesh, fsc.get(), prim.get(), color_types);
+    if (!mesh_h) return nullptr;
+    const bool fallback = dev.uses_mesh_fallback(task_h != nullptr);
+    const uint64_t key = mesh_key(task_h, *mesh_h, fsc_h, prim_h, color_types);
     auto& variants = programs[key];
     program_cache_load(key, variants);
-    const uint64_t codes[4] = {mesh->key, fsc ? fsc->key : 0, task ? task->key : 0, prim ? prim->key : 0};
+    const uint64_t codes[4] = {mesh_h->key, fsc_h ? fsc_h->key : 0, task_h ? task_h->key : 0, prim_h ? prim_h->key : 0};
     for (auto& p : variants)
         if (!p->codes[0]) std::memcpy(p->codes, codes, sizeof codes);
     for (auto& p : variants) {
@@ -2054,6 +2055,15 @@ const Program* mesh_program_locked(const NvnState& s, const uint8_t color_types[
         if (p->failed) return nullptr;
         if (still_valid(s, *p)) return p.get();
     }
+    const auto& cs = codes_of(s);
+    SharedCode fsc, prim, task, mesh;
+    for (const auto& c : cs) {
+        if (c->header_only) prim = c;
+        else if (c->stage == 6) task = c;
+        else if (c->stage == 7) mesh = c;
+        else if (c->stage == 1) fsc = c;
+    }
+    if (!mesh) return nullptr;
     miss_note(key, "mesh", mesh->key, fsc ? fsc->key : 0, s, color_types, variants.size());
     auto p = std::make_unique<Program>();
     p->key = key;
@@ -2145,9 +2155,9 @@ std::string program_code_keys(const NvnState& s) {
     std::string out;
     if (!s.has_prog) return out;
     std::lock_guard lk(shader_mu);
-    for (const auto& c : codes_of(s)) {
+    for (const auto& c : stage_heads_of(s)) {
         char b[40];
-        snprintf(b, sizeof b, " %u:%016llx", c->stage, (unsigned long long)c->key);
+        snprintf(b, sizeof b, " %u:%016llx", c.stage, (unsigned long long)c.key);
         out += b;
     }
     return out;
@@ -2157,8 +2167,8 @@ std::string program_code_keys(const NvnState& s) {
 uint64_t compute_code_key(const NvnState& s) {
     if (!s.has_prog) return 0;
     std::lock_guard lk(shader_mu);
-    for (const auto& c : codes_of(s))
-        if (c->stage == 5 && !c->header_only) return c->key;
+    for (const auto& c : stage_heads_of(s))
+        if (c.stage == 5 && !c.header_only) return c.key;
     return 0;
 }
 
@@ -2212,11 +2222,10 @@ struct ProgFast {
     uint32_t amask = ~0u;           // (answer_stage_mask of p, ~0 for a compute program)
     uint64_t tex_gen[kNvnStages]{};   // (the stages' tex_gen it was kept at)
 };
-thread_local ProgFast prog_fast[2];
+thread_local ProgFast prog_fast[4];
 
 const Program* program_for(const NvnState& s, ProgramKind kind, const uint8_t color_types[8]) {
     if (!s.has_prog) return nullptr;
-    if (kind == ProgramKind::Mesh) return mesh_program_for(s, color_types);
     {   // (the HDR tone mapper changed: the picks before it name the other variant of the scene mapping programs)
         static thread_local int tonemap_seen = -1;
         const int tonemap_now = scene_tonemap_on() ? 1 : 0;
@@ -2224,9 +2233,11 @@ const Program* program_for(const NvnState& s, ProgramKind kind, const uint8_t co
             tonemap_seen = tonemap_now;
             picks.clear();
             prog_fast[0].on = prog_fast[1].on = false;
+            prog_fast[2].on = prog_fast[3].on = false;
         }
     }
     const bool compute = kind == ProgramKind::Compute;
+    const bool mesh = kind == ProgramKind::Mesh;
     static int64_t st_hit, st_none, st_differ, st_calls, st_by_tex;   // (logged now and then: how the cache does)
     if (++st_calls % 200000 == 0)
         logf("vk: program picks: %lld kept (%lld by the last picks' textures, a uniform buffer bound since), %lld new, %lld with other textures (of %lld)",
@@ -2236,7 +2247,7 @@ const Program* program_for(const NvnState& s, ProgramKind kind, const uint8_t co
     // (longshot) the pair of the last picks stood only while nothing at all was bound anew, and OoT binds a uniform buffer for nearly every
     // draw: a draw of the same program with the same textures found its program through the full pick (the key, the answers' handles, a
     // compare). It stands now while the textures its answers are read from do (answer_stage_mask)
-    for (const ProgFast& f : prog_fast) {   // (the draw before this one, and the one that took turns with it)
+    for (const ProgFast& f : prog_fast) {   // (the draws before this one)
         if (!(f.on && f.p && f.p->ready.load(std::memory_order_acquire) && !f.p->failed)) continue;
         uint64_t fbind = f.bind;
         bool by_tex = false;
@@ -2252,14 +2263,19 @@ const Program* program_for(const NvnState& s, ProgramKind kind, const uint8_t co
             return st_hit++, f.p;
         }
     }
-    const uint64_t key = (compute ? 0x5EED : pick_inputs(s, color_types)) * 1099511628211ull ^ s.prog.serial;
+    const uint64_t key = ((compute ? 0x5EED : pick_inputs(s, color_types)) * 1099511628211ull ^ s.prog.serial) ^
+                         ((uint64_t)kind << 56);
     // (held across program_pick below and written through after it, though an insert into the FlatMap picks would move it
     // (flat_map.h): nothing in between inserts into this thread's picks. program_pick takes shader_mu, which is not recursive,
     // so it cannot reach program_for again; a callback from it into the draw path would have to look pk up anew)
     Pick& pk = picks[key];
     auto keep = [&](const Program* p) {
         if (!p || !p->ready.load(std::memory_order_acquire) || p->failed) return p;
-        if (!(prog_fast[0].on && prog_fast[0].p == p)) prog_fast[1] = prog_fast[0];
+        if (!(prog_fast[0].on && prog_fast[0].p == p)) {
+            prog_fast[3] = prog_fast[2];
+            prog_fast[2] = prog_fast[1];
+            prog_fast[1] = prog_fast[0];
+        }
         ProgFast& f = prog_fast[0];
         f.on = true, f.kind = (int)kind, f.serial = s.prog.serial, f.stages = stages, f.bind = bind, f.reg = reg, f.ub = ub;
         f.nvattr = s.nvattr, f.p = p;
@@ -2282,7 +2298,7 @@ const Program* program_for(const NvnState& s, ProgramKind kind, const uint8_t co
     } else {
         st_none++;
     }
-    const Program* picked = program_pick(s, kind, color_types);
+    const Program* picked = mesh ? mesh_program_for(s, color_types) : program_pick(s, kind, color_types);
     if (picked && picked->ready.load(std::memory_order_acquire) && !picked->failed) {
         pk.p = picked;
         answer_handles(s, *picked, pk.handles);
@@ -2297,21 +2313,21 @@ const Program* program_pick(const NvnState& s, ProgramKind kind, const uint8_t c
     PROF_EXACT();   // (the picks' slow path: a translation, a cache read; PROF_PROGRAM samples the rest)
     const bool compute = kind == ProgramKind::Compute;
     std::lock_guard lk(shader_mu);
-    const auto& cs = codes_of(s);
-    SharedCode stage_code[8];
-    for (const auto& c : cs)
-        if (!c->header_only) stage_code[c->stage] = c;
-    if (compute ? !stage_code[5] : !stage_code[0]) return nullptr;
-    if (!compute && (stage_code[2] || stage_code[3] || stage_code[4])) {   // (geometry/tessellation: not translated)
+    const auto& hs = stage_heads_of(s);
+    const Code* stage_head[8]{};
+    for (const Code& c : hs)
+        if (!c.header_only && c.stage >= 0 && c.stage < 8) stage_head[c.stage] = &c;
+    if (compute ? !stage_head[5] : !stage_head[0]) return nullptr;
+    if (!compute && (stage_head[2] || stage_head[3] || stage_head[4])) {   // (geometry/tessellation: not translated)
         static int logged;
         if (logged++ < 40) log_program_stages(s, "dropped stages");
     }
     // the variants of these stages, for these vertex input types and colour output types
-    const bool tonemap = !compute && scene_tonemap_for(stage_code[1].get());
-    const uint64_t key = compute ? stage_code[5]->key : graphics_key(*stage_code[0], stage_code[1].get(), s.vattr, color_types, tonemap);
+    const bool tonemap = !compute && scene_tonemap_for(stage_head[1]);
+    const uint64_t key = compute ? stage_head[5]->key : graphics_key(*stage_head[0], stage_head[1], s.vattr, color_types, tonemap);
     auto& variants = programs[key];
     program_cache_load(key, variants);
-    const uint64_t codes[4] = {stage_code[compute ? 5 : 0]->key, !compute && stage_code[1] ? stage_code[1]->key : 0, 0, 0};
+    const uint64_t codes[4] = {stage_head[compute ? 5 : 0]->key, !compute && stage_head[1] ? stage_head[1]->key : 0, 0, 0};
     for (auto& p : variants)
         if (!p->codes[0]) std::memcpy(p->codes, codes, sizeof codes);
     for (auto& p : variants) {
@@ -2319,6 +2335,11 @@ const Program* program_pick(const NvnState& s, ProgramKind kind, const uint8_t c
         if (p->failed) return nullptr;
         if (still_valid(s, *p)) return p.get();
     }
+    const auto& cs = codes_of(s);
+    SharedCode stage_code[8];
+    for (const auto& c : cs)
+        if (!c->header_only) stage_code[c->stage] = c;
+    if (compute ? !stage_code[5] : !stage_code[0]) return nullptr;
     miss_note(key, compute ? "compute" : "graphics", stage_code[compute ? 5 : 0]->key, stage_code[1] ? stage_code[1]->key : 0, s, color_types,
               variants.size());
     auto p = std::make_unique<Program>();
@@ -2901,6 +2922,23 @@ CreatedStages created_stages(const std::vector<Code>& cs) {
         else if (c.stage == 7) o.mesh = &c;
     }
     return o;
+}
+std::unordered_map<uint64_t, std::vector<Code>> stage_heads;   // (by program serial, under shader_mu: header + key only, no LowerToMaxwell)
+const std::vector<Code>& stage_heads_of(const NvnState& s) {
+    auto& v = stage_heads[s.prog.serial];
+    if (!v.empty()) return v;
+    {
+        std::lock_guard lk(created_mu);
+        if (const auto it = created_codes.find(s.prog.serial); it != created_codes.end() && !it->second.empty()) {
+            v = it->second;
+            return v;
+        }
+    }
+    for (uint32_t i = 0; i < s.prog.nstage && i < 6; i++) {
+        Code c = read_code_head(s.prog.sd[i]);
+        if (c.ok) v.push_back(std::move(c));
+    }
+    return v;
 }
 } // namespace
 
