@@ -39,8 +39,15 @@ struct UiStrings {
     installer_title: &'static str,
     pick_heading: &'static str,
     pick_sub: &'static str,
+    rom_section_label: &'static str,
     pick_placeholder: &'static str,
     browse: &'static str,
+    install_section_label: &'static str,
+    install_placeholder: &'static str,
+    browse_install: &'static str,
+    install_dialog_title: &'static str,
+    dlss_label: &'static str,
+    missing_install_note: &'static str,
     cancel: &'static str,
     install_and_play: &'static str,
     missing_file_note: &'static str,
@@ -80,10 +87,17 @@ fn strings() -> UiStrings {
         "pt" => UiStrings {
             window_title: "Xeonshot",
             installer_title: "Xeonshot — Instalador",
-            pick_heading: "Selecione a ROM (.nup) de Ocarina of Time",
-            pick_sub: "O Xeonshot recompila o jogo nativamente a partir da sua própria cópia (.nup) de Nintendo Switch 2. Nada sai do seu PC.",
-            pick_placeholder: "Caminho do arquivo .nup",
-            browse: "Procurar...",
+            pick_heading: "Configurar Instalação do Xeonshot",
+            pick_sub: "Escolha sua ROM (.nup) e a pasta onde o Xeonshot será instalado. Depois, basta abrir de qualquer lugar.",
+            rom_section_label: "ROM DO JOGO (.NUP OU PASTA DA ROM)",
+            pick_placeholder: "Caminho do arquivo .nup ou pasta da ROM",
+            browse: "Procurar .nup...",
+            install_section_label: "PASTA DE INSTALAÇÃO DO JOGO",
+            install_placeholder: "Pasta onde o Xeonshot será instalado",
+            browse_install: "Escolher pasta...",
+            install_dialog_title: "Escolha a pasta de instalação do Xeonshot",
+            dlss_label: "Incluir NVIDIA DLSS + DLSS FG + DLSS 5 (aceita a licença NVIDIA RTX SDK)",
+            missing_install_note: "Escolha ou informe uma pasta válida para instalar o Xeonshot.",
             cancel: "Cancelar",
             install_and_play: "Instalar e Jogar",
             missing_file_note: "Arquivo não encontrado. Cole o caminho do .nup ou clique em Procurar.",
@@ -135,10 +149,17 @@ fn strings() -> UiStrings {
         "es" => UiStrings {
             window_title: "Xeonshot",
             installer_title: "Xeonshot — Instalador",
-            pick_heading: "Selecciona la ROM (.nup) de Ocarina of Time",
-            pick_sub: "Xeonshot recompila el juego de forma nativa desde tu propia copia (.nup) de Nintendo Switch 2. Nada sale de tu PC.",
-            pick_placeholder: "Ruta del archivo .nup",
-            browse: "Examinar...",
+            pick_heading: "Configurar Instalación de Xeonshot",
+            pick_sub: "Elige tu ROM (.nup) y la carpeta donde se instalará Xeonshot. Luego podrás abrirlo desde cualquier sitio.",
+            rom_section_label: "ROM DEL JUEGO (.NUP O CARPETA)",
+            pick_placeholder: "Ruta del archivo .nup o carpeta de la ROM",
+            browse: "Buscar .nup...",
+            install_section_label: "CARPETA DE INSTALACIÓN",
+            install_placeholder: "Carpeta donde se instalará Xeonshot",
+            browse_install: "Elegir carpeta...",
+            install_dialog_title: "Elige la carpeta de instalación de Xeonshot",
+            dlss_label: "Incluir NVIDIA DLSS + DLSS FG + DLSS 5 (acepta licencia NVIDIA RTX SDK)",
+            missing_install_note: "Elige o escribe una carpeta válida para instalar Xeonshot.",
             cancel: "Cancelar",
             install_and_play: "Instalar y Jugar",
             missing_file_note: "No se encontró el archivo. Pega la ruta del .nup o haz clic en Examinar.",
@@ -190,10 +211,17 @@ fn strings() -> UiStrings {
         _ => UiStrings {
             window_title: "Xeonshot",
             installer_title: "Xeonshot — Installer",
-            pick_heading: "Select your Ocarina of Time .nup ROM",
-            pick_sub: "Xeonshot builds the game natively from your own copy of Ocarina of Time (Nintendo Switch 2): its .nup file. Nothing leaves this PC.",
-            pick_placeholder: "Path to your .nup file",
-            browse: "Browse...",
+            pick_heading: "Set Up Xeonshot Installation",
+            pick_sub: "Pick your Ocarina of Time .nup (or folder) and where to install Xeonshot. Future launches remember this folder automatically.",
+            rom_section_label: "GAME ROM (.NUP OR ROM FOLDER)",
+            pick_placeholder: "Path to your .nup file or ROM folder",
+            browse: "Browse .nup...",
+            install_section_label: "INSTALLATION FOLDER",
+            install_placeholder: "Folder where Xeonshot will be installed",
+            browse_install: "Choose folder...",
+            install_dialog_title: "Choose Xeonshot installation folder",
+            dlss_label: "Include NVIDIA DLSS + DLSS FG + DLSS 5 (accepts NVIDIA RTX SDK license)",
+            missing_install_note: "Please choose a valid installation folder for Xeonshot.",
             cancel: "Cancel",
             install_and_play: "Install & Play",
             missing_file_note: "File not found. Paste the path to your .nup or click Browse.",
@@ -609,6 +637,91 @@ impl Ui {
         }
     }
 
+    /// First-run installer picker: ROM (.nup or folder), installation folder, and DLSS option.
+    pub fn pick_install(&self, default_install_dir: &std::path::Path) -> Result<Option<PickChoice>, NoWindow> {
+        self.start()?;
+        let s = strings();
+        let missing_note = s.missing_file_note;
+        let missing_install = s.missing_install_note;
+        let dialog_title = s.file_dialog_title;
+        let install_dialog_title = s.install_dialog_title;
+        let default_install = default_install_dir.display().to_string();
+        let (tx, rx) = mpsc::channel::<Option<PickChoice>>();
+        let r = slint::invoke_from_event_loop(move || {
+            with(|w| {
+                let _ = w.progress.hide();
+                let p = &w.pick;
+                p.set_note("".into());
+                p.set_install_path(default_install.into());
+                p.set_enable_dlss(true);
+                let shown = Instant::now();
+                let answered = std::rc::Rc::new(std::cell::Cell::new(false));
+                let (a1, a2) = (answered.clone(), answered);
+                let (t1, t2) = (tx.clone(), tx);
+                let weak = p.as_weak();
+                let w1 = weak.clone();
+                p.on_done(move |ok| {
+                    let Some(p) = w1.upgrade() else { return };
+                    if shown.elapsed() < PAGE_GUARD || a1.get() {
+                        return;
+                    }
+                    if !ok {
+                        a1.set(true);
+                        let _ = t1.send(None);
+                        let _ = p.hide();
+                        return;
+                    }
+                    let raw_rom = PathBuf::from(p.get_path().trim().trim_matches('"'));
+                    let Some(game) = resolve_game_path(&raw_rom) else {
+                        p.set_note(missing_note.into());
+                        return;
+                    };
+                    let install_dir = PathBuf::from(p.get_install_path().trim().trim_matches('"'));
+                    if install_dir.as_os_str().is_empty() {
+                        p.set_note(missing_install.into());
+                        return;
+                    }
+                    let enable_dlss = p.get_enable_dlss();
+                    a1.set(true);
+                    let _ = t1.send(Some(PickChoice { game, install_dir, enable_dlss }));
+                    let _ = p.hide();
+                });
+                let w2 = weak.clone();
+                p.on_browse(move || {
+                    let w = w2.clone();
+                    std::thread::spawn(move || {
+                        let file = rfd::FileDialog::new()
+                            .set_title(dialog_title)
+                            .add_filter("Ocarina of Time (Nintendo Switch 2)", &["nup"])
+                            .pick_file();
+                        if let Some(f) = file {
+                            let _ = w.upgrade_in_event_loop(move |p| p.set_path(f.display().to_string().into()));
+                        }
+                    });
+                });
+                let w3 = weak;
+                p.on_browse_install(move || {
+                    let w = w3.clone();
+                    std::thread::spawn(move || {
+                        let folder = rfd::FileDialog::new().set_title(install_dialog_title).pick_folder();
+                        if let Some(d) = folder {
+                            let _ = w.upgrade_in_event_loop(move |p| p.set_install_path(d.display().to_string().into()));
+                        }
+                    });
+                });
+                p.window().on_close_requested(move || {
+                    if !a2.replace(true) {
+                        let _ = t2.send(None);
+                    }
+                    slint::CloseRequestResponse::HideWindow
+                });
+                let _ = p.show();
+            });
+        });
+        r.map_err(|e| NoWindow(e.to_string()))?;
+        rx.recv().map_err(|_| NoWindow("the window thread stopped".into()))
+    }
+
     /// The first run's picker: the player's .nup (or a dump folder), by its path or the system's file chooser. None
     /// when the player cancelled.
     pub fn pick_game(&self) -> Result<Option<PathBuf>, NoWindow> {
@@ -639,11 +752,11 @@ impl Ui {
                         let _ = p.hide();
                         return;
                     }
-                    let path = PathBuf::from(p.get_path().trim().trim_matches('"'));
-                    if path.as_os_str().is_empty() || !path.exists() {
+                    let raw = PathBuf::from(p.get_path().trim().trim_matches('"'));
+                    let Some(path) = resolve_game_path(&raw) else {
                         p.set_note(missing_note.into());
                         return;
-                    }
+                    };
                     a1.set(true);
                     let _ = t1.send(Some(path));
                     let _ = p.hide();
@@ -673,6 +786,39 @@ impl Ui {
         r.map_err(|e| NoWindow(e.to_string()))?;
         rx.recv().map_err(|_| NoWindow("the window thread stopped".into()))
     }
+}
+
+/// The player's choices from [`Ui::pick_install`].
+#[derive(Clone, Debug)]
+pub struct PickChoice {
+    /// Selected `.nup` file or unpacked dump directory (`romfs/` + `exefs/`).
+    pub game: PathBuf,
+    /// Folder where Xeonshot installs `builds/` and `profile/`.
+    pub install_dir: PathBuf,
+    /// Whether to build with NVIDIA DLSS (including DLSS FG & DLSS 5 support).
+    pub enable_dlss: bool,
+}
+
+fn resolve_game_path(path: &std::path::Path) -> Option<PathBuf> {
+    if path.as_os_str().is_empty() || !path.exists() {
+        return None;
+    }
+    if path.is_file() {
+        return Some(path.to_path_buf());
+    }
+    if path.is_dir() {
+        if path.join("romfs").is_dir() && path.join("exefs").is_dir() {
+            return Some(path.to_path_buf());
+        }
+        let entries = std::fs::read_dir(path).ok()?;
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_file() && p.extension().is_some_and(|e| e.eq_ignore_ascii_case("nup")) {
+                return Some(p);
+            }
+        }
+    }
+    None
 }
 
 /// [`Pages`] on the builder's window; a window that can't open ends the flow (no button: Close).
@@ -784,8 +930,13 @@ fn ui_thread(ready: mpsc::Sender<Result<(), NoWindow>>, state: Arc<Mutex<State>>
         w.pick.set_window_title(s.installer_title.into());
         w.pick.set_heading(s.pick_heading.into());
         w.pick.set_sub(s.pick_sub.into());
+        w.pick.set_rom_section_label(s.rom_section_label.into());
         w.pick.set_placeholder(s.pick_placeholder.into());
         w.pick.set_browse_label(s.browse.into());
+        w.pick.set_install_section_label(s.install_section_label.into());
+        w.pick.set_install_placeholder(s.install_placeholder.into());
+        w.pick.set_browse_install_label(s.browse_install.into());
+        w.pick.set_dlss_label(s.dlss_label.into());
         w.pick.set_cancel_label(s.cancel.into());
         w.pick.set_continue_label(s.install_and_play.into());
         w.pick.set_card_lang_title(s.card_lang_title.into());

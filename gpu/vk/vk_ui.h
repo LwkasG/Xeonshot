@@ -63,19 +63,19 @@ inline void set_theme(int theme) {
         kStartBg = rgba(14, 10, 6), kStartGlow = rgba(46, 33, 18, 4), kWordmark = rgba(246, 232, 204);
         return;
     }
-    kInk = rgba(226, 230, 238), kInkBright = rgba(255, 255, 255), kSoft = rgba(190, 197, 210), kDim = rgba(140, 148, 164);
-    kGold = rgba(110, 148, 250), kGoldHi = rgba(138, 172, 255), kGoldInk = rgba(8, 14, 32), kAccent = rgba(138, 174, 255);
-    kEdge = rgba(255, 255, 255, 24), kCellDark = rgba(17, 19, 25, 242), kCellName = rgba(29, 32, 41, 238);
-    kCellNameSel = rgba(38, 44, 60, 248), kBronze = rgba(52, 58, 74), kColumn = rgba(12, 14, 19, 232);
-    kBannerTop = rgba(27, 30, 39, 250), kBanner = rgba(19, 21, 28, 250), kBannerInk = rgba(178, 186, 202);
-    kBannerEdge = rgba(8, 9, 12), kTabInset = rgba(40, 46, 64, 250), kBox = rgba(21, 23, 30, 250);
-    kBoxEdge = rgba(255, 255, 255, 40), kBar = rgba(12, 13, 18, 238), kListen = rgba(70, 104, 200);
-    kSelStart = rgba(54, 70, 112, 250), kTabEdge = rgba(255, 255, 255, 28), kBannerHi = rgba(255, 255, 255, 14);
-    kShade = rgba(5, 6, 9, kDimAlpha), kKeyInk = rgba(18, 20, 28), kKeyDim = rgba(128, 136, 152);
-    kFrame = rgba(255, 255, 255, 20), kFrameSel = rgba(8, 14, 32, 50), kTrackSel = rgba(8, 14, 32, 90);
-    kPanel = rgba(14, 16, 21, 240), kOutline = rgba(206, 220, 255), kRound = 4;
-    kKeyCap = rgba(50, 57, 76), kKeyCapHi = rgba(72, 84, 116);
-    kStartBg = rgba(8, 9, 12), kStartGlow = rgba(30, 38, 60, 2), kWordmark = rgba(236, 240, 248);
+    kInk = rgba(237, 242, 250), kInkBright = rgba(255, 255, 255), kSoft = rgba(159, 178, 207), kDim = rgba(126, 146, 178);
+    kGold = rgba(0, 212, 255), kGoldHi = rgba(59, 226, 255), kGoldInk = rgba(4, 19, 32), kAccent = rgba(59, 226, 255);
+    kEdge = rgba(35, 56, 92, 180), kCellDark = rgba(7, 11, 20, 244), kCellName = rgba(18, 27, 46, 240);
+    kCellNameSel = rgba(25, 38, 64, 248), kBronze = rgba(35, 56, 92), kColumn = rgba(11, 16, 27, 238);
+    kBannerTop = rgba(16, 26, 46, 252), kBanner = rgba(11, 18, 32, 252), kBannerInk = rgba(243, 194, 79);
+    kBannerEdge = rgba(6, 10, 18), kTabInset = rgba(25, 42, 74, 252), kBox = rgba(15, 23, 40, 250);
+    kBoxEdge = rgba(50, 80, 130, 210), kBar = rgba(8, 12, 22, 242), kListen = rgba(0, 152, 255);
+    kSelStart = rgba(0, 152, 255, 190), kTabEdge = rgba(0, 212, 255, 55), kBannerHi = rgba(0, 212, 255, 75);
+    kShade = rgba(4, 7, 14, kDimAlpha), kKeyInk = rgba(4, 19, 32), kKeyDim = rgba(126, 146, 178);
+    kFrame = rgba(59, 226, 255, 32), kFrameSel = rgba(4, 19, 32, 65), kTrackSel = rgba(4, 19, 32, 95);
+    kPanel = rgba(10, 15, 26, 244), kOutline = rgba(120, 238, 255), kRound = 5;
+    kKeyCap = rgba(28, 44, 74), kKeyCapHi = rgba(42, 68, 114);
+    kStartBg = rgba(7, 11, 20), kStartGlow = rgba(0, 152, 255, 6), kWordmark = rgba(243, 194, 79);
 }
 
 /// The unit: pixels per point. By the window's height and the Menu size (1 Small, 2 Medium, 3 Large; anything else, as the

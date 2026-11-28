@@ -154,10 +154,10 @@ pub(crate) fn places(exe: &Path, asked: Option<&Path>) -> (PathBuf, PathBuf) {
 pub fn say(text: &str, error: bool, wait: bool) {
     // (--output user: the builder's own error window, its Send report and Save diagnostics)
     if error && wait && crate::after::error_window(text) {
-        eprintln!("longshot: {text}");
+        eprintln!("xeonshot: {text}");
         return;
     }
-    eprintln!("longshot: {text}");
+    eprintln!("xeonshot: {text}");
     if !crate::output::chosen().windows() {
         return;
     }
@@ -563,6 +563,33 @@ pub fn run(exe: &Path, args: &[String], run_build: RunBuild, release: Option<&st
     run_with(exe, args, run_build, release, builder, &[])
 }
 
+fn install_dir_record() -> PathBuf {
+    build_driver::layout::cache_root(build_driver::env_os).join("xeonshot_install_dir.txt")
+}
+
+fn saved_install_dir() -> Option<PathBuf> {
+    let text = std::fs::read_to_string(install_dir_record()).ok()?;
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let dir = PathBuf::from(trimmed);
+    (play::default_profile(&dir).join(play::PROFILE_FILE).is_file() || dir.join(play::BUILDS).is_dir()).then_some(dir)
+}
+
+fn save_install_dir(dir: &Path) {
+    let abs = std::path::absolute(dir).unwrap_or_else(|_| dir.to_path_buf());
+    let _ = build_core::fsx::write_atomic(&install_dir_record(), abs.display().to_string().as_bytes());
+}
+
+fn default_install_dir(exe: &Path) -> PathBuf {
+    if cfg!(windows) {
+        PathBuf::from(r"C:\Xeonshot-2.0-rt")
+    } else {
+        exe.parent().unwrap_or(Path::new(".")).join("Xeonshot-2.0-rt")
+    }
+}
+
 /// [`run`] with `env` given to the game besides its own (a dev run's: [`request`]).
 pub fn run_with(
     exe: &Path,
@@ -593,7 +620,7 @@ pub fn run_with(
             crate::output::set(chosen);
         }
         Err(why) => {
-            eprintln!("longshot: {why}");
+            eprintln!("xeonshot: {why}");
             return 2;
         }
     };
@@ -616,26 +643,57 @@ pub fn run_with(
     // (a portable copy's daily update check, in the background; none with --no-self-update: a launcher's version)
     crate::self_update::in_background(exe, release, &mut args);
     crate::after::set_builder(release, builder);
-    let PlayArgs { game, upscalers, profile, cache, rest } = split_args(&args);
+    let PlayArgs { game, upscalers, profile: profile_arg, cache, rest } = split_args(&args);
     if let Some(c) = cache {
         build_driver::set_flag("LONGSHOT_CACHE", &c.to_string_lossy());
     }
-    let (version, profile) = places(exe, profile.as_deref());
-    // (one copy per profile: held while it builds and while the game runs; a second start stops here, single.rs)
-    let _held = match crate::single::hold(&profile) {
-        Ok(held) => held,
-        Err(status) => return status,
-    };
-    let upscalers = match upscalers.as_deref().map(Upscaler::parse_list).transpose() {
+    let (mut version, mut profile) = places(exe, profile_arg.as_deref());
+    let mut picked_game = game;
+    let mut picked_upscalers = match upscalers.as_deref().map(Upscaler::parse_list).transpose() {
         Ok(u) => u,
         Err(e) => {
             say(&e.to_string(), true, true);
             return FAILED;
         }
     };
+    let mut picked_licenses = None;
+    let here_ready = profile.join(play::PROFILE_FILE).is_file() || version.join(play::BUILDS).is_dir();
+    if profile_arg.is_none() && picked_game.is_none() && !here_ready {
+        if let Some(saved) = saved_install_dir() {
+            version = saved;
+            profile = play::default_profile(&version);
+        } else if crate::output::chosen().windows() {
+            let Some(choice) = crate::after::pick_install(&default_install_dir(exe)) else {
+                return 0;
+            };
+            if let Err(e) = std::fs::create_dir_all(&choice.install_dir) {
+                say(&format!("{}: {e}", choice.install_dir.display()), true, true);
+                return FAILED;
+            }
+            save_install_dir(&choice.install_dir);
+            version = choice.install_dir;
+            profile = play::default_profile(&version);
+            picked_game = Some(choice.game);
+            if choice.enable_dlss && picked_upscalers.is_none() {
+                picked_upscalers = Some(vec![Upscaler::Dlss]);
+                picked_licenses = Some(vec![build_driver::runtimes::Vendor::Nvidia]);
+            }
+        }
+    }
+    // (one copy per profile: held while it builds and while the game runs; a second start stops here, single.rs)
+    let _held = match crate::single::hold(&profile) {
+        Ok(held) => held,
+        Err(status) => return status,
+    };
     // (--output user: the builder's picker of the player's .nup)
     let pick = crate::after::pick;
-    let p = match profile_for(&profile, game.as_deref(), upscalers.as_deref(), None, &pick) {
+    let p = match profile_for(
+        &profile,
+        picked_game.as_deref(),
+        picked_upscalers.as_deref(),
+        picked_licenses.as_deref(),
+        &pick,
+    ) {
         Ok(p) => p,
         Err((status, text)) => {
             say(&text, true, true);

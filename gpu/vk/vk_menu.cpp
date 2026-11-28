@@ -2663,7 +2663,7 @@ void draw_options(ui::Ctx& c) {
         float aspect = 1;
         ImTextureData* logo = ui::logo(&aspect);
         const auto width = [&](float p) {
-            return (logo ? p * 1.25f * aspect + 10 * s : 0) + ui::size_of(c.f.heading, p, "Longshot").x;
+            return (logo ? p * 1.25f * aspect + 10 * s : 0) + ui::size_of(c.f.heading, p, "Xeonshot").x;
         };
         const float fit = ui::fit_px(px, opts.menu_size == 3 ? px : 14 * s, 0.5f * s, room, width);
         if (fit > 0) {
@@ -2673,7 +2673,7 @@ void draw_options(ui::Ctx& c) {
                 c.d->AddImage(logo->GetTexRef(), ImVec2(lx, ty - lh * 0.5f), ImVec2(lx + lh * aspect, ty + lh * 0.5f));
                 lx += lh * aspect + 10 * s;
             }
-            ui::text_mid(c, c.f.heading, fit, lx, ty, ui::kBannerInk, "Longshot");
+            ui::text_mid(c, c.f.heading, fit, lx, ty, ui::kBannerInk, "Xeonshot");
         }
     }
     {   // (which build, at the banner's right, so a report can say it without opening the log: as players see it, version_text,
@@ -3735,7 +3735,7 @@ void draw_fps(ui::Ctx& c, bool under_banner) {
     if (foot) {   // (the footer, at the column's foot: the version, as the banner says it; at Dev the CPU, the GPU, its driver. A line
         // too long for the column's width loses its end)
         static std::string cpu, gpu, drv, fit[6], fit_lines[2];
-        static const std::string ver = std::string("Longshot ") + version_text(LONGSHOT_VERSION);
+        static const std::string ver = std::string("Xeonshot ") + version_text(LONGSHOT_VERSION);
         static float fit_w = 0;
         if (gpu.empty()) cpu = hardware_cpu_name(bug_report::cpu_name()), gpu = hardware_gpu_name(device_name_text()), drv = driver_text(), fit_w = 0;
         const auto shorten = [&](std::string t, float room) {

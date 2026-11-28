@@ -357,10 +357,12 @@ fn prepare(o: &Options, r: &Reporter) -> Result<Prepared> {
     let version = generated::version::define(&describe);
     let renderer = !matches!(o.mode, Mode::GameOnly);
     let shader_stamp = if renderer {
-        generated::write(
-            &l.made.join("longshot_logo.h"),
-            generated::logo_header(&o.root.join("assets/longshot.png"))?.as_bytes(),
-        )?;
+        let logo_path = if o.root.join("assets/xeonshot.png").is_file() {
+            o.root.join("assets/xeonshot.png")
+        } else {
+            o.root.join("assets/longshot.png")
+        };
+        generated::write(&l.made.join("longshot_logo.h"), generated::logo_header(&logo_path)?.as_bytes())?;
         generated::write(
             &l.made.join("ui_fonts.cpp"),
             generated::fonts_cpp(&o.root.join("third_party/fonts/libertinus"))?.as_bytes(),

@@ -742,14 +742,19 @@ export component PageWindow inherits Window {
     Stripes { width: root.width; }
 }
 
-// The first run: the player's .nup, by its path or the system's file chooser (Browse).
+// The first run: the player's .nup (or folder), installation directory, and NVIDIA DLSS toggle.
 export component PickWindow inherits Window {
     in property <string> window-title: "Xeonshot";
     in property <string> version-badge: "XEONSHOT 2.0-RT";
     in property <string> heading: "Select your Ocarina of Time .nup";
     in property <string> sub: "Xeonshot builds the game natively from your own copy (.nup). Nothing leaves this PC.";
-    in property <string> placeholder: "The path of your .nup";
+    in property <string> rom-section-label: "GAME ROM (.NUP OR FOLDER)";
+    in property <string> placeholder: "The path of your .nup or ROM folder";
     in property <string> browse-label: "Browse";
+    in property <string> install-section-label: "INSTALLATION FOLDER";
+    in property <string> install-placeholder: "Folder where Xeonshot will be installed";
+    in property <string> browse-install-label: "Choose folder...";
+    in property <string> dlss-label: "Include NVIDIA DLSS + DLSS FG + DLSS 5 (accepts NVIDIA RTX SDK license)";
     in property <string> cancel-label: "Cancel";
     in property <string> continue-label: "Install & Play";
     in property <string> card-lang-title: "LANGUAGE";
@@ -759,12 +764,15 @@ export component PickWindow inherits Window {
     in property <string> card-preset-title: "PRESET";
     in property <string> card-preset-value: "Xeonshot + FG 3x";
     in-out property <string> path;
+    in-out property <string> install-path;
+    in-out property <bool> enable-dlss: true;
     in property <string> note;
     callback browse();
+    callback browse-install();
     callback done(bool);
     title: root.window-title;
     icon: @image-url("../assets/xeonshot.png");
-    width: 740px;
+    width: 760px;
     height: layout.preferred-height;
     background: Theme.page;
     default-font-family: "Inter";
@@ -778,7 +786,7 @@ export component PickWindow inherits Window {
             border-radius: 14px;
             VerticalLayout {
                 padding: 22px;
-                spacing: 16px;
+                spacing: 14px;
                 HorizontalLayout {
                     spacing: 16px;
                     VerticalLayout {
@@ -827,36 +835,133 @@ export component PickWindow inherits Window {
                         }
                     }
                 }
-                HorizontalLayout {
-                    spacing: 10px;
-                    Rectangle {
-                        horizontal-stretch: 1;
-                        height: 42px;
-                        background: Theme.well;
-                        border-width: 1px;
-                        border-color: input.has-focus ? Theme.focus-ring : Theme.glass-line-strong;
-                        border-radius: 8px;
-                        input := TextInput {
-                            x: 12px;
-                            width: parent.width - 24px;
-                            text <=> root.path;
-                            color: Theme.ink;
-                            font-size: 14px;
-                            vertical-alignment: center;
-                            single-line: true;
-                            accepted => { root.done(true); }
+                // ROM picker section
+                VerticalLayout {
+                    spacing: 6px;
+                    Text {
+                        text: root.rom-section-label;
+                        color: Theme.ink-faint;
+                        font-size: 10px;
+                        font-weight: 700;
+                    }
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Rectangle {
+                            horizontal-stretch: 1;
+                            height: 40px;
+                            background: Theme.well;
+                            border-width: 1px;
+                            border-color: input.has-focus ? Theme.focus-ring : Theme.glass-line-strong;
+                            border-radius: 8px;
+                            input := TextInput {
+                                x: 12px;
+                                width: parent.width - 24px;
+                                text <=> root.path;
+                                color: Theme.ink;
+                                font-size: 13px;
+                                vertical-alignment: center;
+                                single-line: true;
+                                accepted => { root.done(true); }
+                            }
+                            if root.path == "": Text {
+                                x: 12px;
+                                text: root.placeholder;
+                                color: Theme.ink-faint;
+                                font-size: 13px;
+                                vertical-alignment: center;
+                            }
                         }
-                        if root.path == "": Text {
-                            x: 12px;
-                            text: root.placeholder;
-                            color: Theme.ink-faint;
-                            font-size: 14px;
-                            vertical-alignment: center;
+                        SecondaryButton {
+                            text: root.browse-label;
+                            clicked => { root.browse(); }
                         }
                     }
-                    SecondaryButton {
-                        text: root.browse-label;
-                        clicked => { root.browse(); }
+                }
+                // Installation folder picker section
+                VerticalLayout {
+                    spacing: 6px;
+                    Text {
+                        text: root.install-section-label;
+                        color: Theme.ink-faint;
+                        font-size: 10px;
+                        font-weight: 700;
+                    }
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Rectangle {
+                            horizontal-stretch: 1;
+                            height: 40px;
+                            background: Theme.well;
+                            border-width: 1px;
+                            border-color: install-input.has-focus ? Theme.focus-ring : Theme.glass-line-strong;
+                            border-radius: 8px;
+                            install-input := TextInput {
+                                x: 12px;
+                                width: parent.width - 24px;
+                                text <=> root.install-path;
+                                color: Theme.ink;
+                                font-size: 13px;
+                                vertical-alignment: center;
+                                single-line: true;
+                                accepted => { root.done(true); }
+                            }
+                            if root.install-path == "": Text {
+                                x: 12px;
+                                text: root.install-placeholder;
+                                color: Theme.ink-faint;
+                                font-size: 13px;
+                                vertical-alignment: center;
+                            }
+                        }
+                        SecondaryButton {
+                            text: root.browse-install-label;
+                            clicked => { root.browse-install(); }
+                        }
+                    }
+                }
+                // Interactive NVIDIA DLSS toggle
+                Rectangle {
+                    height: 38px;
+                    border-radius: 9px;
+                    background: root.enable-dlss ? Theme.accent-well : Theme.well;
+                    border-width: 1px;
+                    border-color: root.enable-dlss ? Theme.accent-line : Theme.glass-line;
+                    dlss-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.enable-dlss = !root.enable-dlss; }
+                    }
+                    HorizontalLayout {
+                        padding-left: 12px;
+                        padding-right: 12px;
+                        spacing: 10px;
+                        VerticalLayout {
+                            alignment: center;
+                            Rectangle {
+                                width: 18px;
+                                height: 18px;
+                                border-radius: 5px;
+                                background: root.enable-dlss ? Theme.go : Theme.bar-track;
+                                border-width: 1px;
+                                border-color: root.enable-dlss ? Theme.go-hover : Theme.glass-line-strong;
+                                if root.enable-dlss: Rectangle {
+                                    x: 5px;
+                                    y: 5px;
+                                    width: 8px;
+                                    height: 8px;
+                                    border-radius: 2px;
+                                    background: Theme.go-ink;
+                                }
+                            }
+                        }
+                        Text {
+                            horizontal-stretch: 1;
+                            text: root.dlss-label;
+                            color: root.enable-dlss ? Theme.ink : Theme.ink-soft;
+                            font-size: 12px;
+                            font-weight: root.enable-dlss ? 600 : 400;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
                     }
                 }
                 HorizontalLayout {

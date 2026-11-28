@@ -152,6 +152,14 @@ pub fn pick() -> Option<PathBuf> {
     ui().pick_game().ok().flatten()
 }
 
+/// First-run installer picker: ROM (.nup or folder), installation folder, and NVIDIA DLSS choice.
+pub fn pick_install(default_install_dir: &Path) -> Option<ui::PickChoice> {
+    if !output().windows() {
+        return None;
+    }
+    ui().pick_install(default_install_dir).ok().flatten()
+}
+
 // ---- a build's report ----
 
 /// What the build in progress has shown so far, for its report: each step's id, how far, when it began, its time.
