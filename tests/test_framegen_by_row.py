@@ -75,6 +75,7 @@ bool forced = false;              // (dlss_fg_forced: RX_VK_DLSS_FG=1)
 FgMaker maker = FgMaker::None;    // (who made the last frames: vk_framegen.cpp framegen_maker)
 int skip_now = FG_SKIP_NONE;      // (why DLSS-G did not make the last set: dlss_fg_skip)
 bool temporal_on = true;          // (vk_temporal.cpp temporal_wanted: a temporal Upscaler runs)
+bool temporal_fg_on = false;      // (vk_temporal.cpp temporal_fg_inputs: the game's upscaler gives FG inputs)
 bool scene_now = false;           // (vk_temporal.cpp temporal_scene_now: the game asked for its gameplay upscale just now)
 std::atomic<int> fg_skip{FG_SKIP_NONE};
 int dlss_fg_unavailable() { return unavailable; }
@@ -82,6 +83,7 @@ DlssWhy dlss_why() { return why_dlss; }
 bool dlss_fg_forced() { return forced; }
 FgMaker framegen_maker() { return maker; }
 bool temporal_wanted() { return temporal_on; }
+bool temporal_fg_inputs() { return temporal_fg_on; }
 bool temporal_scene_now() { return scene_now; }
 int dlss_fg_skip(unsigned* most) {
     if (most) *most = 1;
@@ -214,19 +216,20 @@ int main() {
             }
     // (the sets are the game's alone: at DLSS FG, on a temporal Upscaler, for a set without its picture)
     reset_run();
-    struct Hold { int by; bool temporal; bool scene; int skip; bool held; } holds[] = {
-        {0, true, false, FG_SKIP_INPUTS, true},      // (the game's own menus: no 3D scene asked for)
-        {0, false, false, FG_SKIP_INPUTS, false},    // (the game's own upscaler or Off: the built-in one, as before)
-        {0, true, true, FG_SKIP_INPUTS, false},      // (in play, the Upscaler drew nothing: failed, refused; the built-in one)
-        {1, true, false, FG_SKIP_INPUTS, false},     // (Built-in FG chosen)
-        {2, true, false, FG_SKIP_INPUTS, false},     // (FSR 3.1 FG chosen)
-        {0, true, false, FG_SKIP_TOO_MANY, false},   // (more frames than its runtime makes: the built-in one)
-        {0, true, false, FG_SKIP_REFUSED, false},
-        {0, true, false, FG_SKIP_DEVICE, false},
-        {0, true, false, FG_SKIP_NONE, false},
+    struct Hold { int by; bool temporal; bool temporal_fg; bool scene; int skip; bool held; } holds[] = {
+        {0, true, false, false, FG_SKIP_INPUTS, true},      // (the game's own menus: no 3D scene asked for)
+        {0, false, true, false, FG_SKIP_INPUTS, true},      // (game upscaler with FG inputs: paused on menus too)
+        {0, false, false, false, FG_SKIP_INPUTS, false},    // (the game's own upscaler or Off without FG inputs: the built-in one)
+        {0, true, false, true, FG_SKIP_INPUTS, false},      // (in play, the Upscaler drew nothing: failed, refused; the built-in one)
+        {1, true, false, false, FG_SKIP_INPUTS, false},     // (Built-in FG chosen)
+        {2, true, false, false, FG_SKIP_INPUTS, false},     // (FSR 3.1 FG chosen)
+        {0, true, false, false, FG_SKIP_TOO_MANY, false},   // (more frames than its runtime makes: the built-in one)
+        {0, true, false, false, FG_SKIP_REFUSED, false},
+        {0, true, false, false, FG_SKIP_DEVICE, false},
+        {0, true, false, false, FG_SKIP_NONE, false},
     };
     for (const Hold& h : holds) {
-        opts.framegen_by = h.by, temporal_on = h.temporal, scene_now = h.scene, fg_skip = h.skip;
+        opts.framegen_by = h.by, temporal_on = h.temporal, temporal_fg_on = h.temporal_fg, scene_now = h.scene, fg_skip = h.skip;
         CHECK(dlss_fg_holds() == h.held, "dlss_fg_holds: the game's frames alone in the wrong case");
     }
     scene_now = false;

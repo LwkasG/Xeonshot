@@ -47,6 +47,7 @@
 #include "shaders/fg_scale_comp_spv.h"
 #include "shaders/fg_scale_pq_comp_spv.h"   // (fg_scale.comp with FG_SCALE_PQ: an RGB10A2 destination)
 #include "shaders/fg_synth_comp_spv.h"
+#include "shaders/fg_synth_mv_comp_spv.h"
 #include "shaders/hdr_encode_comp_spv.h"
 #include "shaders/crt_downsample_comp_spv.h"
 #include "shaders/crt_lottes_comp_spv.h"
@@ -109,7 +110,7 @@ struct State {
     bool init = false;
     std::atomic<bool> failed{false};   // also read by Reflex's game-thread eligibility check
     uint32_t w = 0, h = 0;
-    Pipe copy, luma, flow, median, synth;
+    Pipe copy, luma, flow, median, synth, synth_mv;
     VkSampler nearest = VK_NULL_HANDLE, linear = VK_NULL_HANDLE;
     Img frames[2], lumas[2], flows[2];
     OutSet sets[3];   // (one shown, one waiting its place on the line, one being made: the pacer never holds the game back)
@@ -333,7 +334,7 @@ bool make_pipe(Pipe& p, const uint32_t* code, size_t bytes, std::initializer_lis
 
 // The optional interpolation is disabled after setup fails: retain none of its unused setup objects.
 void drop_setup() {
-    for (Pipe* p : {&fg.copy, &fg.luma, &fg.flow, &fg.median, &fg.synth}) drop_pipe(*p);
+    for (Pipe* p : {&fg.copy, &fg.luma, &fg.flow, &fg.median, &fg.synth, &fg.synth_mv}) drop_pipe(*p);
     if (fg.nearest) vkDestroySampler(dev.device, fg.nearest, nullptr);
     if (fg.linear) vkDestroySampler(dev.device, fg.linear, nullptr);
     fg.nearest = fg.linear = VK_NULL_HANDLE;
@@ -353,7 +354,8 @@ bool init() {
         !make_pipe(fg.luma, BUILTIN_SPV_ARGS(FG_LUMA_COMP_SPV), {S, I}, 0) ||
         !make_pipe(fg.flow, BUILTIN_SPV_ARGS(FG_FLOW_COMP_SPV), {S, S, I}, 0, &spec) ||
         !make_pipe(fg.median, BUILTIN_SPV_ARGS(FG_MEDIAN_COMP_SPV), {S, I}, 0) ||
-        !make_pipe(fg.synth, BUILTIN_SPV_ARGS(FG_SYNTH_COMP_SPV), {S, S, S, I}, 4))
+        !make_pipe(fg.synth, BUILTIN_SPV_ARGS(FG_SYNTH_COMP_SPV), {S, S, S, I}, 4) ||
+        !make_pipe(fg.synth_mv, BUILTIN_SPV_ARGS(FG_SYNTH_MV_COMP_SPV), {S, S, S, S, S, I}, 16))
         return undo();
     VkSamplerCreateInfo si{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
     si.addressModeU = si.addressModeV = si.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -439,6 +441,51 @@ void to_general(VkCommandBuffer cmd, VkImage image) {
     vkCmdPipelineBarrier2(cmd, &d);
 }
 
+// (xeonshot) Chain camera + actor motion and depth history copy for Built-in FG (fg_synth_mv.comp).
+struct BuiltinMv {
+    std::mutex mu;
+    Img motion;
+    Img depth[2];
+    int depth_cur = 0;
+    bool have_prev_depth = false;
+    bool depth_reversed = false;
+    uint32_t rw = 0, rh = 0;
+    uint64_t inputs = 0, used = 0;
+    bool told = false;
+    struct Dead {
+        uint64_t frame, value;
+        Img img;
+    };
+    std::vector<Dead> dead;
+} bmv;
+
+void bmv_free_dead_locked() {
+    const uint64_t now = texture_frame_no(), done = vk_timeline_completed();
+    for (size_t i = 0; i < bmv.dead.size();) {
+        if (now - bmv.dead[i].frame > 4 && bmv.dead[i].value && done >= bmv.dead[i].value) {
+            drop_img(bmv.dead[i].img);
+            bmv.dead[i] = bmv.dead.back();
+            bmv.dead.pop_back();
+        } else {
+            i++;
+        }
+    }
+}
+
+void bmv_release_all() {
+    std::lock_guard lk(bmv.mu);
+    drop_img(bmv.motion);
+    drop_img(bmv.depth[0]);
+    drop_img(bmv.depth[1]);
+    for (auto& d : bmv.dead) drop_img(d.img);
+    bmv.dead.clear();
+    bmv.depth_cur = 0;
+    bmv.have_prev_depth = false;
+    bmv.depth_reversed = false;
+    bmv.rw = bmv.rh = 0;
+    bmv.inputs = bmv.used = 0;
+}
+
 // Only after the display jobs and device have drained (ensure_size), or before any frame used these images.
 void drop_size() {
     for (int i = 0; i < 2; i++) {
@@ -446,6 +493,7 @@ void drop_size() {
     }
     for (OutSet& set : fg.sets)
         for (Img& t : set.frame) drop_img(t);
+    bmv_release_all();
     fg.w = fg.h = 0;
     fg.mult = 0;
     fg.have_prev = false;
@@ -1060,6 +1108,72 @@ bool framegen_on() {
     return framegen_wanted(opts.framegen, allow) && !dev.offscreen && !fg.failed;
 }
 
+bool framegen_builtin_wants_motion() {
+    static const bool off = getenv("RX_VK_BUILTIN_FG_MV") && atoi(getenv("RX_VK_BUILTIN_FG_MV")) == 0;
+    if (off || !framegen_on()) return false;
+    return opts.framegen_by == 1 || (opts.framegen == 1 && !fsr3fi::frames_wanted());
+}
+
+void framegen_take_motion(VkCommandBuffer cmd, VkImage motion, VkImage depth, uint32_t rw, uint32_t rh, bool has_motion,
+                          bool depth_reversed) {
+    if (!depth || !rw || !rh || !framegen_builtin_wants_motion()) return;
+    std::lock_guard lk(bmv.mu);
+    bmv_free_dead_locked();
+    if (!bmv.motion.image || !bmv.depth[0].image || !bmv.depth[1].image || bmv.rw != rw || bmv.rh != rh) {
+        const uint64_t fno = texture_frame_no(), rv = vk_retirement_value();
+        if (bmv.motion.image) bmv.dead.push_back({fno, rv, bmv.motion});
+        if (bmv.depth[0].image) bmv.dead.push_back({fno, rv, bmv.depth[0]});
+        if (bmv.depth[1].image) bmv.dead.push_back({fno, rv, bmv.depth[1]});
+        bmv.motion = {};
+        bmv.depth[0] = {};
+        bmv.depth[1] = {};
+        const VkImageUsageFlags usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        if (!make_img(bmv.motion, rw, rh, VK_FORMAT_R16G16_SFLOAT, usage) ||
+            !make_img(bmv.depth[0], rw, rh, VK_FORMAT_R32_SFLOAT, usage) ||
+            !make_img(bmv.depth[1], rw, rh, VK_FORMAT_R32_SFLOAT, usage)) {
+            drop_img(bmv.motion);
+            drop_img(bmv.depth[0]);
+            drop_img(bmv.depth[1]);
+            bmv.rw = bmv.rh = 0;
+            bmv.depth_cur = 0;
+            bmv.have_prev_depth = false;
+            return;
+        }
+        to_general(cmd, bmv.motion.image);
+        to_general(cmd, bmv.depth[0].image);
+        to_general(cmd, bmv.depth[1].image);
+        bmv.rw = rw, bmv.rh = rh;
+        bmv.depth_cur = 0;
+        bmv.have_prev_depth = false;
+    }
+    const VkImageCopy c{{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0},
+                        {rw, rh, 1}};
+    if (!has_motion || !motion) {
+        full_barrier(cmd);
+        vkCmdCopyImage(cmd, depth, VK_IMAGE_LAYOUT_GENERAL, bmv.depth[0].image, VK_IMAGE_LAYOUT_GENERAL, 1, &c);
+        full_barrier(cmd);
+        bmv.depth_cur = 0;
+        bmv.have_prev_depth = false;
+        bmv.depth_reversed = depth_reversed;
+        return;
+    }
+    const int next = bmv.depth_cur ^ 1;
+    full_barrier(cmd);
+    vkCmdCopyImage(cmd, depth, VK_IMAGE_LAYOUT_GENERAL, bmv.depth[next].image, VK_IMAGE_LAYOUT_GENERAL, 1, &c);
+    vkCmdCopyImage(cmd, motion, VK_IMAGE_LAYOUT_GENERAL, bmv.motion.image, VK_IMAGE_LAYOUT_GENERAL, 1, &c);
+    full_barrier(cmd);
+    bmv.depth_cur = next;
+    bmv.depth_reversed = depth_reversed;
+    bmv.have_prev_depth = true;
+    bmv.inputs++;
+    if (!bmv.told) {
+        bmv.told = true;
+        logf("vk: frame interpolation: using depth-aware camera + actor motion (%ux%u, reversed=%d) for Built-in FG "
+             "(RX_VK_BUILTIN_FG_MV=0: off)",
+             rw, rh, depth_reversed ? 1 : 0);
+    }
+}
+
 void framegen_idle(bool recorded) {
     using namespace framegen_idle_rule;
     static Counts counts;
@@ -1344,7 +1458,9 @@ struct HudState {
     bool layered = false;   // (this present's layer made: fsr3fi_frames lays the HUD over the made frames with it)
     uint64_t layers = 0;    // (presents with it: the 600-present line)
     Img source;          // (the interpolation source: the frame's crop, RGBA8, the HUD's alpha 0)
-    Img hudless;         // (the same crop of the picture before the HUD, RGBA8: FSR 3.1's HUD-less colour)
+    Img hudless[2];      // (ping-pong copies of the picture before the HUD, RGBA8: HUD-less colour)
+    int hudless_cur = 0;
+    bool hudless_ready_prev = false, hudless_pair = false;
     VkFormat format = VK_FORMAT_UNDEFINED;
     uint32_t pw = 0, ph = 0, sw = 0, sh = 0;
     VkImage picture = VK_NULL_HANDLE;   // (the picture copied: framegen_hud_before's, its image)
@@ -1403,6 +1519,20 @@ bool hudless_wanted(bool native_pq) {
     }();
     return on;
 }
+bool dlss_fg_hudless_wanted() {
+    static const bool on = [] {
+        const char* e = getenv("RX_VK_DLSS_FG_HUDLESS");
+        return !(e && *e && atoi(e) == 0);
+    }();
+    return on && opts.framegen >= 2 && dlss_fg_wanted();
+}
+bool builtin_fg_hudless_wanted() {
+    static const bool on = [] {
+        const char* e = getenv("RX_VK_BUILTIN_FG_HUDLESS");
+        return !(e && *e && atoi(e) == 0);
+    }();
+    return on && framegen_builtin_wants_motion();
+}
 
 /// The HUD layer of this present (hud.layer, shaders/fg_hud_layer.comp), from this frame's pictures and the frame before's:
 /// how see-through the HUD is where it is known. False: none (the HUD laid over the made frames whole, as presented)
@@ -1444,33 +1574,34 @@ bool hud_layer(VkCommandBuffer cmd, int x0, int y0, uint32_t w, uint32_t h) {
 bool hud_source(VkCommandBuffer cmd, int cur, uint32_t sw, uint32_t sh, int x0, int y0, uint32_t w, uint32_t h, bool pq) {
     std::lock_guard lk(hud.mu);
     hud_free_dead();
-    hud.ready = hud.layered = false;
+    const bool had_prev_hudless = hud.hudless_ready_prev;
+    hud.ready = hud.layered = hud.hudless_pair = false;
     const bool fresh = hud.fresh;
     hud.fresh = false;
     const int k = hud.k;
-    if (!fresh || hud.failed || !hud.picture || hud.pw != sw || hud.ph != sh || !fsr3fi::frames_wanted() ||
+    if (!fresh || hud.failed || !hud.picture || hud.pw != sw || hud.ph != sh || !framegen_hud_wanted() ||
         !texture_alive(hud.gpu, hud.tex, hud.picture))   // (the picture destroyed since, or moved: nothing to copy from)
-        return hud.prev = false;
+        return hud.hudless_ready_prev = false, hud.prev = false;
     if (!hud.init) {
         hud.init = true;
         const VkDescriptorType S = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, I = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
         if (!make_pipe(hud.mask, BUILTIN_SPV_ARGS(FG_HUD_COMP_SPV), {S, S, S, I, I}, 20)) {
             hud.failed = true;
             logf("vk: fsr3fi: the HUD mask's pipeline was not made: the HUD guessed");
-            return hud.prev = false;
+            return hud.hudless_ready_prev = false, hud.prev = false;
         }
     }
     if (hud.sw != w || hud.sh != h) {   // (the layer's fit is the crop's: started again)
-        hud_retire(hud.source), hud_retire(hud.hudless), hud_retire(hud.fit), hud_retire(hud.layer);
-        hud.sw = w, hud.sh = h, hud.prev = false;
+        hud_retire(hud.source), hud_retire(hud.hudless[0]), hud_retire(hud.hudless[1]), hud_retire(hud.fit), hud_retire(hud.layer);
+        hud.sw = w, hud.sh = h, hud.prev = hud.hudless_ready_prev = false;
     }
     const VkImageUsageFlags rw = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     if (!hud_image(cmd, hud.after[k], sw, sh, hud.format, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT) ||
         !hud_image(cmd, hud.source, w, h, VK_FORMAT_R8G8B8A8_UNORM, rw | VK_IMAGE_USAGE_TRANSFER_SRC_BIT) ||
-        !hud_image(cmd, hud.hudless, w, h, VK_FORMAT_R8G8B8A8_UNORM, rw | VK_IMAGE_USAGE_TRANSFER_SRC_BIT)) {
+        !hud_image(cmd, hud.hudless[k], w, h, VK_FORMAT_R8G8B8A8_UNORM, rw | VK_IMAGE_USAGE_TRANSFER_SRC_BIT)) {
         hud.failed = true;
         logf("vk: fsr3fi: the HUD mask's images (%ux%u) were not made: the HUD guessed", w, h);
-        return hud.prev = false;
+        return hud.hudless_ready_prev = false, hud.prev = false;
     }
     full_barrier(cmd);   // (the picture's last writes and reads, and the last readers of this source)
     const VkImageCopy c{{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0},
@@ -1484,7 +1615,7 @@ bool hud_source(VkCommandBuffer cmd, int cur, uint32_t sw, uint32_t sh, int x0, 
           {hud.before[k].view, fg.nearest},
           {hud.after[k].view, fg.nearest},
           {hud.source.view, VK_NULL_HANDLE},
-          {hud.hudless.view, VK_NULL_HANDLE}},
+          {hud.hudless[k].view, VK_NULL_HANDLE}},
          w, h, pc, sizeof pc);
     if (!hud.told) {
         hud.told = true;
@@ -1492,7 +1623,10 @@ bool hud_source(VkCommandBuffer cmd, int cur, uint32_t sw, uint32_t sh, int x0, 
              sw, sh, (int)hud.format);
     }
     hud.layered = hudless_wanted(pq) && hud_layer(cmd, x0, y0, w, h);
+    hud.hudless_cur = k;
+    hud.hudless_pair = had_prev_hudless && hud.hudless[k ^ 1].view != VK_NULL_HANDLE;
     // (a fit uses the preceding pair only if its layer ran; a Native HDR capture must not feed the next sRGB fit)
+    hud.hudless_ready_prev = hud.layered;
     hud.prev = hud.layered;
     hud.k ^= 1;
     hud.marked++;
@@ -1500,11 +1634,15 @@ bool hud_source(VkCommandBuffer cmd, int cur, uint32_t sw, uint32_t sh, int x0, 
 }
 } // namespace
 
+bool framegen_hud_wanted() {
+    return framegen_on() && (fsr3fi::frames_wanted() != 0 || dlss_fg_hudless_wanted() || builtin_fg_hudless_wanted());
+}
+
 void framegen_hud_before(VkCommandBuffer cmd, Texture* picture, uint32_t level) {
     if (!picture || level || !picture->image || picture->samples != VK_SAMPLE_COUNT_1_BIT || picture->levels != 1 ||
         picture->layers != 1 || picture->type != VK_IMAGE_TYPE_2D ||
         (picture->format != VK_FORMAT_B10G11R11_UFLOAT_PACK32 && picture->format != VK_FORMAT_R16G16B16A16_SFLOAT) ||
-        !framegen_on() || !fsr3fi::frames_wanted())
+        !framegen_hud_wanted())
         return;
     std::lock_guard lk(hud.mu);
     if (hud.failed) return;
@@ -1559,8 +1697,8 @@ int fsr3fi_frames(VkCommandBuffer cmd, OutSet& set, int cur, uint32_t uw, uint32
     // HUD goes over them below by how see-through it is)
     const bool layered = hud.ready && hudless && hud.layered;
     if (hud.ready && hudless) {   // (the picture before the HUD, interpolated; this frame, HUD and all, laid over it)
-        in.color = hud.hudless.view, in.color_image = hud.hudless.image;
-        in.present = layered ? hud.hudless.view : fg.frames[cur].view;
+        in.color = hud.hudless[hud.hudless_cur].view, in.color_image = hud.hudless[hud.hudless_cur].image;
+        in.present = layered ? hud.hudless[hud.hudless_cur].view : fg.frames[cur].view;
     } else if (hud.ready) {   // (the same frame, the HUD marked in its alpha: hud_source)
         in.color = hud.source.view, in.color_image = hud.source.image;
         in.hud_mask = true;
@@ -1646,6 +1784,27 @@ bool framegen_record(VkCommandBuffer cmd, VkImageView src, uint32_t sw, uint32_t
     set->made = 0;
     set->shown = -1;
     set->by_time = false;   // (a reused set: only a fixed multiplier's below sets it)
+    bool have_mv = false;
+    VkImageView mv_view = VK_NULL_HANDLE, da_view = VK_NULL_HANDLE, db_view = VK_NULL_HANDLE;
+    uint32_t mv_rw = 0, mv_rh = 0;
+    int32_t mv_depth_rev = 0;
+    {
+        std::lock_guard lk(bmv.mu);
+        if (bmv.inputs != bmv.used && bmv.have_prev_depth && bmv.motion.view && bmv.depth[0].view && bmv.depth[1].view &&
+            bmv.rw && bmv.rh && fg.synth_mv.pipe) {
+            have_mv = true;
+            mv_view = bmv.motion.view;
+            da_view = bmv.depth[bmv.depth_cur ^ 1].view;
+            db_view = bmv.depth[bmv.depth_cur].view;
+            mv_rw = bmv.rw, mv_rh = bmv.rh;
+            mv_depth_rev = bmv.depth_reversed ? 1 : 0;
+            bmv.used = bmv.inputs;
+        }
+    }
+    const bool builtin_layered =
+        have_mv && builtin_fg_hudless_wanted() && hud.ready && hudless_wanted(native_pq) && hud.layered && hud.hudless_pair;
+    const VkImageView b_fa = builtin_layered ? hud.hudless[hud.hudless_cur ^ 1].view : fg.frames[prev].view;
+    const VkImageView b_fb = builtin_layered ? hud.hudless[hud.hudless_cur].view : fg.frames[cur].view;
     if (auto_rate) {   // (Auto: a frame for each of the display's refreshes, at its own time)
         const int mhz = display_refresh_mhz();
         const int64_t period = (int64_t)(1e12 / (mhz > 0 ? mhz : 60000));
@@ -1682,13 +1841,34 @@ bool framegen_record(VkCommandBuffer cmd, VkImageView src, uint32_t sw, uint32_t
             if (fsr) continue;   // (made above, into this slot)
             if (!flow) {
                 flow = true;
-                pass(cmd, fg.flow, {{fg.lumas[prev].view, fg.nearest}, {fg.lumas[cur].view, fg.nearest},
-                                    {fg.flows[0].view, VK_NULL_HANDLE}}, cw, ch);
-                pass(cmd, fg.median, {{fg.flows[0].view, fg.nearest}, {fg.flows[1].view, VK_NULL_HANDLE}}, cw, ch);
+                if (!have_mv) {
+                    pass(cmd, fg.flow, {{fg.lumas[prev].view, fg.nearest}, {fg.lumas[cur].view, fg.nearest},
+                                        {fg.flows[0].view, VK_NULL_HANDLE}}, cw, ch);
+                    pass(cmd, fg.median, {{fg.flows[0].view, fg.nearest}, {fg.flows[1].view, VK_NULL_HANDLE}}, cw, ch);
+                }
             }
-            pass(cmd, fg.synth, {{fg.frames[prev].view, fg.linear}, {fg.frames[cur].view, fg.linear},
-                                 {fg.flows[1].view, fg.nearest}, {set->frame[k].view, VK_NULL_HANDLE}},
-                 uw, uh, &t[k], 4);
+            if (have_mv) {
+                const struct { float t, sx, sy; int32_t rev; } mpc{t[k], (float)uw / (float)mv_rw, (float)uh / (float)mv_rh,
+                                                                   mv_depth_rev};
+                pass(cmd, fg.synth_mv,
+                     {{b_fa, fg.linear},
+                      {b_fb, fg.linear},
+                      {mv_view, fg.nearest},
+                      {da_view, fg.nearest},
+                      {db_view, fg.nearest},
+                      {set->frame[k].view, VK_NULL_HANDLE}},
+                     uw, uh, &mpc, sizeof mpc);
+                if (builtin_layered) {
+                    const int32_t hpc[3] = {(int32_t)uw, (int32_t)uh, native_pq ? 1 : 0};
+                    pass(cmd, hud.over_pipe,
+                         {{set->frame[k].view, VK_NULL_HANDLE}, {fg.frames[cur].view, fg.nearest}, {hud.layer.view, fg.nearest}},
+                         uw, uh, hpc, sizeof hpc);
+                }
+            } else {
+                pass(cmd, fg.synth, {{fg.frames[prev].view, fg.linear}, {fg.frames[cur].view, fg.linear},
+                                     {fg.flows[1].view, fg.nearest}, {set->frame[k].view, VK_NULL_HANDLE}},
+                     uw, uh, &t[k], 4);
+            }
         }
         set->shown = n;
         set->made = n > 0 && !set->game[n - 1] ? n : std::max(0, n - 1);   // (for framegen_made_image: any made)
@@ -1707,7 +1887,24 @@ bool framegen_record(VkCommandBuffer cmd, VkImageView src, uint32_t sw, uint32_t
         VkImage outs[kMaxMult];
         VkImageView views[kMaxMult];
         for (int k = 0; k < m - 1; k++) outs[k] = set->frame[k].image, views[k] = set->frame[k].view;
-        set->made = dlss_fg_frames(cmd, fg.frames[cur].image, fg.frames[cur].view, uw, uh, m - 1, outs, views, blend, sequence);
+        const bool dlss_layered = dlss_fg_hudless_wanted() && hud.ready && hudless_wanted(native_pq) && hud.layered;
+        const VkImage dlss_color = dlss_layered ? hud.hudless[hud.hudless_cur].image : fg.frames[cur].image;
+        const VkImageView dlss_view = dlss_layered ? hud.hudless[hud.hudless_cur].view : fg.frames[cur].view;
+        set->made = dlss_fg_frames(cmd, dlss_color, dlss_view, uw, uh, m - 1, outs, views, blend, sequence);
+        if (set->made > 0 && dlss_layered) {
+            full_barrier(cmd);
+            const int32_t hpc[3] = {(int32_t)uw, (int32_t)uh, native_pq ? 1 : 0};
+            for (int k = 0; k < set->made; k++)
+                pass(cmd, hud.over_pipe,
+                     {{set->frame[k].view, VK_NULL_HANDLE}, {fg.frames[cur].view, fg.nearest}, {hud.layer.view, fg.nearest}},
+                     uw, uh, hpc, sizeof hpc);
+            static bool dlss_hud_told = false;
+            if (!dlss_hud_told) {
+                dlss_hud_told = true;
+                logf("vk: DLSS Frame Gen (NGX): HUD-less interpolation + learned HUD layer (%ux%u; RX_VK_DLSS_FG_HUDLESS=0: off)",
+                     uw, uh);
+            }
+        }
     }
     FgMaker maker = set->made ? FgMaker::Dlss : FgMaker::None;
     // (longshot) DLSS FG chosen, on a temporal Upscaler, and no picture from it for this set (the game's own menus, movies and
@@ -1726,14 +1923,44 @@ bool framegen_record(VkCommandBuffer cmd, VkImageView src, uint32_t sw, uint32_t
             set->made = fsr_n, maker = FgMaker::Fsr3;
     }
     if (!held && set->made == 0 && blend && m > 1) {
-        pass(cmd, fg.flow, {{fg.lumas[prev].view, fg.nearest}, {fg.lumas[cur].view, fg.nearest},
-                            {fg.flows[0].view, VK_NULL_HANDLE}}, cw, ch);
-        pass(cmd, fg.median, {{fg.flows[0].view, fg.nearest}, {fg.flows[1].view, VK_NULL_HANDLE}}, cw, ch);
-        for (int k = 1; k < m; k++) {
-            const float t = (float)k / (float)m;
-            pass(cmd, fg.synth, {{fg.frames[prev].view, fg.linear}, {fg.frames[cur].view, fg.linear},
-                                 {fg.flows[1].view, fg.nearest}, {set->frame[k - 1].view, VK_NULL_HANDLE}},
-                 uw, uh, &t, 4);
+        if (have_mv) {
+            const float sx = (float)uw / (float)mv_rw, sy = (float)uh / (float)mv_rh;
+            for (int k = 1; k < m; k++) {
+                const struct { float t, sx, sy; int32_t rev; } mpc{(float)k / (float)m, sx, sy, mv_depth_rev};
+                pass(cmd, fg.synth_mv,
+                     {{b_fa, fg.linear},
+                      {b_fb, fg.linear},
+                      {mv_view, fg.nearest},
+                      {da_view, fg.nearest},
+                      {db_view, fg.nearest},
+                      {set->frame[k - 1].view, VK_NULL_HANDLE}},
+                     uw, uh, &mpc, sizeof mpc);
+            }
+            if (builtin_layered) {
+                const int32_t hpc[3] = {(int32_t)uw, (int32_t)uh, native_pq ? 1 : 0};
+                for (int k = 1; k < m; k++)
+                    pass(cmd, hud.over_pipe,
+                         {{set->frame[k - 1].view, VK_NULL_HANDLE}, {fg.frames[cur].view, fg.nearest},
+                          {hud.layer.view, fg.nearest}},
+                         uw, uh, hpc, sizeof hpc);
+                static bool builtin_hud_told = false;
+                if (!builtin_hud_told) {
+                    builtin_hud_told = true;
+                    logf("vk: frame interpolation: Built-in FG using HUD-less scene + learned HUD layer "
+                         "(%ux%u; RX_VK_BUILTIN_FG_HUDLESS=0: off)",
+                         uw, uh);
+                }
+            }
+        } else {
+            pass(cmd, fg.flow, {{fg.lumas[prev].view, fg.nearest}, {fg.lumas[cur].view, fg.nearest},
+                                {fg.flows[0].view, VK_NULL_HANDLE}}, cw, ch);
+            pass(cmd, fg.median, {{fg.flows[0].view, fg.nearest}, {fg.flows[1].view, VK_NULL_HANDLE}}, cw, ch);
+            for (int k = 1; k < m; k++) {
+                const float t = (float)k / (float)m;
+                pass(cmd, fg.synth, {{fg.frames[prev].view, fg.linear}, {fg.frames[cur].view, fg.linear},
+                                     {fg.flows[1].view, fg.nearest}, {set->frame[k - 1].view, VK_NULL_HANDLE}},
+                     uw, uh, &t, 4);
+            }
         }
         set->made = m - 1;
         maker = FgMaker::BuiltIn;

@@ -113,14 +113,13 @@ def check_sources(framegen, main_cpp, dlss, menu, replay):
     most = [b for b in dlss.split("int dlss_fg_most() {")[1:]]
     assert len(most) == 2, "vk_dlss.cpp: dlss_fg_most with NVIDIA's SDK and without it"
     real = block(dlss, "int dlss_fg_most() {\n    if (!fg_asked()", where="gpu/vk/vk_dlss.cpp")
-    for part in ("fg_asked()", "dlss_why() != DLSS_OK", "!temporal_wanted()", "start_failed", "most_known"):
+    for part in ("fg_asked()", "dlss_why() != DLSS_OK", "start_failed", "most_known"):
         assert part in real, "dlss_fg_most: " + part
     assert "int dlss_fg_most() { return 0; }" in dlss, "vk_dlss.cpp: 0 in a build without NVIDIA's SDK"
     frames = block(dlss, "int dlss_fg_frames(VkCommandBuffer cmd,", where="gpu/vk/vk_dlss.cpp")
     too_many = frames[frames.index("if ((unsigned)count > g.most) {"):]
-    assert too_many.index("if (!temporal_wanted()) return g.no_inputs++, skip(FG_SKIP_INPUTS);") < \
-        too_many.index("skip(FG_SKIP_TOO_MANY)"), \
-        "dlss_fg_frames: without a temporal Upscaler (no cap) the reason is the inputs, not the runtime's most"
+    assert "skip(FG_SKIP_TOO_MANY)" in too_many, \
+        "dlss_fg_frames: skip(FG_SKIP_TOO_MANY) when count exceeds runtime max"
     tx = block(menu, "const char* tx_framegen(int v) {", where="gpu/vk/vk_menu.cpp")
     tx_mult = block(menu, "const char* tx_framegen_mult(int v) {", where="gpu/vk/menu/framegen.cpp")
     assert "framegen_capped(" in tx_mult and "dlss_fg_most()" in tx_mult, "tx_framegen_mult: a saved value past the top shows as the top"

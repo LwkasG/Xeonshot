@@ -41,6 +41,7 @@
 #include "dlss_nr_model.h"
 #include "vk_builtin_spv.h"
 #include "vk_dump.h"
+#include "shaders/dlss_fg_dilate_comp_spv.h"
 #include "shaders/dlss_nr_composite_comp_spv.h"
 #include "shaders/dlss_nr_inputs_comp_spv.h"
 #include "perf_report.h"
@@ -1694,8 +1695,13 @@ struct Fg {
     // (read without mu, each present: `most` once NGX has answered (fg_start), 0 before. A multiplier that asks for more is
     // the renderer's own to make (dlss_fg_frames), so the swapchain is not made for DLSS-G: dlss_fg_runs)
     std::atomic<unsigned> most_known{0};
-    // this frame's inputs (dlss_fg_inputs): the depth and motion copied, the camera NGX's way
+    // this frame's inputs (dlss_fg_inputs): the depth and motion copied (motion dilated from closest depth), the camera NGX's way
     FgImage depth, motion;
+    VkDescriptorSetLayout dilate_ds = VK_NULL_HANDLE;
+    VkPipelineLayout dilate_layout = VK_NULL_HANDLE;
+    VkPipeline dilate_pipe = VK_NULL_HANDLE;
+    bool dilate_tried = false;
+    bool motion_dilated = false;
     uint32_t rw = 0, rh = 0;
     float view_to_clip[16], clip_to_view[16], to_prev[16], from_prev[16];
     float pos[3], up[3], right[3], fwd[3];
@@ -1891,6 +1897,23 @@ void fg_barrier(VkCommandBuffer cmd) {
     vkCmdPipelineBarrier2(cmd, &di);
 }
 
+bool fg_ensure_dilate(Fg& g) {
+    if (g.dilate_tried) return g.dilate_pipe != VK_NULL_HANDLE;
+    g.dilate_tried = true;
+    if (!dev.push_descriptor || !vkCmdPushDescriptorSetKHR) {
+        logf("vk: DLSS Frame Gen (NGX): motion dilation disabled (no push descriptors)");
+        return false;
+    }
+    const VkDescriptorType types[3] = {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                                       VK_DESCRIPTOR_TYPE_STORAGE_IMAGE};
+    if (!make_pipeline(BUILTIN_SPV_ARGS(DLSS_FG_DILATE_COMP_SPV), types, 3, 16, g.dilate_ds, g.dilate_layout,
+                       g.dilate_pipe)) {
+        logf("vk: DLSS Frame Gen (NGX): motion dilation pipeline failed to create");
+        return false;
+    }
+    return true;
+}
+
 /// NGX's matrices are rows of a row-vector convention (position * M, as Streamline's float4x4): the game's, transposed
 void fg_put(float out[4][4], const float* m) {
     for (int r = 0; r < 4; r++)
@@ -1947,7 +1970,7 @@ bool dlss_fg_holds() {
     // which framegen_record makes no frames for anyway. FG_SKIP_INPUTS comes after NGX's yes and the runtime's most. Only
     // where the game draws no 3D scene (temporal_scene_now): an Upscaler that gives no inputs in play (failed, refused, not
     // this frame) leaves those sets to the built-in one, as before)
-    return fg_asked() && temporal_wanted() && !temporal_scene_now() &&
+    return fg_asked() && (temporal_wanted() || temporal_fg_inputs()) && !temporal_scene_now() &&
            fg_skip.load(std::memory_order_relaxed) == FG_SKIP_INPUTS;
 }
 
@@ -1975,7 +1998,7 @@ bool dlss_fg_runs(int frames) {
 // (temporal_wanted) the renderer's own or FSR 3.1 makes every set, at the row's multiplier, as when NGX said no or its
 // feature was given up)
 int dlss_fg_most() {
-    if (!fg_asked() || dlss_why() != DLSS_OK || !temporal_wanted()) return 0;
+    if (!fg_asked() || dlss_why() != DLSS_OK) return 0;
     const Fg& g = fgs();
     // (most_known is 0 until NGX's answer, at the start-up screen (dlss_fg_probe) or the first present with a fixed
     // multiplier)
@@ -2081,15 +2104,41 @@ void dlss_fg_inputs(VkCommandBuffer cmd, const TemporalFrame& f, const float pro
     const VkImageCopy c{{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0},
                         {rw, rh, 1}};
     vkCmdCopyImage(cmd, f.depth.image, VK_IMAGE_LAYOUT_GENERAL, g.depth.image, VK_IMAGE_LAYOUT_GENERAL, 1, &c);
-    vkCmdCopyImage(cmd, f.motion.image, VK_IMAGE_LAYOUT_GENERAL, g.motion.image, VK_IMAGE_LAYOUT_GENERAL, 1, &c);
+    static const bool dilate_on = env_switch("RX_VK_DLSS_FG_DILATE") != 0;
+    static const int dilate_radius =
+        std::clamp(env_switch("RX_VK_DLSS_FG_DILATE_RADIUS") > 0 ? env_switch("RX_VK_DLSS_FG_DILATE_RADIUS") : 1, 1, 2);
+    if (dilate_on && f.depth.view && f.motion.view && fg_ensure_dilate(g)) {
+        const VkDescriptorImageInfo info[3] = {{VK_NULL_HANDLE, f.depth.view, VK_IMAGE_LAYOUT_GENERAL},
+                                               {VK_NULL_HANDLE, f.motion.view, VK_IMAGE_LAYOUT_GENERAL},
+                                               {VK_NULL_HANDLE, g.motion.view, VK_IMAGE_LAYOUT_GENERAL}};
+        VkWriteDescriptorSet writes[3]{};
+        for (uint32_t i = 0; i < 3; i++) {
+            writes[i] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+            writes[i].dstBinding = i;
+            writes[i].descriptorCount = 1;
+            writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            writes[i].pImageInfo = &info[i];
+        }
+        const struct {
+            int32_t w, h, reversed, radius;
+        } pc{(int32_t)rw, (int32_t)rh, f.depth_reversed ? 1 : 0, dilate_radius};
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, g.dilate_pipe);
+        vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, g.dilate_layout, 0, 3, writes);
+        vkCmdPushConstants(cmd, g.dilate_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof pc, &pc);
+        vkCmdDispatch(cmd, (rw + 7) / 8, (rh + 7) / 8, 1);
+        g.motion_dilated = true;
+    } else {
+        vkCmdCopyImage(cmd, f.motion.image, VK_IMAGE_LAYOUT_GENERAL, g.motion.image, VK_IMAGE_LAYOUT_GENERAL, 1, &c);
+        g.motion_dilated = false;
+    }
     fg_barrier(cmd);
     g.rw = rw, g.rh = rh;
     g.inputs++;
     static bool told;
     if (!told) {
         told = true;
-        logf("vk: DLSS Frame Gen (NGX): inputs %ux%u (near %.3f far %.1f fov %.1f deg)", rw, rh, g.near_z, g.far_z,
-             g.fov * 57.29578f);
+        logf("vk: DLSS Frame Gen (NGX): inputs %ux%u (near %.3f far %.1f fov %.1f deg, dilated=%d r=%d)", rw, rh,
+             g.near_z, g.far_z, g.fov * 57.29578f, g.motion_dilated ? 1 : 0, dilate_radius);
     }
 }
 
@@ -2121,9 +2170,6 @@ int dlss_fg_frames(VkCommandBuffer cmd, VkImage color, VkImageView color_view, u
     }
     if (!blend) return g.not_blended++, 0;
     if ((unsigned)count > g.most) {
-        // (no temporal Upscaler: nothing to make them from, which is the reason here (the multiplier is the row's then,
-        // dlss_fg_most), not the runtime's most)
-        if (!temporal_wanted()) return g.no_inputs++, skip(FG_SKIP_INPUTS);
         static bool told = false;   // (once a run: the 600-present lines count them)
         if (!told) {
             told = true;
@@ -2150,6 +2196,10 @@ int dlss_fg_frames(VkCommandBuffer cmd, VkImage color, VkImageView color_view, u
         NVSDK_NGX_Parameter_SetUI(g.params, NVSDK_NGX_DLSSG_Parameter_InternalWidth, g.rw);
         NVSDK_NGX_Parameter_SetUI(g.params, NVSDK_NGX_DLSSG_Parameter_InternalHeight, g.rh);
         NVSDK_NGX_Parameter_SetUI(g.params, NVSDK_NGX_DLSSG_Parameter_DynamicResolution, 0u);
+        static const bool lite_blend = env_switch("RX_VK_DLSS_FG_LITE") != 0;
+#ifdef NVSDK_NGX_DLSSG_Parameter_LiteCandidateBlendingEnabled
+        NVSDK_NGX_Parameter_SetUI(g.params, NVSDK_NGX_DLSSG_Parameter_LiteCandidateBlendingEnabled, lite_blend ? 1u : 0u);
+#endif
         ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (NGX records into cmd itself)
         const NVSDK_NGX_Result r = NGX_VK_CREATE_DLSSG(cmd, 1, 1, &g.feature, g.params, &cp);
         note_other_work();
@@ -2165,8 +2215,8 @@ int dlss_fg_frames(VkCommandBuffer cmd, VkImage color, VkImageView color_view, u
         g.fw = w, g.fh = h;
         g.held = true;
         g.last_sequence = 0;
-        logf("vk: DLSS Frame Gen (NGX): feature made for %ux%u from %ux%u inputs, %d made frame(s) a set", w, h, g.rw, g.rh,
-             count);
+        logf("vk: DLSS Frame Gen (NGX): feature made for %ux%u from %ux%u inputs, %d made frame(s) a set (lite=%d)", w, h,
+             g.rw, g.rh, count, lite_blend ? 1 : 0);
     }
     const VkImageSubresourceRange one{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
     NVSDK_NGX_Resource_VK back = NVSDK_NGX_Create_ImageView_Resource_VK(color_view, color, one, VK_FORMAT_R8G8B8A8_UNORM, w, h, false);
@@ -2208,7 +2258,34 @@ int dlss_fg_frames(VkCommandBuffer cmd, VkImage color, VkImageView color_view, u
     // (no value stands for "no motion here": RX_VK_DLSS_FG_INVALID=0 makes zero motion that, as Streamline has it)
     static const bool zero_invalid = env_switch("RX_VK_DLSS_FG_INVALID") == 0;
     o.motionVectorsInvalidValue = zero_invalid ? 0.0f : FLT_MAX;
-    o.motionVectorsDilated = false;
+    o.motionVectorsDilated = g.motion_dilated;
+    static const float depth_sep = [] {
+        const char* e = getenv("RX_VK_DLSS_FG_DEPTH_SEP");
+        const float v = e && *e ? (float)atof(e) : 40.0f;
+        return v > 0.0f ? v : 40.0f;
+    }();
+    static const float depth_scale = [] {
+        const char* e = getenv("RX_VK_DLSS_FG_DEPTH_SCALE");
+        return e && *e ? (float)atof(e) : 0.0f;
+    }();
+    static const float near_far = [] {
+        const char* e = getenv("RX_VK_DLSS_FG_NEAR_FAR");
+        return e && *e ? (float)atof(e) : 0.0f;
+    }();
+    o.minRelativeLinearDepthObjectSeparation = depth_sep;
+#ifdef NVSDK_NGX_DLSSG_Parameter_LinearizedDepth_Scale
+    if (depth_scale > 0.0f) NVSDK_NGX_Parameter_SetF(g.params, NVSDK_NGX_DLSSG_Parameter_LinearizedDepth_Scale, depth_scale);
+#endif
+#ifdef NVSDK_NGX_DLSSG_Parameter_LinearizedDepth_NearFarPartition
+    if (near_far > 0.0f) NVSDK_NGX_Parameter_SetF(g.params, NVSDK_NGX_DLSSG_Parameter_LinearizedDepth_NearFarPartition, near_far);
+#endif
+    static bool eval_told = false;
+    if (!eval_told) {
+        eval_told = true;
+        logf("vk: DLSS Frame Gen (NGX): depth separation %.1f (RX_VK_DLSS_FG_DEPTH_SEP), depth_scale=%.3f "
+             "(RX_VK_DLSS_FG_DEPTH_SCALE), near_far=%.1f (RX_VK_DLSS_FG_NEAR_FAR), lite=%d (RX_VK_DLSS_FG_LITE=0: off)",
+             depth_sep, depth_scale, near_far, env_switch("RX_VK_DLSS_FG_LITE") != 0 ? 1 : 0);
+    }
     o.menuDetectionEnabled = false;
     o.multiFrameCount = (unsigned)count;
     NVSDK_NGX_VK_DLSSG_Eval_Params ep{};
@@ -2281,7 +2358,7 @@ void dlss_fg_close() {
     std::lock_guard lk(g.mu);
     if (g.closed) return;
     g.closed = true;
-    if (!g.feature && !g.params) return;
+    if (!g.feature && !g.params && !g.dilate_pipe && !g.dilate_layout && !g.dilate_ds) return;
     // (the swapchain's lock for the queue's idle, waited for a while: a present stuck at the exit leaves NGX to the process's
     // end rather than hanging the exit, as Streamline's shutdown does)
     const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(2);
@@ -2309,6 +2386,9 @@ void dlss_fg_close() {
     device_wait_idle_locked();
     if (g.feature) NVSDK_NGX_VULKAN_ReleaseFeature(g.feature), g.feature = nullptr;
     if (g.params) NVSDK_NGX_VULKAN_DestroyParameters(g.params), g.params = nullptr;
+    if (g.dilate_pipe) vkDestroyPipeline(dev.device, g.dilate_pipe, nullptr), g.dilate_pipe = VK_NULL_HANDLE;
+    if (g.dilate_layout) vkDestroyPipelineLayout(dev.device, g.dilate_layout, nullptr), g.dilate_layout = VK_NULL_HANDLE;
+    if (g.dilate_ds) vkDestroyDescriptorSetLayout(dev.device, g.dilate_ds, nullptr), g.dilate_ds = VK_NULL_HANDLE;
     logf("vk: DLSS Frame Gen (NGX): let go for the exit");
 }
 

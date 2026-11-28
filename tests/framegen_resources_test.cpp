@@ -25,7 +25,8 @@ struct Device { VkDevice device{}; bool push_descriptor = true, offscreen = fals
 struct Options { int framegen = 2; } opts;
 auto vkCmdPushDescriptorSetKHR = reinterpret_cast<PFN_vkCmdPushDescriptorSetKHR>(uintptr_t(1));
 constexpr uint32_t FG_COPY_COMP_SPV[] = {0}, FG_LUMA_COMP_SPV[] = {0}, FG_FLOW_COMP_SPV[] = {0},
-                   FG_MEDIAN_COMP_SPV[] = {0}, FG_SYNTH_COMP_SPV[] = {0}, FG_SCALE_COMP_SPV[] = {0};
+                   FG_MEDIAN_COMP_SPV[] = {0}, FG_SYNTH_COMP_SPV[] = {0}, FG_SYNTH_MV_COMP_SPV[] = {0},
+                   FG_SCALE_COMP_SPV[] = {0};
 constexpr uint32_t CRT_DOWNSAMPLE_COMP_SPV[] = {0}, CRT_LOTTES_COMP_SPV[] = {0},
                    CRT_HYLLIAN_COMP_SPV[] = {0}, CRT_ZFAST_COMP_SPV[] = {0};
 // (gpu/vk/vk_builtin_spv.h's lookup as with RX_VK_SHADER_DIR unset: the compiled-in words themselves)
@@ -96,13 +97,14 @@ VkResult vkCreateImageView(VkDevice, const VkImageViewCreateInfo* info, const Vk
 void vkDestroyImageView(VkDevice, VkImageView h, const VkAllocationCallbacks*) { release(h, 'V'); }
 void device_wait_idle_locked() { idle = true; ++waits; }
 void to_general(VkCommandBuffer, VkImage image) { CHECK(image && live.count(image)); ++barriers; }
+void bmv_release_all() {}
 /* ACTUAL_FUNCTIONS */
 
 void clear_model() {
     CHECK(!gate_held);
     CHECK(live.empty()); fg.init = fg.failed = false; fg.w = fg.h = 0; fg.mult = 0;
     fg.have_prev = false; fg.recorded = nullptr; fg.nearest = fg.linear = 0;
-    fg.copy = fg.luma = fg.flow = fg.median = fg.synth = {};
+    fg.copy = fg.luma = fg.flow = fg.median = fg.synth = fg.synth_mv = {};
     fg.cur = fg.next_set = 0; fg.jobs.clear();
     for (int i = 0; i < 2; ++i) fg.frames[i] = fg.lumas[i] = fg.flows[i] = {};
     for (auto& set : fg.sets) { set.busy = false; for (auto& image : set.frame) image = {}; }
@@ -117,24 +119,24 @@ void inspect_disabled() {
 int run(const std::string& phase) {
     clear_model();
     if (phase == "samplers") {
-        fail_at = 21; CHECK(!init()); inspect_disabled(); return 0;
+        fail_at = 25; CHECK(!init()); inspect_disabled(); return 0;
     }
     if (phase == "all") {
-        for (int failure = 1; failure <= 22; ++failure) {
+        for (int failure = 1; failure <= 26; ++failure) {
             clear_model(); fail_at = failure; CHECK(!init()); inspect_disabled();
         }
         clear_model(); dev.push_descriptor = false; CHECK(!init() && live.empty()); dev.push_descriptor = true;
     }
     // Every image or view failure at fixed2x and max8x, after successful pipeline setup.
     for (int mult : {2, 8}) for (int failed = 1; failed <= 2 * (6 + 3 * mult); ++failed) {
-        clear_model(); opts.framegen = mult; CHECK(init() && live.size() == 17);
+        clear_model(); opts.framegen = mult; CHECK(init() && live.size() == 20);
         fail_at = attempts + failed; CHECK(!ensure_size({}, 3440, 1440));
         CHECK(barriers == 0 && !fg.w && !fg.h && !fg.mult && !fg.have_prev && !fg.recorded);
         inspect_disabled();
     }
     // Resize must drain old work before releasing it, then roll back a partially allocated replacement.
     clear_model(); opts.framegen = 2; CHECK(init()); CHECK(ensure_size({}, 1720, 720));
-    CHECK(live.size() == 53 && barriers == 12 && framegen_on());
+    CHECK(live.size() == 56 && barriers == 12 && framegen_on());
     const int count = attempts; CHECK(ensure_size({}, 1720, 720) && attempts == count);
     submitted = true; idle = false; fail_at = attempts + 8;
     CHECK(!ensure_size({}, 3440, 1440)); CHECK(waits == 2 && idle);

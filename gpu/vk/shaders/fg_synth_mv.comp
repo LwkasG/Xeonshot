@@ -1,0 +1,153 @@
+#version 450
+// (xeonshot) Depth-aware built-in frame interpolation using the temporal chain's exact camera + actor motion vectors
+// (RG16F, backward motion in render pixels from B to A) and previous/current depth (R32F) with foreground silhouette
+// refinement so fast camera pans stay smooth while disocclusion zones behind foreground actors pick only the background.
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(binding = 0) uniform sampler2D fa;
+layout(binding = 1) uniform sampler2D fb;
+layout(binding = 2) uniform sampler2D mvec;
+layout(binding = 3) uniform sampler2D da;
+layout(binding = 4) uniform sampler2D db;
+layout(binding = 5, rgba8) uniform writeonly image2D dst;
+layout(push_constant) uniform P {
+    float t;
+    float scale_x;
+    float scale_y;
+    int depth_reversed;
+} pc;
+
+float gap(vec3 x, vec3 y) { const vec3 d = abs(x - y); return max(d.r, max(d.g, d.b)); }
+bool in_bounds(vec2 uv) { return all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0))); }
+float lin_z(float d) {
+    const float denom = pc.depth_reversed != 0 ? max(d, 1e-5) : max(1.0 - d, 1e-5);
+    return 1.0 / denom;
+}
+
+void main() {
+    const ivec2 g = ivec2(gl_GlobalInvocationID.xy);
+    const ivec2 d = imageSize(dst);
+    if (any(greaterThanEqual(g, d))) return;
+    const float t = pc.t;
+    const vec3 a0 = texelFetch(fa, g, 0).rgb, b0 = texelFetch(fb, g, 0).rgb;
+    const vec3 still = mix(a0, b0, t);
+    const float g0 = gap(a0, b0);
+    const float moved = smoothstep(0.03, 0.09, g0);
+    if (moved <= 0.0) { imageStore(dst, g, vec4(still, 1.0)); return; }
+
+    const vec2 size = vec2(d);
+    const vec2 p = vec2(g) + 0.5;
+    const vec2 uv = p / size;
+    const vec2 scale = vec2(pc.scale_x, pc.scale_y);
+
+    // Candidate 1: motion sampled at output coordinate uv
+    const vec2 v1 = -textureLod(mvec, uv, 0.0).xy * scale;
+    const vec2 uva1 = (p - t * v1) / size;
+    const vec2 uvb1 = (p + (1.0 - t) * v1) / size;
+    const vec3 a1 = textureLod(fa, uva1, 0.0).rgb;
+    const vec3 b1 = textureLod(fb, uvb1, 0.0).rgb;
+    const float za1 = lin_z(textureLod(da, uva1, 0.0).r);
+    const float zb1 = lin_z(textureLod(db, uvb1, 0.0).r);
+    const float rel_z1 = abs(za1 - zb1) / max(min(za1, zb1), 1.0);
+    const float cgap1 = gap(a1, b1);
+    const bool in_a1 = in_bounds(uva1), in_b1 = in_bounds(uvb1);
+    const bool match1 = in_a1 && in_b1 && rel_z1 < 0.15;
+
+    // Candidate 2: motion sampled at projected target position in fb (mvec lives in frame B coordinates)
+    const vec2 base_uv = clamp(uvb1, vec2(0.0), vec2(1.0));
+    const vec2 v2 = -textureLod(mvec, base_uv, 0.0).xy * scale;
+    const vec2 uva2 = (p - t * v2) / size;
+    const vec2 uvb2 = (p + (1.0 - t) * v2) / size;
+    const vec3 a2 = textureLod(fa, uva2, 0.0).rgb;
+    const vec3 b2 = textureLod(fb, uvb2, 0.0).rgb;
+    const float za2 = lin_z(textureLod(da, uva2, 0.0).r);
+    const float zb2 = lin_z(textureLod(db, uvb2, 0.0).r);
+    const float rel_z2 = abs(za2 - zb2) / max(min(za2, zb2), 1.0);
+    const float cgap2 = gap(a2, b2);
+    const bool in_a2 = in_bounds(uva2), in_b2 = in_bounds(uvb2);
+    const bool match2 = in_a2 && in_b2 && rel_z2 < 0.15;
+
+    bool pick2 = false;
+    if (match1 && match2) {
+        if (min(za2, zb2) < min(za1, zb1) * 0.85 && cgap2 < 0.25) {
+            pick2 = true;
+        } else if (min(za1, zb1) < min(za2, zb2) * 0.85 && cgap1 < 0.25) {
+            pick2 = false;
+        } else {
+            pick2 = (cgap2 + 0.5 * rel_z2) < (cgap1 + 0.5 * rel_z1);
+        }
+    } else if (match2 != match1) {
+        pick2 = match2;
+    } else {
+        if (in_a2 != in_b2 && in_a1 == in_b1) pick2 = true;
+        else if (in_a2 == in_b2 && cgap2 < cgap1) pick2 = true;
+    }
+
+    vec3 a = pick2 ? a2 : a1;
+    vec3 b = pick2 ? b2 : b1;
+    float za = pick2 ? za2 : za1;
+    float zb = pick2 ? zb2 : zb1;
+    float rel_z = pick2 ? rel_z2 : rel_z1;
+    float cgap = pick2 ? cgap2 : cgap1;
+    bool in_a = pick2 ? in_a2 : in_a1;
+    bool in_b = pick2 ? in_b2 : in_b1;
+    const bool matched = match1 || match2;
+
+    // Candidate 3: foreground silhouette refinement (nearest depth in 5-tap cross around base_uv in db)
+    const vec2 dstep = vec2(2.0) / vec2(textureSize(db, 0));
+    const float center_z = lin_z(textureLod(db, base_uv, 0.0).r);
+    float best_z = center_z;
+    vec2 best_uv = base_uv;
+    const vec2 offsets[4] = vec2[4](
+        vec2(dstep.x, 0.0), vec2(-dstep.x, 0.0), vec2(0.0, dstep.y), vec2(0.0, -dstep.y)
+    );
+    for (int i = 0; i < 4; i++) {
+        const vec2 nuv = clamp(base_uv + offsets[i], vec2(0.0), vec2(1.0));
+        const float nz = lin_z(textureLod(db, nuv, 0.0).r);
+        if (nz < best_z) {
+            best_z = nz;
+            best_uv = nuv;
+        }
+    }
+    if (best_z < center_z * 0.85) {
+        const vec2 v3 = -textureLod(mvec, best_uv, 0.0).xy * scale;
+        const vec2 uva3 = (p - t * v3) / size;
+        const vec2 uvb3 = (p + (1.0 - t) * v3) / size;
+        if (in_bounds(uva3) && in_bounds(uvb3)) {
+            const float za3 = lin_z(textureLod(da, uva3, 0.0).r);
+            const float zb3 = lin_z(textureLod(db, uvb3, 0.0).r);
+            const float rel_z3 = abs(za3 - zb3) / max(min(za3, zb3), 1.0);
+            if (rel_z3 < 0.15) {
+                const vec3 a3 = textureLod(fa, uva3, 0.0).rgb;
+                const vec3 b3 = textureLod(fb, uvb3, 0.0).rgb;
+                const float cgap3 = gap(a3, b3);
+                if (cgap3 < 0.25 && (!matched || min(za3, zb3) < min(za, zb) * 0.85)) {
+                    a = a3;
+                    b = b3;
+                    za = za3;
+                    zb = zb3;
+                    rel_z = rel_z3;
+                    cgap = cgap3;
+                    in_a = true;
+                    in_b = true;
+                }
+            }
+        }
+    }
+
+    if (in_a != in_b) {
+        imageStore(dst, g, vec4(mix(still, in_a ? a : b, moved), 1.0));
+        return;
+    }
+    const vec3 near = t <= 0.5 ? a0 : b0;
+    if (!in_a && !in_b) {
+        imageStore(dst, g, vec4(mix(still, near, moved), 1.0));
+        return;
+    }
+
+    const float same_surface = 1.0 - smoothstep(0.08, 0.22, rel_z);
+    const float c_agree = 1.0 - smoothstep(0.18, 0.45, cgap);
+    const vec3 surface_color = mix(near, mix(a, b, t), c_agree);
+    const vec3 disocc_color = (za > zb) ? a : b;
+    const vec3 resolved = mix(disocc_color, surface_color, same_surface);
+    imageStore(dst, g, vec4(mix(still, resolved, moved), 1.0));
+}

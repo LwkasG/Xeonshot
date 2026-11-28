@@ -1,0 +1,33 @@
+#version 450
+// (xeonshot) Closest-depth foreground motion vector dilation for NVIDIA DLSS Frame Generation (vk_dlss.cpp).
+// Selects the motion vector of the nearest pixel in a (2*radius+1)^2 neighborhood so foreground actors (e.g. Link)
+// dilate their motion onto silhouette edges instead of leaking background camera-only motion into DLSS-G.
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(binding = 0, r32f) uniform readonly image2D in_depth;
+layout(binding = 1, rg16f) uniform readonly image2D in_motion;
+layout(binding = 2, rg16f) uniform writeonly image2D out_motion;
+layout(push_constant) uniform P {
+    ivec2 size;
+    int reversed;   // 1 if depth is reversed (1=near, 0=far), 0 if standard (0=near, 1=far)
+    int radius;     // 1 => 3x3 (default), 2 => 5x5
+} pc;
+void main() {
+    const ivec2 g = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(g, pc.size))) return;
+    ivec2 best_pos = g;
+    float best_d = imageLoad(in_depth, g).r;
+    const int r = clamp(pc.radius, 1, 2);
+    for (int dy = -r; dy <= r; dy++) {
+        for (int dx = -r; dx <= r; dx++) {
+            if (dx == 0 && dy == 0) continue;
+            const ivec2 p = clamp(g + ivec2(dx, dy), ivec2(0), pc.size - ivec2(1));
+            const float d = imageLoad(in_depth, p).r;
+            if (pc.reversed != 0 ? (d > best_d) : (d < best_d)) {
+                best_d = d;
+                best_pos = p;
+            }
+        }
+    }
+    const vec2 mv = imageLoad(in_motion, best_pos).xy;
+    imageStore(out_motion, g, vec4(mv, 0.0, 0.0));
+}

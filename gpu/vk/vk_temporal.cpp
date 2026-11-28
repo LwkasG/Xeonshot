@@ -75,6 +75,7 @@
 #include "upscaler_rows.h"
 #include "vk_dlss.h"
 #include "vk_draw.h"
+#include "vk_framegen.h"
 #include "fsr3_math.h"   // (longshot: FSR 3.1's depth constants from the projection)
 #include "vk_fsr3.h"   // (fsr3_wanted: AMD FSR 3.1 upscales with inputs of its own; fsr3_engine: on this chain)
 #include "vk_fsr3_inputs.h"   // (longshot: take_motion, this chain's motion for FSR 3.1's frame interpolation)
@@ -1436,6 +1437,7 @@ void fg_inputs(VkCommandBuffer cmd, bool known, Texture* in, VkImageView in_view
     if (cam.depth->width != rw || cam.depth->height != rh || !(cam.depth->usage & VK_IMAGE_USAGE_SAMPLED_BIT) ||
         cam.depth->samples != VK_SAMPLE_COUNT_1_BIT || !(cam.depth->aspect & VK_IMAGE_ASPECT_DEPTH_BIT))
         return;
+    s.asked_frame.store(now, std::memory_order_relaxed);   // (for temporal_scene_now: 3D scene active for FG)
     if (!make_pipelines()) return;
     const VkImageView dview = depth_view(cam.depth);
     if (!dview) return;
@@ -1492,11 +1494,29 @@ void fg_inputs(VkCommandBuffer cmd, bool known, Texture* in, VkImageView in_view
     full_barrier(cmd);
     const int actors = actor_motion(cmd, cam, previous, rw, rh, dview, motion, fg_last);
     if (actors) full_barrier(cmd);
-    const bool taken = motion && fsr3_inputs::take_motion(cmd, s.motion.image, rw, rh);
+    const bool taken = motion && fsr3fi::frames_wanted() && fsr3_inputs::take_motion(cmd, s.motion.image, rw, rh);
     if (!s.fg_told && taken) {
         s.fg_told = true;
         logf("vk: frame generation: the chain's motion (the skinned draws' own in it: %d this frame) for AMD FSR 3.1, "
              "%ux%u, with no engine drawing", actors, rw, rh);
+    }
+    if (framegen_builtin_wants_motion()) framegen_take_motion(cmd, s.motion.image, s.depth.image, rw, rh, motion, false);
+    if (dlss_fg_wanted() && opts.framegen >= 2) {
+        TemporalFrame dlss_fg_frame;
+        dlss_fg_frame.color = s.color.shown(), dlss_fg_frame.depth = s.depth.shown(), dlss_fg_frame.motion = s.motion.shown();
+        dlss_fg_frame.render_w = rw, dlss_fg_frame.render_h = rh;
+        dlss_math::jitter_to_pixels(cam.jitter, rw, rh, dlss_fg_frame.jitter);
+        dlss_fg_frame.reset = !history;
+        if (cam.near_z > 0.0f) dlss_fg_frame.near_z = cam.near_z, dlss_fg_frame.far_z = cam.far_z, dlss_fg_frame.fov_y = cam.fov_y;
+        std::memcpy(dlss_fg_frame.projection, cam.projection, sizeof dlss_fg_frame.projection);
+        dlss_fg_frame.depth_reversed = false;
+        dlss_fg_inputs(cmd, dlss_fg_frame, cam.projection, cam.current, cam.jitter, motion);
+        static bool dlss_fg_told = false;
+        if (!dlss_fg_told) {
+            dlss_fg_told = true;
+            logf("vk: frame generation: the chain's depth and motion (skinned draws: %d this frame) for NVIDIA DLSS FG, "
+                 "%ux%u, with the game's upscaler", actors, rw, rh);
+        }
     }
 }
 /// (longshot) DLAA before the bloom did not run this frame, so it runs at the network, after the bloom and the tone map: why,
@@ -1789,6 +1809,7 @@ bool draw_engine(VkCommandBuffer cmd, State& s, int mode, const Camera& cam, uin
     // (longshot) and AMD FSR 3.1's frame interpolation: this motion, the skinned draws' own in it, over the camera's alone that
     // its own inputs made at this dispatch (vk_fsr3_inputs.h take_motion). Nothing unless it is asked for
     if (motion && fsr3fi::frames_wanted()) (void)fsr3_inputs::take_motion(cmd, f.motion.image, rw, rh);
+    if (framegen_builtin_wants_motion()) framegen_take_motion(cmd, f.motion.image, f.depth.image, rw, rh, motion, f.depth_reversed);
     s.last_frame = now;
     s.drawn_mode = draw_mode;
     s.last_jitter[0] = cam.jitter[0], s.last_jitter[1] = cam.jitter[1];
@@ -1822,7 +1843,11 @@ bool draw_engine(VkCommandBuffer cmd, State& s, int mode, const Camera& cam, uin
 }
 }  // namespace
 
-bool temporal_fg_inputs() { return temporal_mode() == ur::GAME && fsr3fi::frames_wanted() != 0; }
+bool temporal_fg_inputs() {
+    return temporal_mode() == ur::GAME &&
+           (fsr3fi::frames_wanted() != 0 || (dlss_fg_wanted() && opts.framegen >= 2) ||
+            framegen_builtin_wants_motion());
+}
 
 bool temporal_upscale(VkCommandBuffer cmd, uint64_t key, bool known, Texture* in, VkImageView in_view, Texture* out,
                       VkImageView out_view, uint32_t out_level) {

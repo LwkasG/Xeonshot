@@ -6,6 +6,10 @@
 namespace mkwvk {
 
 bool framegen_on();
+/// (xeonshot) Whether the built-in frame interpolation wants the temporal chain's motion vectors (RX_VK_BUILTIN_FG_MV!=0).
+bool framegen_builtin_wants_motion();
+/// (xeonshot) Copies the temporal chain's camera + actor motion vectors (rw x rh, RG16F) and depth (R32F) for built-in frame interpolation.
+void framegen_take_motion(VkCommandBuffer cmd, VkImage motion, VkImage depth, uint32_t rw, uint32_t rh, bool has_motion, bool depth_reversed);
 /// (RX_VK_FG_LATENCY_LOG) Before the swapchain is destroyed (retire_swapchain): the log's waits for its presents end first
 void fg_latency_swapchain_gone();
 /// (longshot) Frame generation's setting as it runs: the Insert menu's (opts.framegen: 0 Off, 1 Auto, 2 to 8 a fixed
@@ -39,6 +43,7 @@ VkImage framegen_made_image(uint32_t* w, uint32_t* h, int* index = nullptr);
 /// game draws its HUD into it: copied while AMD FSR 3.1's frame interpolation is asked for, so that framegen_record can mark
 /// the HUD for it (what the game drew over the picture since). Anything else (null, another format or shape) is left alone
 struct Texture;
+bool framegen_hud_wanted();
 void framegen_hud_before(VkCommandBuffer cmd, Texture* picture, uint32_t level);
 /// After that recording's submit (value): the display thread shows its frames
 void framegen_queue(uint64_t value);
